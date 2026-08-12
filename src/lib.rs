@@ -21,6 +21,8 @@ pub mod methods;
 pub mod precise;
 pub mod realtime;
 pub mod serde_helpers;
+#[cfg(feature = "sync")]
+pub mod sync;
 pub mod throttle;
 pub mod transport;
 pub mod types;
@@ -29,6 +31,8 @@ pub use decimal::{PaddingMode, PrecisionMode, RoundingMode, decimal_to_precision
 pub use error::{Error, ErrorContext, ErrorKind, Result};
 pub use exchange::{Config, Exchange, Params, Realtime};
 pub use precise::Precise;
+#[cfg(feature = "sync")]
+pub use sync::{BlockingExchange, SyncRuntime};
 pub use throttle::{ThrottleMode, Throttler};
 pub use transport::Transport;
 pub use types::{
