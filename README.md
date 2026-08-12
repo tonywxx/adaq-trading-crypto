@@ -6,7 +6,7 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org)
 
 A unified trading interface for **crypto and prediction markets**, written in Rust for the
-[AdaQ](https://github.com/tonywxx/adaq-trading-crypto) quantitative-trading platform.
+[AdaQ](https://github.com/tonywxx/adaq) quantitative-trading platform.
 
 The API surface and the unified data structures are aligned with
 [ccxt](https://github.com/ccxt/ccxt): the same `snake_case` method names

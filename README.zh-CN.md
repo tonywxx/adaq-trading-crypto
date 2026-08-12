@@ -6,7 +6,7 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://blog.rust-lang.org)
 
 面向 **加密货币与预测市场** 的统一交易接口，使用 Rust 编写，服务于
-[AdaQ](https://github.com/tonywxx/adaq-trading-crypto) 量化交易平台。
+[AdaQ](https://github.com/tonywxx/adaq) 量化交易平台。
 
 本库的 API 面与统一数据结构与
 [ccxt](https://github.com/ccxt/ccxt) 对齐：相同的 `snake_case` 方法名
