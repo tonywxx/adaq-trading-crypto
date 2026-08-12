@@ -36,6 +36,12 @@ pub mod bybit;
 #[cfg(feature = "bybit")]
 pub use bybit::{Bybit, ID as BYBIT_ID};
 
+#[cfg(feature = "bitget")]
+pub mod bitget;
+
+#[cfg(feature = "bitget")]
+pub use bitget::{Bitget, ID as BITGET_ID};
+
 #[cfg(feature = "kraken")]
 pub mod kraken;
 

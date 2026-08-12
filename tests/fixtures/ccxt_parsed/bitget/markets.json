@@ -1,0 +1,115 @@
+{
+  "method": "fetch_markets",
+  "parsed": [
+    {
+      "id": "GOATUSDT",
+      "symbol": "GOAT/USDT",
+      "base": "GOAT",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-05
+      }
+    },
+    {
+      "id": "RPBRUSDT",
+      "symbol": "RPBR/USDT",
+      "base": "RPBR",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 0.01
+      }
+    },
+    {
+      "id": "RSYKUSDT",
+      "symbol": "RSYK/USDT",
+      "base": "RSYK",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 0.01
+      }
+    },
+    {
+      "id": "GRAMEUR",
+      "symbol": "GRAM/EUR",
+      "base": "GRAM",
+      "quote": "EUR",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 0.001
+      }
+    },
+    {
+      "id": "RNKEUSDT",
+      "symbol": "RNKE/USDT",
+      "base": "RNKE",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 0.01
+      }
+    },
+    {
+      "id": "RBPUSDT",
+      "symbol": "RBP/USDT",
+      "base": "RBP",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 0.01
+      }
+    },
+    {
+      "id": "RELVUSDT",
+      "symbol": "RELV/USDT",
+      "base": "RELV",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 0.01
+      }
+    },
+    {
+      "id": "RPHUSDT",
+      "symbol": "RPH/USDT",
+      "base": "RPH",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1e-05,
+        "price": 0.01
+      }
+    },
+    {
+      "id": "DBRUSDT",
+      "symbol": "DBR/USDT",
+      "base": "DBR",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-05
+      }
+    },
+    {
+      "id": "RPNCUSDT",
+      "symbol": "RPNC/USDT",
+      "base": "RPNC",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 0.01
+      }
+    }
+  ]
+}

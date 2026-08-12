@@ -1,0 +1,21 @@
+{
+  "method": "fetch_ticker",
+  "raw": {
+    "open": "64084.21",
+    "symbol": "BTCUSDT",
+    "high24h": "64493.51",
+    "low24h": "63235.29",
+    "lastPr": "63669.23",
+    "quoteVolume": "87217156.861214",
+    "baseVolume": "1367.348959",
+    "usdtVolume": "87217156.86121385",
+    "ts": "1786520809242",
+    "bidPr": "63669.22",
+    "askPr": "63669.23",
+    "bidSz": "4.100551",
+    "askSz": "0.006717",
+    "openUtc": "63597",
+    "changeUtc24h": "0.00114",
+    "change24h": "-0.00648"
+  }
+}
