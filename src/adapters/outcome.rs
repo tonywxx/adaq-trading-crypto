@@ -89,7 +89,10 @@ mod tests {
         idx.store(m);
         assert_eq!(idx.resolve("A:YES", "test").unwrap(), "yes");
         assert_eq!(idx.resolve("tok123", "test").unwrap(), "yes");
-        assert_eq!(idx.resolve("NOPE", "test").unwrap_err().kind(), ErrorKind::BadSymbol);
+        assert_eq!(
+            idx.resolve("NOPE", "test").unwrap_err().kind(),
+            ErrorKind::BadSymbol
+        );
     }
 
     #[test]
@@ -99,12 +102,21 @@ mod tests {
         m.insert("A:YES".to_string(), "yes".to_string());
         idx.store(m);
         // 精确命中
-        assert_eq!(idx.resolve_or("A:YES", |s| format!("{s}:YES"), "t").unwrap(), "yes");
+        assert_eq!(
+            idx.resolve_or("A:YES", |s| format!("{s}:YES"), "t")
+                .unwrap(),
+            "yes"
+        );
         // 未命中 → fallback 命中
-        assert_eq!(idx.resolve_or("A", |s| format!("{s}:YES"), "t").unwrap(), "yes");
+        assert_eq!(
+            idx.resolve_or("A", |s| format!("{s}:YES"), "t").unwrap(),
+            "yes"
+        );
         // 都未命中 → BadSymbol
         assert_eq!(
-            idx.resolve_or("B", |s| format!("{s}:YES"), "t").unwrap_err().kind(),
+            idx.resolve_or("B", |s| format!("{s}:YES"), "t")
+                .unwrap_err()
+                .kind(),
             ErrorKind::BadSymbol
         );
     }

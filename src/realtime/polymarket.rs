@@ -223,9 +223,7 @@ fn dispatch_market(
             // 更新 ticker last
             if let Some(ttx) = tickers.lock().unwrap().get(&asset_id).cloned() {
                 let mut t = ttx.borrow().clone();
-                t.last = msg
-                    .get("price")
-                    .and_then(crate::httpcore::value_decimal);
+                t.last = msg.get("price").and_then(crate::httpcore::value_decimal);
                 t.close = t.last;
                 let _ = ttx.send(t);
             }
@@ -279,9 +277,7 @@ fn synthetic_ticker(msg: &Value, asset_id: &str, store: &OrderBookStore) -> Tick
 }
 
 fn parse_trade(msg: &Value, asset_id: &str) -> Trade {
-    let price = msg
-        .get("price")
-        .and_then(crate::httpcore::value_decimal);
+    let price = msg.get("price").and_then(crate::httpcore::value_decimal);
     let amount = msg.get("size").and_then(crate::httpcore::value_decimal);
     Trade {
         id: msg["transaction_hash"].as_str().map(str::to_string),
@@ -321,9 +317,7 @@ fn dispatch_user(
                     })
                     .map(str::to_string),
                 side: msg["side"].as_str().map(|s| s.to_lowercase()),
-                price: msg
-                    .get("price")
-                    .and_then(crate::httpcore::value_decimal),
+                price: msg.get("price").and_then(crate::httpcore::value_decimal),
                 amount: msg
                     .get("original_size")
                     .and_then(crate::httpcore::value_decimal),
@@ -339,9 +333,7 @@ fn dispatch_user(
             let _ = orders.send(vec![o]);
         }
         "trade" => {
-            let price = msg
-                .get("price")
-                .and_then(crate::httpcore::value_decimal);
+            let price = msg.get("price").and_then(crate::httpcore::value_decimal);
             let amount = msg.get("size").and_then(crate::httpcore::value_decimal);
             let t = Trade {
                 id: msg["transaction_hash"].as_str().map(str::to_string),

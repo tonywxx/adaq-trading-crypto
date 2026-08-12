@@ -64,7 +64,13 @@ impl Okx {
     /// 签名原语(ADR-0013 sign 接缝):`timestamp+method+path+body` → base64 HMAC-SHA256。
     ///
     /// REST 私密请求与 realtime WS 登录帧共用(登录帧 = `ts+GET+/users/self/verify+""`)。
-    pub fn sign_str(&self, timestamp: &str, method: &str, path: &str, body: &str) -> Result<String> {
+    pub fn sign_str(
+        &self,
+        timestamp: &str,
+        method: &str,
+        path: &str,
+        body: &str,
+    ) -> Result<String> {
         let secret = self
             .config
             .secret
@@ -74,9 +80,7 @@ impl Okx {
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
             .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
         mac.update(auth.as_bytes());
-        Ok(base64::engine::general_purpose::STANDARD.encode(
-            mac.finalize().into_bytes(),
-        ))
+        Ok(base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes()))
     }
 
     /// 私密请求(OKX v5 签名)。
@@ -112,7 +116,10 @@ impl Okx {
             });
             (path.to_string(), body_json)
         };
-        let body_str = body_json.as_ref().map(|v| v.to_string()).unwrap_or_default();
+        let body_str = body_json
+            .as_ref()
+            .map(|v| v.to_string())
+            .unwrap_or_default();
         let signature = self.sign_str(&timestamp, method, &request_path, &body_str)?;
         let mut headers = HeaderMap::new();
         headers.insert("OK-ACCESS-KEY", HeaderValue::from_str(api_key).unwrap());
