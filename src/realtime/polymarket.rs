@@ -200,8 +200,8 @@ fn dispatch_market(
                         a.iter()
                             .filter_map(|c| {
                                 Some(PriceChange {
-                                    price: crate::realtime::ws::value_decimal(c.get("price")?)?,
-                                    size: crate::realtime::ws::value_decimal(c.get("size")?)?,
+                                    price: crate::httpcore::value_decimal(c.get("price")?)?,
+                                    size: crate::httpcore::value_decimal(c.get("size")?)?,
                                 })
                             })
                             .collect()
@@ -225,7 +225,7 @@ fn dispatch_market(
                 let mut t = ttx.borrow().clone();
                 t.last = msg
                     .get("price")
-                    .and_then(crate::realtime::ws::value_decimal);
+                    .and_then(crate::httpcore::value_decimal);
                 t.close = t.last;
                 let _ = ttx.send(t);
             }
@@ -240,8 +240,8 @@ fn collect_book_levels(v: Option<&Value>) -> Vec<(rust_decimal::Decimal, rust_de
             a.iter()
                 .filter_map(|l| {
                     Some((
-                        crate::realtime::ws::value_decimal(l.get("price")?)?,
-                        crate::realtime::ws::value_decimal(l.get("size")?)?,
+                        crate::httpcore::value_decimal(l.get("price")?)?,
+                        crate::httpcore::value_decimal(l.get("size")?)?,
                     ))
                 })
                 .collect()
@@ -259,7 +259,7 @@ fn synthetic_ticker(msg: &Value, asset_id: &str, store: &OrderBookStore) -> Tick
     };
     let last = msg
         .get("last_trade_price")
-        .and_then(crate::realtime::ws::value_decimal)
+        .and_then(crate::httpcore::value_decimal)
         .or(mid);
     Ticker {
         symbol: asset_id.to_string(),
@@ -281,8 +281,8 @@ fn synthetic_ticker(msg: &Value, asset_id: &str, store: &OrderBookStore) -> Tick
 fn parse_trade(msg: &Value, asset_id: &str) -> Trade {
     let price = msg
         .get("price")
-        .and_then(crate::realtime::ws::value_decimal);
-    let amount = msg.get("size").and_then(crate::realtime::ws::value_decimal);
+        .and_then(crate::httpcore::value_decimal);
+    let amount = msg.get("size").and_then(crate::httpcore::value_decimal);
     Trade {
         id: msg["transaction_hash"].as_str().map(str::to_string),
         timestamp: msg["timestamp"]
@@ -323,13 +323,13 @@ fn dispatch_user(
                 side: msg["side"].as_str().map(|s| s.to_lowercase()),
                 price: msg
                     .get("price")
-                    .and_then(crate::realtime::ws::value_decimal),
+                    .and_then(crate::httpcore::value_decimal),
                 amount: msg
                     .get("original_size")
-                    .and_then(crate::realtime::ws::value_decimal),
+                    .and_then(crate::httpcore::value_decimal),
                 filled: msg
                     .get("size_matched")
-                    .and_then(crate::realtime::ws::value_decimal),
+                    .and_then(crate::httpcore::value_decimal),
                 info: msg.clone(),
                 ..Order::default()
             };
@@ -341,8 +341,8 @@ fn dispatch_user(
         "trade" => {
             let price = msg
                 .get("price")
-                .and_then(crate::realtime::ws::value_decimal);
-            let amount = msg.get("size").and_then(crate::realtime::ws::value_decimal);
+                .and_then(crate::httpcore::value_decimal);
+            let amount = msg.get("size").and_then(crate::httpcore::value_decimal);
             let t = Trade {
                 id: msg["transaction_hash"].as_str().map(str::to_string),
                 side: msg["side"].as_str().map(|s| s.to_lowercase()),

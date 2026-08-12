@@ -22,7 +22,7 @@ use sha3::Digest;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, query_string, value_decimal};
+use crate::httpcore::{HttpCore, now_ms, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, Order, OrderBook, Position, Precision,
     Ticker, Tickers, Trade,
@@ -373,7 +373,7 @@ impl Polymarket {
                 .and_then(Value::as_str)
                 .map(str::to_string),
             timestamp: ts,
-            datetime: ts.and_then(crate::adapters::kalshi::iso8601),
+            datetime: ts.and_then(crate::httpcore::iso8601),
             symbol: Some(symbol.to_string()),
             side: raw
                 .get("side")
@@ -425,7 +425,7 @@ impl Polymarket {
         Ticker {
             symbol: format!("{}:{}", ctx.market_symbol, ctx.label.to_uppercase()),
             timestamp: Some(timestamp),
-            datetime: crate::adapters::kalshi::iso8601(timestamp),
+            datetime: crate::httpcore::iso8601(timestamp),
             bid: best_bid.and_then(|b| b.get("price").and_then(value_decimal)),
             ask: best_ask.and_then(|a| a.get("price").and_then(value_decimal)),
             bid_volume: best_bid.and_then(|b| b.get("size").and_then(value_decimal)),
@@ -874,14 +874,6 @@ fn params1(k: &str, v: &str) -> Params {
     let mut p = Params::new();
     p.insert(k.into(), json!(v));
     p
-}
-
-/// 毫秒时间戳。
-pub fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

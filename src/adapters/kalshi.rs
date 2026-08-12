@@ -21,7 +21,7 @@ use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, dec, query_string, value_decimal};
+use crate::httpcore::{HttpCore, dec, iso8601, now_ms, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position,
     Precision, Ticker, Tickers, Trade,
@@ -1051,19 +1051,6 @@ pub fn parse_iso_ms(s: &str) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(s)
         .ok()
         .map(|d| d.timestamp_millis())
-}
-
-/// 毫秒时间戳。
-pub fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
-/// 毫秒时间戳 → ISO8601。
-pub fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 #[cfg(test)]

@@ -9,7 +9,7 @@ repository = "https://github.com/tonywxx/adaq-trading-crypto"
 homepage = "https://github.com/tonywxx/adaq-trading-crypto"
 documentation = "https://docs.rs/adaq-trading-crypto"
 keywords = ["trading", "crypto", "exchange", "prediction-market", "ccxt"]
-categories = ["cryptocurrency", "finance", "api-bindings"]
+categories = ["cryptography::cryptocurrencies", "finance", "api-bindings"]
 exclude = ["src/main.rs"]
 
 [features]

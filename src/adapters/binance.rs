@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, parse_level, query_string};
+use crate::httpcore::{HttpCore, now_ms, parse_level, query_string};
 use crate::types::{
     Balance, Balances, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker, Tickers,
     Trade,
@@ -462,13 +462,6 @@ fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
         Value::Number(n) => rust_decimal::Decimal::from_str(&n.to_string()).ok(),
         _ => None,
     })
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 fn iso8601(ms: i64) -> Option<String> {

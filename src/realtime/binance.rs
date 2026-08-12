@@ -20,6 +20,7 @@ use tokio::sync::watch;
 use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
+use crate::httpcore::{collect_levels, dec, iso8601, query_string};
 use crate::realtime::orderbook::OrderBookStore;
 use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
@@ -137,14 +138,10 @@ impl BinanceWs {
         let headers = HeaderMap::new();
         let resp = self.client.request("GET", &url, &headers, None).await?;
         let last_update_id = resp["lastUpdateId"].as_u64().unwrap_or(0) as i64;
-        let bids: Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> = resp["bids"]
-            .as_array()
-            .map(|a| a.iter().filter_map(level_pair).collect())
-            .unwrap_or_default();
-        let asks: Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> = resp["asks"]
-            .as_array()
-            .map(|a| a.iter().filter_map(level_pair).collect())
-            .unwrap_or_default();
+        let bids: Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> =
+            collect_levels(Some(&resp["bids"]));
+        let asks: Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> =
+            collect_levels(Some(&resp["asks"]));
         let mut store = OrderBookStore::new(limit.unwrap_or(1000) as usize);
         store.reset(&bids, &asks);
         store.last_update_id = Some(last_update_id as u64);
@@ -268,57 +265,6 @@ fn parse_kline(k: &Value, _sym: &str) -> OHLCV {
         close: dec(k.get("c")),
         volume: dec(k.get("v")),
     }
-}
-
-fn dec(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(super::ws::value_decimal)
-}
-
-fn level_pair(raw: &Value) -> Option<(rust_decimal::Decimal, rust_decimal::Decimal)> {
-    let arr = raw.as_array()?;
-    Some((dec(arr.first())?, dec(arr.get(1))?))
-}
-
-fn collect_levels(v: Option<&Value>) -> Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> {
-    v.and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(level_pair).collect())
-        .unwrap_or_default()
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| {
-            let val = match v {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                other => other.to_string(),
-            };
-            format!("{}={}", pct_encode(k), pct_encode(&val))
-        })
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 /// 私密流(listenKey)消息分发。

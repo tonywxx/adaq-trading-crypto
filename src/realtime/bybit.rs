@@ -19,6 +19,7 @@ use tokio::sync::watch;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
+use crate::httpcore::{collect_levels, dec, iso8601, now_ms};
 use crate::realtime::orderbook::OrderBookStore;
 use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
@@ -377,32 +378,6 @@ fn parse_fill(raw: &Value) -> Trade {
         info: raw.clone(),
         ..Trade::default()
     }
-}
-
-fn dec(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(super::ws::value_decimal)
-}
-
-fn level_pair(raw: &Value) -> Option<(rust_decimal::Decimal, rust_decimal::Decimal)> {
-    let arr = raw.as_array()?;
-    Some((dec(arr.first())?, dec(arr.get(1))?))
-}
-
-fn collect_levels(v: Option<&Value>) -> Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> {
-    v.and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(level_pair).collect())
-        .unwrap_or_default()
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 impl Realtime for BybitWs {

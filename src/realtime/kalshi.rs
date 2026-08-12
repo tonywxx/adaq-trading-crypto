@@ -21,6 +21,7 @@ use tokio::sync::watch;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params, Realtime};
+use crate::httpcore::{collect_levels, dec, iso8601, now_ms};
 use crate::realtime::orderbook::OrderBookStore;
 use crate::realtime::ws::{SubscriptionSet, WsSession, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
@@ -303,19 +304,6 @@ fn dispatch(
     }
 }
 
-fn collect_levels(v: Option<&Value>) -> Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> {
-    v.and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .filter_map(|l| {
-                    let arr = l.as_array()?;
-                    Some((dec(arr.first())?, dec(arr.get(1))?))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 fn parse_trade(m: &Value, market_ticker: &str) -> Trade {
     let price = dec(m.get("yes_price_dollars")).or_else(|| dec(m.get("price")));
     let amount = dec(m.get("count"));
@@ -336,25 +324,10 @@ fn parse_trade(m: &Value, market_ticker: &str) -> Trade {
     }
 }
 
-fn dec(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(crate::realtime::ws::value_decimal)
-}
-
 fn parse_iso_ms(s: &str) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(s)
         .ok()
         .map(|d| d.timestamp_millis())
-}
-
-fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 impl Realtime for KalshiWs {

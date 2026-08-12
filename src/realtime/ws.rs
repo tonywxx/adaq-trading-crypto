@@ -276,15 +276,6 @@ impl SubscriptionSet {
     }
 }
 
-/// 解析 Decimal(兼容字符串/数字)。
-pub fn value_decimal(v: &serde_json::Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        serde_json::Value::String(s) => s.parse().ok(),
-        serde_json::Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
 #[cfg(all(test, feature = "realtime"))]
 mod tests {
     use super::*;

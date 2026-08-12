@@ -171,6 +171,79 @@ pub fn iso8601(ms: i64) -> Option<String> {
     chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
+/// 当前 UTC 毫秒时间戳(签名/认证用;统一为 `i64`,与 [`iso8601`] 对齐)。
+pub fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// 兼容字符串/整数的 `i64` 提取(原 `to_i64` 副本)。
+pub fn to_i64(v: &Value) -> Option<i64> {
+    match v {
+        Value::Number(n) => n.as_i64().or_else(|| n.as_f64().map(|f| f as i64)),
+        Value::String(s) => s.parse().ok(),
+        _ => None,
+    }
+}
+
+/// 按候选键顺序提取首个可解析的 Decimal(safe 提取;原 `pick_decimal` 副本)。
+pub fn pick_decimal(v: &Value, keys: &[&str]) -> Option<rust_decimal::Decimal> {
+    for k in keys {
+        if let Some(d) = v.get(k).and_then(value_decimal) {
+            return Some(d);
+        }
+    }
+    None
+}
+
+/// 按候选键顺序提取首个字符串(原 `pick_str` 副本)。
+pub fn pick_str<'a>(v: &'a Value, keys: &[&str]) -> Option<&'a str> {
+    for k in keys {
+        if let Some(s) = v.get(k).and_then(|x| x.as_str()) {
+            return Some(s);
+        }
+    }
+    None
+}
+
+/// 按候选键顺序提取首个 `i64`(原 `pick_i64` 副本)。
+pub fn pick_i64(v: &Value, keys: &[&str]) -> Option<i64> {
+    for k in keys {
+        if let Some(n) = v.get(k).and_then(to_i64) {
+            return Some(n);
+        }
+    }
+    None
+}
+
+/// `[price, amount, ...]` 行数组 → `(price, amount)` 元组(逐行跳过无效行)。
+///
+/// realtime 订单簿快照/增量共用(原 5 份 `collect_levels` 副本);与
+/// [`parse_level`](Level 形状)互补。
+pub fn collect_levels(v: Option<&Value>) -> Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> {
+    v.and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|row| {
+                    let arr = row.as_array()?;
+                    Some((value_decimal(arr.first()?)?, value_decimal(arr.get(1)?)?))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// f64 兜底(转译适配器专用,与手写集字符串精确解析语义不同)。
+///
+/// `serde_json` 无引号小数解析为 f64 时,`value_decimal` 走 `n.to_string()`
+/// 已能还原十进制表示;此函数仅兜底二进制表示无法避免的误差场景,属
+/// best-effort,不承诺与手写集精度一致(原 `dec_f64` 副本)。
+pub fn dec_f64(f: f64) -> Option<rust_decimal::Decimal> {
+    rust_decimal::Decimal::from_f64_retain(f)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

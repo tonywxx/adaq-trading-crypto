@@ -20,7 +20,7 @@ use sha2::Sha256;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, dec, iso8601, parse_level, pct_encode, value_decimal};
+use crate::httpcore::{HttpCore, dec, iso8601, now_ms, parse_level, pct_encode, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -478,13 +478,6 @@ fn sorted_query_string(params: &Params) -> String {
         })
         .collect();
     format!("?{}", pairs.join("&"))
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

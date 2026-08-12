@@ -24,6 +24,7 @@ use tokio::sync::watch;
 use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
+use crate::httpcore::{collect_levels, iso8601, now_ms};
 use crate::realtime::orderbook::{OrderBookStore, PriceChange};
 use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
@@ -318,8 +319,8 @@ fn dispatch_private(
                             out.accounts.insert(
                                 code.clone(),
                                 crate::types::Balance {
-                                    free: crate::realtime::ws::value_decimal(bal),
-                                    total: crate::realtime::ws::value_decimal(bal),
+                                    free: crate::httpcore::value_decimal(bal),
+                                    total: crate::httpcore::value_decimal(bal),
                                     ..crate::types::Balance::default()
                                 },
                             );
@@ -366,7 +367,7 @@ fn dispatch_private(
 }
 
 fn parse_ticker(raw: &Value, pair: &str) -> Ticker {
-    let ts = now_ms() as i64;
+    let ts = now_ms();
     Ticker {
         symbol: pair.to_string(),
         timestamp: Some(ts),
@@ -374,39 +375,39 @@ fn parse_ticker(raw: &Value, pair: &str) -> Ticker {
         ask: raw["a"]
             .as_array()
             .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
+            .and_then(crate::httpcore::value_decimal),
         bid: raw["b"]
             .as_array()
             .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
+            .and_then(crate::httpcore::value_decimal),
         last: raw["c"]
             .as_array()
             .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
+            .and_then(crate::httpcore::value_decimal),
         close: raw["c"]
             .as_array()
             .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
+            .and_then(crate::httpcore::value_decimal),
         high: raw["h"]
             .as_array()
             .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
+            .and_then(crate::httpcore::value_decimal),
         low: raw["l"]
             .as_array()
             .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
+            .and_then(crate::httpcore::value_decimal),
         open: raw["o"]
             .as_array()
             .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
+            .and_then(crate::httpcore::value_decimal),
         vwap: raw["p"]
             .as_array()
             .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
+            .and_then(crate::httpcore::value_decimal),
         base_volume: raw["v"]
             .as_array()
             .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
+            .and_then(crate::httpcore::value_decimal),
         info: raw.clone(),
         ..Ticker::default()
     }
@@ -513,40 +514,13 @@ fn parse_changes(v: Option<&Value>) -> Vec<PriceChange> {
                 .filter_map(|row| {
                     let arr = row.as_array()?;
                     Some(PriceChange {
-                        price: crate::realtime::ws::value_decimal(arr.first()?)?,
-                        size: crate::realtime::ws::value_decimal(arr.get(1)?)?,
+                        price: crate::httpcore::value_decimal(arr.first()?)?,
+                        size: crate::httpcore::value_decimal(arr.get(1)?)?,
                     })
                 })
                 .collect()
         })
         .unwrap_or_default()
-}
-
-fn collect_levels(v: Option<&Value>) -> Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> {
-    v.and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .filter_map(|row| {
-                    let arr = row.as_array()?;
-                    Some((
-                        crate::realtime::ws::value_decimal(arr.first()?)?,
-                        crate::realtime::ws::value_decimal(arr.get(1)?)?,
-                    ))
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 impl Realtime for KrakenWs {

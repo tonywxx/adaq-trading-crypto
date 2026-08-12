@@ -13,16 +13,17 @@
 //! 转译适配器是 ADR-0005 的 best-effort 批量补齐手段;精确性与差分测试由
 //! 精选手写集保证。所有响应均保留 `info` 原始字段,用户始终可取底层数据。
 
-use chrono::Utc;
 use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use rust_decimal::Decimal;
 use serde_json::{Value, json};
 use sha2::Sha256;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, iso8601, query_string, value_decimal};
+use crate::httpcore::{
+    HttpCore, dec_f64, iso8601, now_ms, parse_level, pick_decimal, pick_i64, pick_str,
+    query_string, to_i64, value_decimal,
+};
 use crate::types::{
     Balance, Balances, Currencies, Currency, Level, Limit, Limits, Market, MarketType, Markets,
     OHLCV, Order, OrderBook, Precision, Ticker, Tickers, Trade,
@@ -541,10 +542,6 @@ impl Exchange for GenericExchange {
 // 通用解析(best-effort,覆盖 ccxt 最常见字段形状;保留 `info` 原始响应)
 // ============================================================
 
-fn now_ms() -> i64 {
-    Utc::now().timestamp_millis()
-}
-
 fn hmac_sha256(key: &str, msg: &str) -> String {
     let mac = HmacSha256::new_from_slice(key.as_bytes())
         .unwrap_or_else(|_| HmacSha256::new_from_slice(&[]).unwrap());
@@ -626,45 +623,6 @@ fn fill_path(path: &str, params: &Params) -> String {
     }
     out.push_str(rest);
     out
-}
-
-fn to_dec(v: &Value) -> Option<Decimal> {
-    value_decimal(v)
-}
-
-fn to_i64(v: &Value) -> Option<i64> {
-    match v {
-        Value::Number(n) => n.as_i64().or_else(|| n.as_f64().map(|f| f as i64)),
-        Value::String(s) => s.parse().ok(),
-        _ => None,
-    }
-}
-
-fn pick_decimal(v: &Value, keys: &[&str]) -> Option<Decimal> {
-    for k in keys {
-        if let Some(d) = v.get(k).and_then(to_dec) {
-            return Some(d);
-        }
-    }
-    None
-}
-
-fn pick_str<'a>(v: &'a Value, keys: &[&str]) -> Option<&'a str> {
-    for k in keys {
-        if let Some(s) = v.get(k).and_then(|x| x.as_str()) {
-            return Some(s);
-        }
-    }
-    None
-}
-
-fn pick_i64(v: &Value, keys: &[&str]) -> Option<i64> {
-    for k in keys {
-        if let Some(n) = v.get(k).and_then(to_i64) {
-            return Some(n);
-        }
-    }
-    None
 }
 
 fn parse_market_type(s: &str) -> MarketType {
@@ -768,11 +726,11 @@ fn parse_ohlcv(raw: &Value) -> Vec<OHLCV> {
                 if a.len() >= 6 {
                     return Some(OHLCV {
                         timestamp: a[0].as_i64(),
-                        open: to_dec(&a[1]).or_else(|| a[1].as_f64().and_then(dec_f64)),
-                        high: to_dec(&a[2]).or_else(|| a[2].as_f64().and_then(dec_f64)),
-                        low: to_dec(&a[3]).or_else(|| a[3].as_f64().and_then(dec_f64)),
-                        close: to_dec(&a[4]).or_else(|| a[4].as_f64().and_then(dec_f64)),
-                        volume: to_dec(&a[5]).or_else(|| a[5].as_f64().and_then(dec_f64)),
+                        open: value_decimal(&a[1]).or_else(|| a[1].as_f64().and_then(dec_f64)),
+                        high: value_decimal(&a[2]).or_else(|| a[2].as_f64().and_then(dec_f64)),
+                        low: value_decimal(&a[3]).or_else(|| a[3].as_f64().and_then(dec_f64)),
+                        close: value_decimal(&a[4]).or_else(|| a[4].as_f64().and_then(dec_f64)),
+                        volume: value_decimal(&a[5]).or_else(|| a[5].as_f64().and_then(dec_f64)),
                     });
                 }
             }
@@ -823,14 +781,6 @@ fn parse_trade(raw: &Value, symbol: &str) -> Trade {
         taker_or_maker: pick_str(raw, &["takerOrMaker", "taker_or_maker"]).map(str::to_string),
         info: raw.clone(),
         ..Default::default()
-    }
-}
-
-fn parse_level(v: &Value) -> Level {
-    let arr = v.as_array();
-    Level {
-        price: arr.and_then(|a| a.first()).and_then(to_dec),
-        amount: arr.and_then(|a| a.get(1)).and_then(to_dec),
     }
 }
 
@@ -1111,11 +1061,11 @@ fn parse_market(raw: &Value) -> Market {
             amount: raw
                 .get("precision")
                 .and_then(|p| p.get("amount"))
-                .and_then(to_dec),
+                .and_then(value_decimal),
             price: raw
                 .get("precision")
                 .and_then(|p| p.get("price"))
-                .and_then(to_dec),
+                .and_then(value_decimal),
             ..Default::default()
         },
         limits: Limits {
@@ -1123,25 +1073,21 @@ fn parse_market(raw: &Value) -> Market {
                 .get("limits")
                 .and_then(|l| l.get("amount"))
                 .map(|a| Limit {
-                    min: a.get("min").and_then(to_dec),
-                    max: a.get("max").and_then(to_dec),
+                    min: a.get("min").and_then(value_decimal),
+                    max: a.get("max").and_then(value_decimal),
                 }),
             price: raw
                 .get("limits")
                 .and_then(|l| l.get("price"))
                 .map(|a| Limit {
-                    min: a.get("min").and_then(to_dec),
-                    max: a.get("max").and_then(to_dec),
+                    min: a.get("min").and_then(value_decimal),
+                    max: a.get("max").and_then(value_decimal),
                 }),
             ..Default::default()
         },
         info: raw.clone(),
         ..Default::default()
     }
-}
-
-fn dec_f64(f: f64) -> Option<Decimal> {
-    Decimal::from_f64_retain(f)
 }
 
 // ============================================================

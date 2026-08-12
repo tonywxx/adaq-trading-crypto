@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, dec, iso8601, parse_level, query_string, value_decimal};
+use crate::httpcore::{HttpCore, dec, iso8601, now_ms, parse_level, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position,
     Precision, Ticker, Tickers, Trade,
@@ -608,13 +608,6 @@ fn hmac_sha256_hex(secret: &str, data: &str) -> String {
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");
     mac.update(data.as_bytes());
     hex::encode(mac.finalize().into_bytes())
-}
-
-fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

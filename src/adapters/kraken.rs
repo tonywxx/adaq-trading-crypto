@@ -22,7 +22,7 @@ use sha2::{Digest, Sha256, Sha512};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, iso8601, parse_level, pct_encode, query_string, value_decimal};
+use crate::httpcore::{HttpCore, iso8601, now_ms, parse_level, pct_encode, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position,
     Precision, Ticker, Tickers, Trade,
@@ -720,13 +720,6 @@ fn ok_result(resp: Value, path: &str) -> Result<Value> {
             format!("kraken {path}: missing result"),
         )
     })
-}
-
-fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

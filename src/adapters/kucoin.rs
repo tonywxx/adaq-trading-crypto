@@ -21,7 +21,7 @@ use sha2::Sha256;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, dec, iso8601, parse_level, query_string, value_decimal};
+use crate::httpcore::{HttpCore, dec, iso8601, now_ms, parse_level, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -428,13 +428,6 @@ fn value_str(v: &Value) -> Option<String> {
         Value::Number(n) => Some(n.to_string()),
         _ => None,
     }
-}
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]
