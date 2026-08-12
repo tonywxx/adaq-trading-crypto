@@ -1,0 +1,37 @@
+{
+  "method": "fetch_ticker",
+  "parsed": {
+    "symbol": "BTC/USDT",
+    "timestamp": 1786519661747,
+    "datetime": "2026-08-12T07:27:41.747940Z",
+    "bid": 63739.57,
+    "ask": 63741.6,
+    "last": 63744.91,
+    "high": null,
+    "low": null,
+    "bid_volume": null,
+    "ask_volume": null,
+    "vwap": null,
+    "open": null,
+    "close": 63744.91,
+    "previous_close": null,
+    "change": null,
+    "percentage": null,
+    "average": null,
+    "base_volume": null,
+    "quote_volume": null,
+    "info": {
+      "trade_id": "36500757",
+      "product_id": "BTC-USDT",
+      "price": "63744.91",
+      "size": "0.02",
+      "time": "2026-08-12T07:27:41.747940Z",
+      "side": "SELL",
+      "bid": "",
+      "ask": "",
+      "exchange": "coinbase"
+    },
+    "index_price": null,
+    "mark_price": null
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "method": "fetch_trades",
+  "raw": [
+    {
+      "trade_id": "36500757",
+      "product_id": "BTC-USDT",
+      "price": "63744.91",
+      "size": "0.02",
+      "time": "2026-08-12T07:27:41.747940Z",
+      "side": "SELL",
+      "bid": "",
+      "ask": "",
+      "exchange": "coinbase"
+    },
+    {
+      "trade_id": "36500756",
+      "product_id": "BTC-USDT",
+      "price": "63744.91",
+      "size": "0.04",
+      "time": "2026-08-12T07:27:41.747940Z",
+      "side": "SELL",
+      "bid": "",
+      "ask": "",
+      "exchange": "coinbase"
+    },
+    {
+      "trade_id": "36500755",
+      "product_id": "BTC-USDT",
+      "price": "63744.9",
+      "size": "0.0062757",
+      "time": "2026-08-12T07:27:41.747940Z",
+      "side": "SELL",
+      "bid": "",
+      "ask": "",
+      "exchange": "coinbase"
+    },
+    {
+      "trade_id": "36500754",
+      "product_id": "BTC-USDT",
+      "price": "63727.93",
+      "size": "0.0097",
+      "time": "2026-08-12T07:22:02.406698Z",
+      "side": "SELL",
+      "bid": "",
+      "ask": "",
+      "exchange": "coinbase"
+    },
+    {
+      "trade_id": "36500753",
+      "product_id": "BTC-USDT",
+      "price": "63740.69",
+      "size": "0.02",
+      "time": "2026-08-12T07:18:26.388774Z",
+      "side": "SELL",
+      "bid": "",
+      "ask": "",
+      "exchange": "coinbase"
+    }
+  ]
+}

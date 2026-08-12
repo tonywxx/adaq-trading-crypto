@@ -6,6 +6,12 @@ pub mod binance;
 #[cfg(feature = "binance")]
 pub use binance::{Binance, ID as BINANCE_ID};
 
+#[cfg(feature = "coinbase")]
+pub mod coinbase;
+
+#[cfg(feature = "coinbase")]
+pub use coinbase::{Coinbase, ID as COINBASE_ID};
+
 #[cfg(feature = "kalshi")]
 pub mod kalshi;
 

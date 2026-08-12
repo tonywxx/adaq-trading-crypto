@@ -1,0 +1,20 @@
+{
+  "method": "fetch_ticker",
+  "raw": {
+    "trades": [
+      {
+        "trade_id": "36500757",
+        "product_id": "BTC-USDT",
+        "price": "63744.91",
+        "size": "0.02",
+        "time": "2026-08-12T07:27:41.747940Z",
+        "side": "SELL",
+        "bid": "",
+        "ask": "",
+        "exchange": "coinbase"
+      }
+    ],
+    "best_bid": "63739.57",
+    "best_ask": "63741.6"
+  }
+}
