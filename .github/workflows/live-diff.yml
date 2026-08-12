@@ -42,7 +42,9 @@ jobs:
           fi
 
       - name: Install nextest
-        uses: taiki-e/install-nextest-action@v2
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
 
       - name: Run differential tests against fresh fixtures
         run: cargo nextest run --all-features --test differential_test
