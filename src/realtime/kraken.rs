@@ -117,7 +117,7 @@ impl KrakenWs {
         })
     }
 
-    async fn subscribe(&self, name: &str, pair: &str) -> Result<()> {
+    async fn subscribe(&self, name: &str, pair: &str, interval: Option<&str>) -> Result<()> {
         let key = format!("{name}:{pair}");
         let first = self.subs.lock().unwrap().register(&key);
         if !first {
@@ -129,10 +129,14 @@ impl KrakenWs {
             .unwrap()
             .clone()
             .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
+        let mut sub = json!({"name": name});
+        if let Some(iv) = interval {
+            sub["interval"] = json!(iv);
+        }
         let frame = json!({
             "event": "subscribe",
             "pair": [pair],
-            "subscription": {"name": name}
+            "subscription": sub
         })
         .to_string();
         tx.send_modify(|list| list.push(frame));
@@ -277,14 +281,16 @@ fn dispatch_public(
                 let _ = tx.send(parsed);
             }
         }
-        "ohlc" => {
-            // ohlc 频道的 interval 在 data 内最后一个元素
-            let tf = d_interval(data);
+        channel if channel.starts_with("ohlc") => {
+            // kraken WS 频道名为 "ohlc-<interval>"(如 ohlc-5),interval 在频道名后缀。
+            let tf = ohlc_interval_from_channel(channel);
             if let (Some(d), Some(tx)) = (
                 data,
                 ohlcvs.lock().unwrap().get(&(pair.to_string(), tf)).cloned(),
             ) {
-                let _ = tx.send(vec![rest.parse_ohlcv(d)]);
+                // WS 蜡烛比 REST 多 endtime(索引 1)且 time 为字符串,统一解析前先调整为 REST 形(ADR-0015 接缝)。
+                let candle = strip_ohlc_endtime(d);
+                let _ = tx.send(vec![rest.parse_ohlcv(&candle)]);
             }
         }
         _ => {}
@@ -460,16 +466,44 @@ fn parse_own_trade(raw: &Value) -> Trade {
     }
 }
 
-/// kraken ohlc 消息的 interval:data 数组最后一个元素。
-fn d_interval(data: Option<&Value>) -> String {
-    data.and_then(Value::as_array)
-        .and_then(|a| a.last())
-        .and_then(|v| match v {
-            Value::Number(n) => n.as_i64().map(|i| i.to_string()),
-            Value::String(s) => Some(s.clone()),
-            _ => None,
-        })
-        .unwrap_or_else(|| "1".to_string())
+/// kraken WS ohlc 频道名形如 "ohlc-5",从中提取 interval(无后缀时默认 "1")。
+fn ohlc_interval_from_channel(channel: &str) -> String {
+    channel
+        .strip_prefix("ohlc-")
+        .filter(|s| !s.is_empty())
+        .unwrap_or("1")
+        .to_string()
+}
+
+/// ccxt timeframe → kraken interval(分钟)。未知默认 "1"(与 kraken 默认一致)。
+fn kraken_interval(timeframe: &str) -> &'static str {
+    match timeframe {
+        "1m" => "1",
+        "5m" => "5",
+        "15m" => "15",
+        "30m" => "30",
+        "1h" => "60",
+        "4h" => "240",
+        "1d" => "1440",
+        _ => "1",
+    }
+}
+
+/// WS 蜡烛数组比 REST 多 endtime(索引 1),且 time 为字符串;调整为 REST 形以复用 parse_ohlcv(ADR-0015)。
+fn strip_ohlc_endtime(d: &Value) -> Value {
+    if let Some(arr) = d.as_array() {
+        if arr.len() >= 9 {
+            let mut v = arr.clone();
+            v.remove(1); // 去掉 endtime
+            if let Some(Value::String(s)) = v.first() {
+                if let Ok(n) = s.parse::<f64>() {
+                    v[0] = json!(n);
+                }
+            }
+            return Value::Array(v);
+        }
+    }
+    d.clone()
 }
 
 fn parse_changes(v: Option<&Value>) -> Vec<PriceChange> {
@@ -519,7 +553,7 @@ impl Realtime for KrakenWs {
     async fn watch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         self.ensure_public();
         let pair = self.symbol_id(symbol);
-        self.subscribe("ticker", &pair).await?;
+        self.subscribe("ticker", &pair, None).await?;
         let rx = {
             let mut map = self.tickers.lock().unwrap();
             if !map.contains_key(&pair) {
@@ -539,7 +573,7 @@ impl Realtime for KrakenWs {
     ) -> Result<OrderBook> {
         self.ensure_public();
         let pair = self.symbol_id(symbol);
-        self.subscribe("book", &pair).await?;
+        self.subscribe("book", &pair, None).await?;
         if !self.book_stores.lock().unwrap().contains_key(&pair) {
             self.book_stores
                 .lock()
@@ -568,7 +602,7 @@ impl Realtime for KrakenWs {
     ) -> Result<Vec<Trade>> {
         self.ensure_public();
         let pair = self.symbol_id(symbol);
-        self.subscribe("trade", &pair).await?;
+        self.subscribe("trade", &pair, None).await?;
         let rx = {
             let mut map = self.trades.lock().unwrap();
             if !map.contains_key(&pair) {
@@ -590,8 +624,9 @@ impl Realtime for KrakenWs {
     ) -> Result<Vec<OHLCV>> {
         self.ensure_public();
         let pair = self.symbol_id(symbol);
-        self.subscribe("ohlc", &pair).await?;
-        let key = (pair, timeframe.to_string());
+        let iv = kraken_interval(timeframe);
+        self.subscribe("ohlc", &pair, Some(iv)).await?;
+        let key = (pair, iv.to_string());
         let rx = {
             let mut map = self.ohlcvs.lock().unwrap();
             if !map.contains_key(&key) {
@@ -748,13 +783,41 @@ mod tests {
     }
 
     #[test]
-    fn replay_public_ohlcv_parse_unifies_with_rest() {
-        // ADR-0015:WS ohlc 行复用 REST parse_ohlcv(数组形 [ts（秒）,o,h,l,c,vwap,vol,count])。
-        // 直接验证统一解析;dispatch 的 interval 派生为既有逻辑(本次未改动),故不复测路由。
-        let candle = json!([1.0, "100.0", "101.0", "99.0", "100.5", "100.2", "3.0", 10]);
-        let o = rest().parse_ohlcv(&candle);
-        assert_eq!(o.close, Some("100.5".parse().unwrap()));
-        assert_eq!(o.volume, Some("3.0".parse().unwrap()));
-        assert_eq!(o.timestamp, Some(1000)); // 秒 → 毫秒
+    fn replay_public_ohlcv_routes_to_channel() {
+        let (tickers, books, stores, trades, ohlcvs) = channels();
+        // 注册接收端,key 为 (pair, interval="5"),与 watch_ohlcv 用 kraken_interval("5m") 一致。
+        let (tx, rx) = watch::channel(vec![]);
+        ohlcvs
+            .lock()
+            .unwrap()
+            .insert(("XBT/USD".into(), "5".into()), tx);
+        // kraken WS ohlc 消息:[channelId, 蜡烛, "ohlc-5", pair]
+        // 蜡烛含 endtime(索引 1)且 time 为字符串,统一解析前须调整为 REST 形。
+        let msg = json!([
+            42,
+            [
+                "1542057314.748456", // time
+                "1542057360.435743", // endtime(须剥离)
+                "3586.70000",        // open
+                "3586.70000",        // high
+                "3586.60000",        // low
+                "3586.60000",        // close
+                "3586.68894",        // vwap
+                "0.03373000",        // volume
+                2                    // count
+            ],
+            "ohlc-5",
+            "XBT/USD"
+        ]);
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs, &rest());
+        let candles = rx.borrow().clone();
+        assert_eq!(candles.len(), 1);
+        let c = &candles[0];
+        assert_eq!(c.open, Some("3586.70000".parse().unwrap()));
+        assert_eq!(c.high, Some("3586.70000".parse().unwrap()));
+        assert_eq!(c.low, Some("3586.60000".parse().unwrap()));
+        assert_eq!(c.close, Some("3586.60000".parse().unwrap()));
+        assert_eq!(c.volume, Some("0.03373000".parse().unwrap()));
+        assert_eq!(c.timestamp, Some(1_542_057_314_748)); // 秒 → 毫秒
     }
 }
