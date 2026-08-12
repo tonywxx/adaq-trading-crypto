@@ -620,7 +620,7 @@ fn format_symbol(id: &str) -> String {
 }
 
 fn hmac_sha256_hex(secret: &str, data: &str) -> String {
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     type HmacSha256 = Hmac<sha2::Sha256>;
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");
     mac.update(data.as_bytes());

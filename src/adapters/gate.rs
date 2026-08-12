@@ -14,7 +14,7 @@
 
 use std::sync::Mutex;
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 use sha2::Sha512;

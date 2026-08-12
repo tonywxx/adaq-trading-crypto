@@ -538,7 +538,7 @@ fn iso8601(ms: i64) -> Option<String> {
 }
 
 fn sign_hmac_sha256(data: &str, secret: &str) -> String {
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, KeyInit, Mac};
     type HmacSha256 = Hmac<sha2::Sha256>;
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");
     mac.update(data.as_bytes());
