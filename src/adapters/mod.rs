@@ -77,3 +77,13 @@ pub mod manifold;
 
 #[cfg(feature = "manifold")]
 pub use manifold::{ID as MANIFOLD_ID, Manifold};
+
+#[cfg(feature = "hyperliquid")]
+pub mod hyperliquid;
+
+#[cfg(feature = "hyperliquid")]
+pub use hyperliquid::{ID as HYPERLIQUID_ID, Hyperliquid};
+
+/// 转译生成的交易所适配器(由 `scripts/gen_adapters.py` 从 ccxt `describe()` 生成)。
+/// 子模块各自按交易所 feature 门控;本模块本身常驻。
+pub mod generated;

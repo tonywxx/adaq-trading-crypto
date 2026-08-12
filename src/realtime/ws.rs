@@ -122,7 +122,7 @@ fn next_backoff(ms: u64) -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.subsec_nanos() as u64)
         .unwrap_or(0);
-    base + (nanos % 1000)
+    (base + (nanos % 1000)).min(30_000)
 }
 
 /// 心跳 tick:有间隔则等待下一次,无心跳则永久挂起(select! 分支用)。

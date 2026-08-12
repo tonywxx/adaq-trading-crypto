@@ -45,7 +45,7 @@ _Avoid_: 浮点、decimal 混称
 
 ## 待定术语(讨论中,暂不写入定义)
 
-- 暂无。全部架构级决策已敲定;遗留"从 ccxt 转译批量补齐适配器"为未来评估项,非术语。
+- 暂无。全部架构级决策已敲定(含 ADR-0016 将"从 ccxt 转译批量补齐适配器"由未来评估项落地为 describe 驱动引擎 + 代码生成器)。
 
 ## 决策记录
 
@@ -66,3 +66,4 @@ _Avoid_: 浮点、decimal 混称
 | 0013 | accepted | 适配器模型:HttpCore 深模块 + 四接缝(describe/sign/handle_errors/字段映射);新增交易所一律按此模式,转译只填接缝 |
 | 0014 | accepted | 实时层收口:最小收口 + 测试先行(离线重放)+ 心跳/重连进共享层;不做完整 WsHub 框架;先收口后解析合一 |
 | 0015 | accepted | 解析合一:watch_* 复用 REST parse_*(realtime 持有 REST 适配器实例);形状兼容则加纯加法 fallback,不兼容则保持独立 |
+| 0016 | accepted | 转译补齐落地:describe 驱动通用引擎(generic.rs)+ 代码生成器(scripts/gen_adapters.py),实现 ADR-0005 后补路径与 ADR-0013 四接缝批量填 describe;覆盖全部 108 个 ccxt 唯一交易所/预测市场(103 sync 含 89 CEX + 14 DEX,及 7 prediction 命名空间,binance/hyperliquid 双列)+ 1 原生 Manifold,合计 109 适配器,transpiler 现额外覆盖 ccxt.prediction 命名空间(limitless/myriad/opinion) |
