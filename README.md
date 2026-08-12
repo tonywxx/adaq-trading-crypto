@@ -4,16 +4,23 @@ Unified trading interface (Rust) for crypto and prediction markets, for the AdaQ
 
 ## Adapters
 
+Curated set (ADR-0005): 7 crypto exchanges + 2 prediction markets + 1 native prediction adapter, each with differential testing against real ccxt output.
+
 | Feature | Exchange | Scope |
 |---|---|---|
 | `binance` | Binance | REST public + private, WS 8 channels |
-| `okx` | OKX | REST public + private |
-| `bybit` | Bybit | REST public + private |
-| `kraken` | Kraken | REST public + private |
+| `okx` | OKX | REST public + private, WS 8 channels |
+| `bybit` | Bybit | REST public + private, WS 8 channels |
+| `kraken` | Kraken | REST public + private, WS 8 channels (no positions channel) |
+| `coinbase` | Coinbase | REST public + private (v3 Advanced Trade) |
+| `bitget` | Bitget | REST public + private |
+| `gate` | Gate.io | REST public + private |
+| `mexc` | MEXC | REST public + private |
+| `htx` | Huobi | REST public + private |
+| `kucoin` | KuCoin | REST public + private |
 | `kalshi` | Kalshi | REST full (incl. order placement), WS private channels |
 | `polymarket` | Polymarket | REST + EIP-712 order signing, WS 5 channels |
-
-More exchanges (coinbase, bitget, gate, mexc, htx, kucoin, manifold) are in progress; the framework supports adding adapters incrementally.
+| `manifold` | Manifold | Native adapter (no ccxt reference): markets / ticker / trades |
 
 ## Features
 
