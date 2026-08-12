@@ -1,0 +1,115 @@
+{
+  "method": "fetch_markets",
+  "parsed": [
+    {
+      "id": "AVA-USDT",
+      "symbol": "AVA/USDT",
+      "base": "AVA",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 0.0001
+      }
+    },
+    {
+      "id": "FET-BTC",
+      "symbol": "FET/BTC",
+      "base": "FET",
+      "quote": "BTC",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 1e-09
+      }
+    },
+    {
+      "id": "FET-ETH",
+      "symbol": "FET/ETH",
+      "base": "FET",
+      "quote": "ETH",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 1e-08
+      }
+    },
+    {
+      "id": "ANKR-BTC",
+      "symbol": "ANKR/BTC",
+      "base": "ANKR",
+      "quote": "BTC",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 1e-10
+      }
+    },
+    {
+      "id": "XMR-BTC",
+      "symbol": "XMR/BTC",
+      "base": "XMR",
+      "quote": "BTC",
+      "active": true,
+      "precision": {
+        "amount": 0.001,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "XMR-ETH",
+      "symbol": "XMR/ETH",
+      "base": "XMR",
+      "quote": "ETH",
+      "active": true,
+      "precision": {
+        "amount": 0.001,
+        "price": 1e-05
+      }
+    },
+    {
+      "id": "MTV-USDT",
+      "symbol": "MTV/USDT",
+      "base": "MTV",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1.0,
+        "price": 1e-09
+      }
+    },
+    {
+      "id": "TEL-USDT",
+      "symbol": "TEL/USDT",
+      "base": "TEL",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1.0,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "TT-USDT",
+      "symbol": "TT/USDT",
+      "base": "TT",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "XMR-USDT",
+      "symbol": "XMR/USDT",
+      "base": "XMR",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.001,
+        "price": 0.01
+      }
+    }
+  ]
+}

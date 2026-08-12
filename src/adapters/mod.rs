@@ -65,3 +65,9 @@ pub mod htx;
 
 #[cfg(feature = "htx")]
 pub use htx::{Htx, ID as HTX_ID};
+
+#[cfg(feature = "kucoin")]
+pub mod kucoin;
+
+#[cfg(feature = "kucoin")]
+pub use kucoin::{ID as KUCOIN_ID, Kucoin};
