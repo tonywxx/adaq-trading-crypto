@@ -13,17 +13,15 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use std::sync::Mutex;
-
 use base64::Engine;
 use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 use sha2::Sha256;
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, dec, iso8601, parse_level, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -36,8 +34,7 @@ const RATE_LIMIT_MS: u64 = 50;
 /// kucoin 现货适配器。
 pub struct Kucoin {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
 }
 
 impl Kucoin {
@@ -54,32 +51,11 @@ impl Kucoin {
     ];
 
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
-        Ok(Self {
-            config,
-            client,
-            markets: Mutex::new(None),
-        })
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        Ok(Self { config, core })
     }
 
     // ================= 内部 HTTP =================
-
-    async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
-    }
 
     /// 私密 GET(v1 签名)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
@@ -117,17 +93,21 @@ impl Kucoin {
             "KC-API-PASSPHRASE",
             HeaderValue::from_str(passphrase).unwrap(),
         );
-        let url = format!("{BASE_URL}{path}{qs}");
-        self.client.request("GET", &url, &headers, None).await
+        let url = format!("{path}{qs}");
+        self.core.request("GET", &url, &headers, None).await
     }
 
     // ================= markets 缓存 =================
 
     async fn load_markets(&self) -> Result<()> {
-        if self.markets.lock().unwrap().is_some() {
-            return Ok(());
-        }
-        let resp = self.public_get("/api/v2/symbols", &Params::new()).await?;
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
+        let resp = self
+            .core
+            .public_get("/api/v2/symbols", &Params::new())
+            .await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -137,8 +117,7 @@ impl Kucoin {
             let m = self.parse_market(raw);
             map.insert(m.symbol.clone(), m);
         }
-        *self.markets.lock().unwrap() = Some(map);
-        Ok(())
+        Ok(map)
     }
 
     /// 统一 symbol → id(`BTC/USDT` → `BTC-USDT`)。
@@ -148,10 +127,8 @@ impl Kucoin {
 
     /// id → 统一 symbol(`BTC-USDT` → `BTC/USDT`):先查缓存,否则按 `-` 拆分。
     pub fn market_symbol(&self, id: &str) -> String {
-        if let Some(cache) = self.markets.lock().unwrap().as_ref() {
-            if let Some(m) = cache.values().find(|m| m.id == id) {
-                return m.symbol.clone();
-            }
+        if let Some(m) = self.core.markets_snapshot().values().find(|m| m.id == id) {
+            return m.symbol.clone();
         }
         match id.split_once('-') {
             Some((b, q)) if !b.is_empty() && !q.is_empty() => {
@@ -181,8 +158,8 @@ impl Kucoin {
             spot: Some(true),
             // TICK_SIZE:increment 字符串即最小档位(price 用 priceIncrement,回退 quoteIncrement)
             precision: Precision {
-                price: num(raw.get("priceIncrement")).or_else(|| num(raw.get("quoteIncrement"))),
-                amount: num(raw.get("baseIncrement")),
+                price: dec(raw.get("priceIncrement")).or_else(|| dec(raw.get("quoteIncrement"))),
+                amount: dec(raw.get("baseIncrement")),
                 cost: None,
             },
             info: raw.clone(),
@@ -193,7 +170,7 @@ impl Kucoin {
     pub fn parse_ticker(&self, raw: &Value) -> Ticker {
         let id = raw["symbol"].as_str().unwrap_or_default();
         let ts = raw["time"].as_i64();
-        let close = num(raw.get("last"));
+        let close = dec(raw.get("last"));
         // percentage:changeRate 为小数(如 -0.0037)→ ×100
         let percentage = raw
             .get("changeRate")
@@ -203,20 +180,20 @@ impl Kucoin {
             symbol: self.market_symbol(id),
             timestamp: ts,
             datetime: ts.and_then(iso8601),
-            high: num(raw.get("high")),
-            low: num(raw.get("low")),
-            bid: num(raw.get("buy")).or_else(|| num(raw.get("bestBid"))),
-            ask: num(raw.get("sell")).or_else(|| num(raw.get("bestAsk"))),
-            bid_volume: num(raw.get("bestBidSize")),
-            ask_volume: num(raw.get("bestAskSize")),
-            open: num(raw.get("open")),
+            high: dec(raw.get("high")),
+            low: dec(raw.get("low")),
+            bid: dec(raw.get("buy")).or_else(|| dec(raw.get("bestBid"))),
+            ask: dec(raw.get("sell")).or_else(|| dec(raw.get("bestAsk"))),
+            bid_volume: dec(raw.get("bestBidSize")),
+            ask_volume: dec(raw.get("bestAskSize")),
+            open: dec(raw.get("open")),
             close,
             last: close,
-            change: num(raw.get("changePrice")),
+            change: dec(raw.get("changePrice")),
             percentage,
-            average: num(raw.get("averagePrice")),
-            base_volume: num(raw.get("vol")),
-            quote_volume: num(raw.get("volValue")),
+            average: dec(raw.get("averagePrice")),
+            base_volume: dec(raw.get("vol")),
+            quote_volume: dec(raw.get("volValue")),
             info: raw.clone(),
             ..Ticker::default()
         }
@@ -243,8 +220,8 @@ impl Kucoin {
     pub fn parse_trade(&self, raw: &Value) -> Trade {
         // time 为纳秒 → ccxt 统一 /1e6 转毫秒
         let timestamp = raw["time"].as_i64().map(|t| t / 1_000_000);
-        let price = num(raw.get("price"));
-        let amount = num(raw.get("size"));
+        let price = dec(raw.get("price"));
+        let amount = dec(raw.get("size"));
         let id = match raw.get("tradeId") {
             Some(Value::String(s)) => Some(s.clone()),
             Some(Value::Number(n)) => Some(n.to_string()),
@@ -304,7 +281,10 @@ impl Exchange for Kucoin {
     }
 
     async fn fetch_time(&self) -> Result<i64> {
-        let resp = self.public_get("/api/v1/timestamp", &Params::new()).await?;
+        let resp = self
+            .core
+            .public_get("/api/v1/timestamp", &Params::new())
+            .await?;
         resp["data"]
             .as_i64()
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "missing timestamp"))
@@ -312,19 +292,12 @@ impl Exchange for Kucoin {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         let p = params1("symbol", &self.symbol_id(symbol));
-        let resp = self.public_get("/api/v1/market/stats", &p).await?;
+        let resp = self.core.public_get("/api/v1/market/stats", &p).await?;
         let raw = resp
             .get("data")
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "missing data"))?;
@@ -333,6 +306,7 @@ impl Exchange for Kucoin {
 
     async fn fetch_tickers(&self, _symbols: Option<&[&str]>, _params: Params) -> Result<Tickers> {
         let resp = self
+            .core
             .public_get("/api/v1/market/allTickers", &Params::new())
             .await?;
         let arr = resp
@@ -360,7 +334,7 @@ impl Exchange for Kucoin {
         let mut p = Params::new();
         p.insert("symbol".into(), json!(self.symbol_id(symbol)));
         p.insert("type".into(), json!(timeframe));
-        let resp = self.public_get("/api/v1/market/candles", &p).await?;
+        let resp = self.core.public_get("/api/v1/market/candles", &p).await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -378,6 +352,7 @@ impl Exchange for Kucoin {
         let p = params1("symbol", &self.symbol_id(symbol));
         // level2_20:20 档快照(公共端点限制)
         let resp = self
+            .core
             .public_get("/api/v1/market/orderbook/level2_20", &p)
             .await?;
         Ok(self.parse_order_book(&resp, symbol))
@@ -391,7 +366,7 @@ impl Exchange for Kucoin {
         _params: Params,
     ) -> Result<Vec<Trade>> {
         let p = params1("symbol", &self.symbol_id(symbol));
-        let resp = self.public_get("/api/v1/market/histories", &p).await?;
+        let resp = self.core.public_get("/api/v1/market/histories", &p).await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -413,9 +388,9 @@ impl Exchange for Kucoin {
                     continue;
                 }
                 if let Some(code) = a["currency"].as_str() {
-                    let free = num(a.get("available"));
-                    let holds = num(a.get("holds"));
-                    let balance = num(a.get("balance"));
+                    let free = dec(a.get("available"));
+                    let holds = dec(a.get("holds"));
+                    let balance = dec(a.get("balance"));
                     let entry = out
                         .accounts
                         .entry(code.to_string())
@@ -447,10 +422,6 @@ fn params1(k: &str, v: &str) -> Params {
     p
 }
 
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(value_decimal)
-}
-
 fn value_str(v: &Value) -> Option<String> {
     match v {
         Value::String(s) => Some(s.clone()),
@@ -459,65 +430,11 @@ fn value_str(v: &Value) -> Option<String> {
     }
 }
 
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-/// `[price, size]` → Level。
-fn parse_level(raw: &Value) -> Level {
-    let arr = raw.as_array();
-    Level {
-        price: arr.and_then(|a| a.first()).and_then(value_decimal),
-        amount: arr.and_then(|a| a.get(1)).and_then(value_decimal),
-    }
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| format!("{}={}", pct_encode(k), pct_encode(&val_str(v))))
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-fn val_str(v: &Value) -> String {
-    match v {
-        Value::String(s) => s.clone(),
-        Value::Number(n) => n.to_string(),
-        Value::Bool(b) => b.to_string(),
-        other => other.to_string(),
-    }
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 #[cfg(test)]

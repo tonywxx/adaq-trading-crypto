@@ -14,14 +14,11 @@
 //! - Ticker:last/close = probability,base_volume = volume;
 //! - Trade:side = outcome 小写,price = amount/shares(均价),amount = shares。
 
-use std::sync::Mutex;
-
-use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, iso8601};
 use crate::types::{Market, MarketType, Markets, Ticker, Trade};
 
 pub const ID: &str = "manifold";
@@ -31,8 +28,7 @@ const RATE_LIMIT_MS: u64 = 200;
 /// manifold 适配器。
 pub struct Manifold {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
 }
 
 impl Manifold {
@@ -41,35 +37,19 @@ impl Manifold {
         &["fetch_markets", "fetch_ticker", "fetch_trades"];
 
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
-        Ok(Self {
-            config,
-            client,
-            markets: Mutex::new(None),
-        })
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        Ok(Self { config, core })
     }
 
     async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
+        self.core.public_get(path, params).await
     }
 
     async fn load_markets(&self) -> Result<()> {
-        if self.markets.lock().unwrap().is_some() {
-            return Ok(());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let mut p = Params::new();
         p.insert("limit".into(), json!(1000));
         let resp = self.public_get("/markets", &p).await?;
@@ -81,17 +61,14 @@ impl Manifold {
             let m = self.parse_market(raw);
             map.insert(m.symbol.clone(), m);
         }
-        *self.markets.lock().unwrap() = Some(map);
-        Ok(())
+        Ok(map)
     }
 
     /// 统一 symbol → 查询键:先查缓存,否则原样(支持 slug 或 id)。
     fn symbol_id(&self, symbol: &str) -> String {
-        if let Some(cache) = self.markets.lock().unwrap().as_ref() {
-            for m in cache.values() {
-                if m.symbol == symbol {
-                    return m.id.clone();
-                }
+        for m in self.core.markets_snapshot().values() {
+            if m.symbol == symbol {
+                return m.id.clone();
             }
         }
         symbol.to_string()
@@ -188,14 +165,7 @@ impl Exchange for Manifold {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
@@ -233,42 +203,6 @@ fn num_f64(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
         Value::String(s) => s.parse().ok(),
         _ => None,
     })
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| {
-            let val = match v {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                other => other.to_string(),
-            };
-            format!("{}={}", pct_encode(k), pct_encode(&val))
-        })
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@ Unified trading interface (Rust) for crypto and prediction markets, for the AdaQ
 
 ## Adapters
 
-Curated set (ADR-0005): 7 crypto exchanges + 2 prediction markets + 1 native prediction adapter, each with differential testing against real ccxt output.
+Curated set (ADR-0005): 10 crypto exchanges + 2 prediction markets + 1 native prediction adapter, each with differential testing against real ccxt output. Adapters share one exchange-agnostic core (`HttpCore`, ADR-0013); new exchanges follow the four-seam pattern (describe / sign / handle_errors / field mapping).
 
 | Feature | Exchange | Scope |
 |---|---|---|

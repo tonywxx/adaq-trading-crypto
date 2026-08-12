@@ -23,23 +23,25 @@ use tokio::sync::watch;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
 use crate::realtime::orderbook::OrderBookStore;
-use crate::realtime::ws::{SubscriptionSet, WsSession};
+use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://ws.okx.com:8443/ws/v5/public";
 const WS_PRIVATE: &str = "wss://ws.okx.com:8443/ws/v5/private";
 
-type TickerChannel = Arc<Mutex<HashMap<String, watch::Sender<Ticker>>>>;
-type BookChannel = Arc<Mutex<HashMap<String, watch::Sender<OrderBook>>>>;
+type TickerChannel = ChannelMap<String, Ticker>;
+type BookChannel = ChannelMap<String, OrderBook>;
 type BookStoreMap = Arc<Mutex<HashMap<String, OrderBookStore>>>;
-type TradeChannel = Arc<Mutex<HashMap<String, watch::Sender<Vec<Trade>>>>>;
-type OhlcvChannel = Arc<Mutex<HashMap<(String, String), watch::Sender<Vec<OHLCV>>>>>;
+type TradeChannel = ChannelMap<String, Vec<Trade>>;
+type OhlcvChannel = ChannelMap<(String, String), Vec<OHLCV>>;
 
 /// okx WS 适配器。
 pub struct OkxWs {
     config: Config,
-    pub_connected: Mutex<Option<watch::Receiver<bool>>>,
-    priv_connected: Mutex<Option<watch::Receiver<bool>>>,
+    /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0013 方向)。
+    rest: Arc<crate::adapters::Okx>,
+    pub_connected: Conn,
+    priv_connected: Conn,
     tickers: TickerChannel,
     books: BookChannel,
     book_stores: BookStoreMap,
@@ -56,10 +58,12 @@ pub struct OkxWs {
 
 impl OkxWs {
     pub fn new(config: Config) -> Result<Self> {
+        let rest = Arc::new(crate::adapters::Okx::new(config.clone())?);
         Ok(Self {
             config,
-            pub_connected: Mutex::new(None),
-            priv_connected: Mutex::new(None),
+            rest,
+            pub_connected: Conn::new(),
+            priv_connected: Conn::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
             book_stores: Arc::new(Mutex::new(HashMap::new())),
@@ -80,22 +84,26 @@ impl OkxWs {
     }
 
     fn ensure_public(&self) -> watch::Receiver<bool> {
-        if let Some(rx) = self.pub_connected.lock().unwrap().clone() {
-            return rx;
-        }
-        let tickers = self.tickers.clone();
-        let books = self.books.clone();
-        let book_stores = self.book_stores.clone();
-        let trades = self.trades.clone();
-        let ohlcvs = self.ohlcvs.clone();
-        let headers = HeaderMap::new();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-        let rx = WsSession::spawn(WS_PUBLIC.to_string(), headers, sub_rx, move |msg| {
-            dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs)
-        });
-        *self.pub_connected.lock().unwrap() = Some(rx.clone());
-        *self.sub_tx.lock().unwrap() = Some(sub_tx);
-        rx
+        self.pub_connected.ensure(|| {
+            let tickers = self.tickers.clone();
+            let books = self.books.clone();
+            let book_stores = self.book_stores.clone();
+            let trades = self.trades.clone();
+            let ohlcvs = self.ohlcvs.clone();
+            let rest = self.rest.clone();
+            let headers = HeaderMap::new();
+            let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
+            *self.sub_tx.lock().unwrap() = Some(sub_tx);
+            WsSession::spawn(
+                WS_PUBLIC.to_string(),
+                headers,
+                sub_rx,
+                move |msg| {
+                    dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs, &rest)
+                },
+                None,
+            )
+        })
     }
 
     async fn subscribe(&self, channel: &str, inst_id: &str) -> Result<()> {
@@ -144,7 +152,7 @@ impl OkxWs {
     }
 
     async fn ensure_private(&self) -> Result<()> {
-        if self.priv_connected.lock().unwrap().is_some() {
+        if self.priv_connected.is_connected() {
             return Ok(());
         }
         // 构造登录帧与私密连接
@@ -178,13 +186,19 @@ impl OkxWs {
         let orders = self.orders.lock().unwrap().clone();
         let positions = self.positions.lock().unwrap().clone();
         let my_trades = self.my_trades.lock().unwrap().clone();
+        let rest = self.rest.clone();
         let headers = HeaderMap::new();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(vec![login_frame]);
-        let rx = WsSession::spawn(WS_PRIVATE.to_string(), headers, sub_rx, move |msg| {
-            dispatch_private(msg, &balances, &orders, &positions, &my_trades)
+        self.priv_connected.ensure(|| {
+            let (sub_tx, sub_rx) = tokio::sync::watch::channel(vec![login_frame]);
+            *self.priv_sub_tx.lock().unwrap() = Some(sub_tx);
+            WsSession::spawn(
+                WS_PRIVATE.to_string(),
+                headers,
+                sub_rx,
+                move |msg| dispatch_private(msg, &balances, &orders, &positions, &my_trades, &rest),
+                None,
+            )
         });
-        *self.priv_connected.lock().unwrap() = Some(rx);
-        *self.priv_sub_tx.lock().unwrap() = Some(sub_tx);
         Ok(())
     }
 }
@@ -196,6 +210,7 @@ fn dispatch_public(
     book_stores: &BookStoreMap,
     trades: &TradeChannel,
     ohlcvs: &OhlcvChannel,
+    rest: &crate::adapters::Okx,
 ) {
     let channel = msg["arg"]["channel"].as_str().unwrap_or_default();
     let inst = msg["arg"]["instId"]
@@ -208,10 +223,8 @@ fn dispatch_public(
     }
     match channel {
         "tickers" => {
-            let raw = &data[0];
-            let symbol = inst.replace('-', "/");
             if let Some(tx) = tickers.lock().unwrap().get(&inst).cloned() {
-                let _ = tx.send(parse_ticker(raw, &symbol));
+                let _ = tx.send(rest.parse_ticker(&data[0]));
             }
         }
         "books" => {
@@ -246,8 +259,7 @@ fn dispatch_public(
         }
         "trades" => {
             if let Some(tx) = trades.lock().unwrap().get(&inst).cloned() {
-                let symbol = inst.replace('-', "/");
-                let parsed: Vec<Trade> = data.iter().map(|t| parse_trade(t, &symbol)).collect();
+                let parsed: Vec<Trade> = data.iter().map(|t| rest.parse_trade(t)).collect();
                 let _ = tx.send(parsed);
             }
         }
@@ -260,7 +272,7 @@ fn dispatch_public(
                 .get(&(inst.clone(), tf.clone()))
                 .cloned()
             {
-                let _ = tx.send(vec![parse_candle(&data[0])]);
+                let _ = tx.send(vec![rest.parse_ohlcv(&data[0])]);
             }
         }
         _ => {}
@@ -273,6 +285,7 @@ fn dispatch_private(
     orders: &Option<watch::Sender<Vec<Order>>>,
     positions: &Option<watch::Sender<Vec<Position>>>,
     my_trades: &Option<watch::Sender<Vec<Trade>>>,
+    rest: &crate::adapters::Okx,
 ) {
     let channel = msg["arg"]["channel"].as_str().unwrap_or_default();
     let data = msg["data"].as_array().cloned().unwrap_or_default();
@@ -307,7 +320,7 @@ fn dispatch_private(
         }
         "orders" => {
             if let Some(tx) = orders.as_ref() {
-                let parsed: Vec<Order> = data.iter().map(parse_order).collect();
+                let parsed: Vec<Order> = data.iter().map(|o| rest.parse_order(o)).collect();
                 let _ = tx.send(parsed);
             }
         }
@@ -316,7 +329,7 @@ fn dispatch_private(
                 let parsed: Vec<Position> = data
                     .iter()
                     .filter(|p| p["pos"].as_str().map(|s| s != "0").unwrap_or(false))
-                    .map(parse_position)
+                    .map(|p| rest.parse_position(p))
                     .collect();
                 let _ = tx.send(parsed);
             }
@@ -328,111 +341,6 @@ fn dispatch_private(
             }
         }
         _ => {}
-    }
-}
-
-fn parse_ticker(raw: &Value, symbol: &str) -> Ticker {
-    let ts = raw["ts"].as_str().and_then(|s| s.parse::<i64>().ok());
-    Ticker {
-        symbol: symbol.to_string(),
-        timestamp: ts,
-        datetime: ts.and_then(iso8601),
-        open: dec(raw.get("open24h")),
-        high: dec(raw.get("high24h")),
-        low: dec(raw.get("low24h")),
-        bid: dec(raw.get("bidPx")),
-        ask: dec(raw.get("askPx")),
-        last: dec(raw.get("last")),
-        close: dec(raw.get("last")),
-        base_volume: dec(raw.get("vol24h")),
-        quote_volume: dec(raw.get("volCcy24h")),
-        info: raw.clone(),
-        ..Ticker::default()
-    }
-}
-
-fn parse_trade(raw: &Value, symbol: &str) -> Trade {
-    let ts = raw["ts"].as_str().and_then(|s| s.parse::<i64>().ok());
-    Trade {
-        id: raw["tradeId"].as_str().map(str::to_string),
-        timestamp: ts,
-        datetime: ts.and_then(iso8601),
-        symbol: Some(symbol.to_string()),
-        side: raw["side"].as_str().map(|s| s.to_lowercase()),
-        price: dec(raw.get("px")),
-        amount: dec(raw.get("sz")),
-        info: raw.clone(),
-        ..Trade::default()
-    }
-}
-
-fn parse_candle(raw: &Value) -> OHLCV {
-    // [ts, o, h, l, c, vol, ...]
-    let arr = raw.as_array();
-    let ts = arr
-        .and_then(|a| a.first())
-        .and_then(Value::as_str)
-        .and_then(|s| s.parse::<i64>().ok());
-    OHLCV {
-        timestamp: ts,
-        open: arr
-            .and_then(|a| a.get(1))
-            .and_then(super::ws::value_decimal),
-        high: arr
-            .and_then(|a| a.get(2))
-            .and_then(super::ws::value_decimal),
-        low: arr
-            .and_then(|a| a.get(3))
-            .and_then(super::ws::value_decimal),
-        close: arr
-            .and_then(|a| a.get(4))
-            .and_then(super::ws::value_decimal),
-        volume: arr
-            .and_then(|a| a.get(5))
-            .and_then(super::ws::value_decimal),
-    }
-}
-
-fn parse_order(raw: &Value) -> Order {
-    let status = raw["state"]
-        .as_str()
-        .map(|s| match s {
-            "live" => "open",
-            "partially_filled" => "open",
-            "filled" => "closed",
-            "canceled" => "canceled",
-            other => other,
-        })
-        .map(str::to_string);
-    let ts = raw["uTime"].as_str().and_then(|s| s.parse::<i64>().ok());
-    Order {
-        id: raw["ordId"].as_str().map(str::to_string),
-        client_order_id: raw["clOrdId"].as_str().map(str::to_string),
-        timestamp: ts,
-        datetime: ts.and_then(iso8601),
-        status,
-        symbol: raw["instId"].as_str().map(|s| s.replace('-', "/")),
-        order_type: raw["ordType"].as_str().map(|s| s.to_lowercase()),
-        side: raw["side"].as_str().map(|s| s.to_lowercase()),
-        price: dec(raw.get("px")),
-        average: dec(raw.get("avgPx")),
-        amount: dec(raw.get("sz")),
-        filled: dec(raw.get("accFillSz")),
-        info: raw.clone(),
-        ..Order::default()
-    }
-}
-
-fn parse_position(raw: &Value) -> Position {
-    Position {
-        symbol: raw["instId"].as_str().map(|s| s.replace('-', "/")),
-        id: raw["posId"].as_str().map(str::to_string),
-        contracts: dec(raw.get("pos")),
-        entry_price: dec(raw.get("avgPx")),
-        unrealized_pnl: dec(raw.get("upl")),
-        notional: dec(raw.get("notionalUsd")),
-        info: raw.clone(),
-        ..Position::default()
     }
 }
 
@@ -649,11 +557,33 @@ impl Realtime for OkxWs {
     }
 }
 
-async fn wait_first<T: Clone>(mut rx: watch::Receiver<T>) -> Result<T> {
-    rx.changed().await.map_err(ws_err)?;
-    Ok(rx.borrow().clone())
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn ws_err(e: watch::error::RecvError) -> Error {
-    Error::new(ErrorKind::NetworkError, format!("ws channel closed: {e}"))
+    /// 离线重放(候选 3 解析合一):WS tickers 消息经共享 REST parse 输出频道。
+    #[tokio::test]
+    async fn replay_ws_ticker_uses_shared_rest_parse() {
+        let rest = Arc::new(crate::adapters::Okx::new(Config::new()).unwrap());
+        let tickers: TickerChannel = Arc::new(Mutex::new(HashMap::new()));
+        let books: BookChannel = Arc::new(Mutex::new(HashMap::new()));
+        let stores: BookStoreMap = Arc::new(Mutex::new(HashMap::new()));
+        let trades: TradeChannel = Arc::new(Mutex::new(HashMap::new()));
+        let ohlcvs: OhlcvChannel = Arc::new(Mutex::new(HashMap::new()));
+        let (tx, rx) = watch::channel(Ticker::default());
+        tickers.lock().unwrap().insert("BTC-USDT".into(), tx);
+        let msg = json!({
+            "arg": {"channel": "tickers", "instId": "BTC-USDT"},
+            "data": [{
+                "instId": "BTC-USDT", "ts": "123", "last": "100",
+                "bidPx": "99.9", "askPx": "100.1", "open24h": "95",
+                "high24h": "101", "low24h": "94", "vol24h": "10", "volCcy24h": "1000"
+            }]
+        });
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs, &rest);
+        let t = rx.borrow().clone();
+        assert_eq!(t.symbol, "BTC/USDT");
+        assert_eq!(t.last, Some("100".parse().unwrap()));
+        assert_eq!(t.timestamp, Some(123));
+    }
 }

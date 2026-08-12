@@ -17,6 +17,7 @@ pub mod decimal;
 pub mod eip712;
 pub mod error;
 pub mod exchange;
+pub mod httpcore;
 pub mod methods;
 pub mod precise;
 pub mod realtime;

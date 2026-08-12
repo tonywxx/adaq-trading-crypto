@@ -12,17 +12,15 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use std::sync::Mutex;
-
 use base64::Engine;
 use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 use sha2::Sha256;
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, dec, iso8601, parse_level, pct_encode, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -40,8 +38,7 @@ const COMMON_QUOTES: &[&str] = &[
 /// bitget 现货适配器。
 pub struct Bitget {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
 }
 
 impl Bitget {
@@ -58,32 +55,11 @@ impl Bitget {
     ];
 
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
-        Ok(Self {
-            config,
-            client,
-            markets: Mutex::new(None),
-        })
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        Ok(Self { config, core })
     }
 
     // ================= 内部 HTTP =================
-
-    async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
-    }
 
     /// 私密 GET(v2 签名,query 按 key 排序入签名)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
@@ -121,17 +97,19 @@ impl Bitget {
             "ACCESS-PASSPHRASE",
             HeaderValue::from_str(passphrase).unwrap(),
         );
-        let url = format!("{BASE_URL}{path}{qs}");
-        self.client.request("GET", &url, &headers, None).await
+        let url = format!("{path}{qs}");
+        self.core.request("GET", &url, &headers, None).await
     }
 
     // ================= markets 缓存 =================
 
     async fn load_markets(&self) -> Result<()> {
-        if self.markets.lock().unwrap().is_some() {
-            return Ok(());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let resp = self
+            .core
             .public_get("/spot/public/symbols", &Params::new())
             .await?;
         let arr = resp
@@ -143,8 +121,7 @@ impl Bitget {
             let m = self.parse_market(raw);
             map.insert(m.symbol.clone(), m);
         }
-        *self.markets.lock().unwrap() = Some(map);
-        Ok(())
+        Ok(map)
     }
 
     /// 统一 symbol → id(`BTC/USDT` → `BTCUSDT`)。
@@ -154,10 +131,8 @@ impl Bitget {
 
     /// id → 统一 symbol(`BTCUSDT` → `BTC/USDT`):先查缓存,否则按常见计价币后缀剥离。
     fn market_symbol(&self, id: &str) -> String {
-        if let Some(cache) = self.markets.lock().unwrap().as_ref() {
-            if let Some(m) = cache.values().find(|m| m.id == id) {
-                return m.symbol.clone();
-            }
+        if let Some(m) = self.core.markets_snapshot().values().find(|m| m.id == id) {
+            return m.symbol.clone();
         }
         for q in COMMON_QUOTES {
             if let Some(base) = id.strip_suffix(q) {
@@ -202,12 +177,12 @@ impl Bitget {
             },
             limits: crate::types::Limits {
                 amount: Some(crate::types::Limit {
-                    min: num(raw.get("minTradeAmount")),
-                    max: num(raw.get("maxTradeAmount")),
+                    min: dec(raw.get("minTradeAmount")),
+                    max: dec(raw.get("maxTradeAmount")),
                 }),
                 cost: raw["quoteCoin"].as_str().and_then(|q| {
                     (q == "USDT").then(|| crate::types::Limit {
-                        min: num(raw.get("minTradeUSDT")),
+                        min: dec(raw.get("minTradeUSDT")),
                         max: None,
                     })
                 }),
@@ -221,7 +196,7 @@ impl Bitget {
     pub fn parse_ticker(&self, raw: &Value) -> Ticker {
         let id = raw["symbol"].as_str().unwrap_or_default();
         let ts = raw["ts"].as_str().and_then(|s| s.parse::<i64>().ok());
-        let close = num(raw.get("lastPr"));
+        let close = dec(raw.get("lastPr"));
         // percentage:change24h 为小数(如 0.00321)→ *100
         let percentage = raw
             .get("change24h")
@@ -231,18 +206,18 @@ impl Bitget {
             symbol: self.market_symbol(id),
             timestamp: ts,
             datetime: ts.and_then(iso8601),
-            open: num(raw.get("open")),
-            high: num(raw.get("high24h")),
-            low: num(raw.get("low24h")),
-            bid: num(raw.get("bidPr")),
-            ask: num(raw.get("askPr")),
-            bid_volume: num(raw.get("bidSz")),
-            ask_volume: num(raw.get("askSz")),
+            open: dec(raw.get("open")),
+            high: dec(raw.get("high24h")),
+            low: dec(raw.get("low24h")),
+            bid: dec(raw.get("bidPr")),
+            ask: dec(raw.get("askPr")),
+            bid_volume: dec(raw.get("bidSz")),
+            ask_volume: dec(raw.get("askSz")),
             close,
             last: close,
             percentage,
-            base_volume: num(raw.get("baseVolume")),
-            quote_volume: num(raw.get("quoteVolume")),
+            base_volume: dec(raw.get("baseVolume")),
+            quote_volume: dec(raw.get("quoteVolume")),
             info: raw.clone(),
             ..Ticker::default()
         }
@@ -280,8 +255,8 @@ impl Bitget {
             datetime: ts.and_then(iso8601),
             symbol: raw["symbol"].as_str().map(|s| self.market_symbol(s)),
             side: raw["side"].as_str().map(|s| s.to_lowercase()),
-            price: num(raw.get("price")),
-            amount: num(raw.get("size")),
+            price: dec(raw.get("price")),
+            amount: dec(raw.get("size")),
             info: raw.clone(),
             ..Trade::default()
         }
@@ -317,7 +292,7 @@ impl Exchange for Bitget {
     }
 
     async fn fetch_time(&self) -> Result<i64> {
-        let resp = self.public_get("/public/time", &Params::new()).await?;
+        let resp = self.core.public_get("/public/time", &Params::new()).await?;
         resp["data"]
             .get("serverTime")
             .and_then(Value::as_i64)
@@ -326,19 +301,12 @@ impl Exchange for Bitget {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         let p = params1("symbol", &self.symbol_id(symbol));
-        let resp = self.public_get("/spot/market/tickers", &p).await?;
+        let resp = self.core.public_get("/spot/market/tickers", &p).await?;
         let raw = resp
             .get("data")
             .and_then(Value::as_array)
@@ -349,6 +317,7 @@ impl Exchange for Bitget {
 
     async fn fetch_tickers(&self, _symbols: Option<&[&str]>, _params: Params) -> Result<Tickers> {
         let resp = self
+            .core
             .public_get("/spot/market/tickers", &Params::new())
             .await?;
         let arr = resp
@@ -395,7 +364,7 @@ impl Exchange for Bitget {
         p.insert("symbol".into(), json!(self.symbol_id(symbol)));
         p.insert("granularity".into(), json!(granularity));
         p.insert("limit".into(), json!(limit.unwrap_or(100).min(1000)));
-        let resp = self.public_get("/spot/market/candles", &p).await?;
+        let resp = self.core.public_get("/spot/market/candles", &p).await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -415,7 +384,7 @@ impl Exchange for Bitget {
         if let Some(l) = limit {
             p.insert("limit".into(), json!(l.min(200)));
         }
-        let resp = self.public_get("/spot/market/orderbook", &p).await?;
+        let resp = self.core.public_get("/spot/market/orderbook", &p).await?;
         Ok(self.parse_order_book(&resp, symbol))
     }
 
@@ -431,7 +400,7 @@ impl Exchange for Bitget {
         if let Some(l) = limit {
             p.insert("limit".into(), json!(l.min(500)));
         }
-        let resp = self.public_get("/spot/market/fills", &p).await?;
+        let resp = self.core.public_get("/spot/market/fills", &p).await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -451,9 +420,9 @@ impl Exchange for Bitget {
         if let Some(arr) = resp.get("data").and_then(Value::as_array) {
             for a in arr {
                 if let Some(code) = a["coin"].as_str() {
-                    let free = num(a.get("available"));
-                    let frozen = num(a.get("frozen"));
-                    let locked = num(a.get("locked"));
+                    let free = dec(a.get("available"));
+                    let frozen = dec(a.get("frozen"));
+                    let locked = dec(a.get("locked"));
                     let used = match (frozen, locked) {
                         (Some(f), Some(l)) => Some(f + l),
                         (Some(f), None) => Some(f),
@@ -489,38 +458,6 @@ fn params1(k: &str, v: &str) -> Params {
     p
 }
 
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(value_decimal)
-}
-
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-/// `[price, size]` → Level。
-fn parse_level(raw: &Value) -> Level {
-    let arr = raw.as_array();
-    Level {
-        price: arr.and_then(|a| a.first()).and_then(value_decimal),
-        amount: arr.and_then(|a| a.get(1)).and_then(value_decimal),
-    }
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| format!("{}={}", pct_encode(k), pct_encode(&val_str(v))))
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
 /// 签名用 query:按 key 排序(bitget 要求)。
 fn sorted_query_string(params: &Params) -> String {
     if params.is_empty() {
@@ -530,31 +467,17 @@ fn sorted_query_string(params: &Params) -> String {
     keys.sort();
     let pairs: Vec<String> = keys
         .iter()
-        .map(|k| format!("{}={}", pct_encode(k), pct_encode(&val_str(&params[*k]))))
+        .map(|k| {
+            let val = match &params[*k] {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                Value::Bool(b) => b.to_string(),
+                other => other.to_string(),
+            };
+            format!("{}={}", pct_encode(k), pct_encode(&val))
+        })
         .collect();
     format!("?{}", pairs.join("&"))
-}
-
-fn val_str(v: &Value) -> String {
-    match v {
-        Value::String(s) => s.clone(),
-        Value::Number(n) => n.to_string(),
-        Value::Bool(b) => b.to_string(),
-        other => other.to_string(),
-    }
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
 }
 
 fn now_ms() -> u64 {
@@ -562,10 +485,6 @@ fn now_ms() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 #[cfg(test)]

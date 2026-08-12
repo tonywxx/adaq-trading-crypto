@@ -12,16 +12,14 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use std::sync::Mutex;
-
 use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 use sha2::Sha512;
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, dec, iso8601, parse_level, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -34,8 +32,7 @@ const RATE_LIMIT_MS: u64 = 20;
 /// gate.io 现货适配器。
 pub struct Gate {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
 }
 
 impl Gate {
@@ -52,32 +49,11 @@ impl Gate {
     ];
 
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
-        Ok(Self {
-            config,
-            client,
-            markets: Mutex::new(None),
-        })
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        Ok(Self { config, core })
     }
 
     // ================= 内部 HTTP =================
-
-    async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
-    }
 
     /// 私密 GET(v4 签名,payload = METHOD\npath\nquery\nbodyHash\ntimestamp)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
@@ -107,17 +83,19 @@ impl Gate {
         headers.insert("Timestamp", HeaderValue::from_str(&timestamp).unwrap());
         headers.insert("SIGN", HeaderValue::from_str(&signature).unwrap());
         headers.insert("Content-Type", HeaderValue::from_static("application/json"));
-        let url = format!("{BASE_URL}{path}{qs}");
-        self.client.request("GET", &url, &headers, None).await
+        let url = format!("{path}{qs}");
+        self.core.request("GET", &url, &headers, None).await
     }
 
     // ================= markets 缓存 =================
 
     async fn load_markets(&self) -> Result<()> {
-        if self.markets.lock().unwrap().is_some() {
-            return Ok(());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let resp = self
+            .core
             .public_get("/spot/currency_pairs", &Params::new())
             .await?;
         let arr = resp
@@ -128,8 +106,7 @@ impl Gate {
             let m = self.parse_market(raw);
             map.insert(m.symbol.clone(), m);
         }
-        *self.markets.lock().unwrap() = Some(map);
-        Ok(())
+        Ok(map)
     }
 
     /// 统一 symbol → id(`BTC/USDT` → `BTC_USDT`)。
@@ -139,10 +116,8 @@ impl Gate {
 
     /// id → 统一 symbol(`BTC_USDT` → `BTC/USDT`):先查缓存,否则按 `_` 拆分。
     fn market_symbol(&self, id: &str) -> String {
-        if let Some(cache) = self.markets.lock().unwrap().as_ref() {
-            if let Some(m) = cache.values().find(|m| m.id == id) {
-                return m.symbol.clone();
-            }
+        if let Some(m) = self.core.markets_snapshot().values().find(|m| m.id == id) {
+            return m.symbol.clone();
         }
         match id.split_once('_') {
             Some((b, q)) if !b.is_empty() && !q.is_empty() => {
@@ -199,11 +174,11 @@ impl Gate {
             },
             limits: crate::types::Limits {
                 amount: Some(crate::types::Limit {
-                    min: num(raw.get("min_base_amount")),
+                    min: dec(raw.get("min_base_amount")),
                     max: None,
                 }),
                 cost: Some(crate::types::Limit {
-                    min: num(raw.get("min_quote_amount")),
+                    min: dec(raw.get("min_quote_amount")),
                     max: None,
                 }),
                 ..crate::types::Limits::default()
@@ -216,20 +191,20 @@ impl Gate {
     pub fn parse_ticker(&self, raw: &Value) -> Ticker {
         let id = raw["currency_pair"].as_str().unwrap_or_default();
         let ts = raw["t"].as_i64();
-        let close = num(raw.get("last"));
+        let close = dec(raw.get("last"));
         Ticker {
             symbol: self.market_symbol(id),
             timestamp: ts,
             datetime: ts.and_then(iso8601),
-            high: num(raw.get("high_24h")),
-            low: num(raw.get("low_24h")),
-            bid: num(raw.get("highest_bid")),
-            ask: num(raw.get("lowest_ask")),
+            high: dec(raw.get("high_24h")),
+            low: dec(raw.get("low_24h")),
+            bid: dec(raw.get("highest_bid")),
+            ask: dec(raw.get("lowest_ask")),
             close,
             last: close,
-            percentage: num(raw.get("change_percentage")),
-            base_volume: num(raw.get("base_volume")),
-            quote_volume: num(raw.get("quote_volume")),
+            percentage: dec(raw.get("change_percentage")),
+            base_volume: dec(raw.get("base_volume")),
+            quote_volume: dec(raw.get("quote_volume")),
             info: raw.clone(),
             ..Ticker::default()
         }
@@ -275,8 +250,8 @@ impl Gate {
                     .and_then(|s| s.parse::<i64>().ok())
                     .map(|s| s * 1000)
             });
-        let price = num(raw.get("price"));
-        let amount = num(raw.get("amount"));
+        let price = dec(raw.get("price"));
+        let amount = dec(raw.get("amount"));
         Trade {
             id: raw["id"].as_str().map(str::to_string),
             timestamp,
@@ -329,7 +304,7 @@ impl Exchange for Gate {
     }
 
     async fn fetch_time(&self) -> Result<i64> {
-        let resp = self.public_get("/spot/time", &Params::new()).await?;
+        let resp = self.core.public_get("/spot/time", &Params::new()).await?;
         resp["server_time"]
             .as_i64()
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "missing server_time"))
@@ -337,19 +312,12 @@ impl Exchange for Gate {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         let p = params1("currency_pair", &self.symbol_id(symbol));
-        let resp = self.public_get("/spot/tickers", &p).await?;
+        let resp = self.core.public_get("/spot/tickers", &p).await?;
         let raw = resp
             .as_array()
             .and_then(|a| a.first())
@@ -358,7 +326,10 @@ impl Exchange for Gate {
     }
 
     async fn fetch_tickers(&self, _symbols: Option<&[&str]>, _params: Params) -> Result<Tickers> {
-        let resp = self.public_get("/spot/tickers", &Params::new()).await?;
+        let resp = self
+            .core
+            .public_get("/spot/tickers", &Params::new())
+            .await?;
         let arr = resp.as_array().cloned().unwrap_or_default();
         let mut out = Tickers::new();
         for raw in arr {
@@ -382,7 +353,7 @@ impl Exchange for Gate {
         if let Some(l) = limit {
             p.insert("limit".into(), json!(l.min(1000)));
         }
-        let resp = self.public_get("/spot/candlesticks", &p).await?;
+        let resp = self.core.public_get("/spot/candlesticks", &p).await?;
         let arr = resp.as_array().cloned().unwrap_or_default();
         Ok(arr.iter().map(|r| self.parse_ohlcv(r)).collect())
     }
@@ -398,7 +369,7 @@ impl Exchange for Gate {
         if let Some(l) = limit {
             p.insert("limit".into(), json!(l.min(100)));
         }
-        let resp = self.public_get("/spot/order_book", &p).await?;
+        let resp = self.core.public_get("/spot/order_book", &p).await?;
         Ok(self.parse_order_book(&resp, symbol))
     }
 
@@ -414,7 +385,7 @@ impl Exchange for Gate {
         if let Some(l) = limit {
             p.insert("limit".into(), json!(l.min(1000)));
         }
-        let resp = self.public_get("/spot/trades", &p).await?;
+        let resp = self.core.public_get("/spot/trades", &p).await?;
         let arr = resp.as_array().cloned().unwrap_or_default();
         Ok(arr.iter().map(|t| self.parse_trade(t)).collect())
     }
@@ -428,8 +399,8 @@ impl Exchange for Gate {
         if let Some(arr) = resp.as_array() {
             for a in arr {
                 if let Some(code) = a["currency"].as_str() {
-                    let free = num(a.get("available"));
-                    let locked = num(a.get("locked"));
+                    let free = dec(a.get("available"));
+                    let locked = dec(a.get("locked"));
                     out.accounts.insert(
                         code.to_string(),
                         Balance {
@@ -459,69 +430,11 @@ fn params1(k: &str, v: &str) -> Params {
     p
 }
 
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(value_decimal)
-}
-
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-/// `[price, amount]` → Level。
-fn parse_level(raw: &Value) -> Level {
-    let arr = raw.as_array();
-    Level {
-        price: arr.and_then(|a| a.first()).and_then(value_decimal),
-        amount: arr.and_then(|a| a.get(1)).and_then(value_decimal),
-    }
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| format!("{}={}", pct_encode(k), pct_encode(&val_str(v))))
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-fn val_str(v: &Value) -> String {
-    match v {
-        Value::String(s) => s.clone(),
-        Value::Number(n) => n.to_string(),
-        Value::Bool(b) => b.to_string(),
-        other => other.to_string(),
-    }
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
 fn now_secs() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0)
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 #[cfg(test)]

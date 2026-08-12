@@ -8,17 +8,16 @@
 
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Mutex;
 
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, parse_level, query_string};
 use crate::types::{
-    Balance, Balances, Level, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker,
-    Tickers, Trade,
+    Balance, Balances, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker, Tickers,
+    Trade,
 };
 
 pub const ID: &str = "binance";
@@ -33,8 +32,7 @@ const COMMON_QUOTES: &[&str] = &[
 /// binance 现货适配器。
 pub struct Binance {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
 }
 
 impl Binance {
@@ -54,42 +52,27 @@ impl Binance {
 
     /// 构造适配器(默认启用限速 50ms/次,对齐 binance rateLimit)。
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            50
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
-        Ok(Self {
-            config,
-            client,
-            markets: Mutex::new(None),
-        })
+        let core = HttpCore::new(&config, BASE_URL, 50)?;
+        Ok(Self { config, core })
     }
 
-    /// 加载并缓存市集(按 symbol 索引)。
+    /// 加载并缓存市集(按 symbol 索引;缓存由核心 `HttpCore::load_markets` 负责)。
     pub async fn load_markets(&self) -> Result<Markets> {
-        if let Some(cached) = self.markets.lock().unwrap().as_ref() {
-            return Ok(cached.clone());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await?;
+        Ok(self.core.markets_snapshot())
+    }
+
+    /// 拉取并解析市集(字段映射接缝;缓存由核心负责)。
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let markets = self.fetch_markets().await?;
         let map: Markets = markets.into_iter().map(|m| (m.symbol.clone(), m)).collect();
-        *self.markets.lock().unwrap() = Some(map.clone());
         Ok(map)
     }
 
     /// binance 符号(id,如 `BTCUSDT`)→ 统一 symbol(`BTC/USDT`)。
     fn market_symbol(&self, id: &str) -> String {
-        if let Some(cache) = self.markets.lock().unwrap().as_ref() {
-            if let Some(m) = cache.values().find(|m| m.id == id) {
-                return m.symbol.clone();
-            }
+        if let Some(m) = self.core.markets_snapshot().values().find(|m| m.id == id) {
+            return m.symbol.clone();
         }
         for q in COMMON_QUOTES {
             if let Some(base) = id.strip_suffix(q) {
@@ -102,9 +85,7 @@ impl Binance {
     }
 
     async fn public_request(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
+        self.core.public_get(path, params).await
     }
 
     /// 私有签名请求(binance:HMAC-SHA256,`X-MBX-APIKEY` 头)。
@@ -135,7 +116,7 @@ impl Binance {
                 )
             })?,
         );
-        self.client.request(method, &url, &headers, None).await
+        self.core.request_url(method, &url, &headers, None).await
     }
 
     // ---------- 解析 ----------
@@ -481,48 +462,6 @@ fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
         Value::Number(n) => rust_decimal::Decimal::from_str(&n.to_string()).ok(),
         _ => None,
     })
-}
-
-/// `[price, amount]` → Level。
-fn parse_level(raw: &Value) -> Level {
-    let arr = raw.as_array().unwrap();
-    Level {
-        price: num(arr.first()),
-        amount: num(arr.get(1)),
-    }
-}
-
-/// 构造 URL 查询串(带 `?`,已百分号编码)。
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| {
-            let val = match v {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                _ => String::new(),
-            };
-            format!("{}={}", pct_encode(k), pct_encode(&val))
-        })
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
 }
 
 fn now_ms() -> u64 {

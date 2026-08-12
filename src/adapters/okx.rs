@@ -11,17 +11,17 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use std::sync::Mutex;
-
 use base64::Engine;
 use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 use sha2::Sha256;
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{
+    HttpCore, dec, iso8601, iso8601_now, parse_level, query_string, value_decimal,
+};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position,
     Precision, Ticker, Tickers, Trade,
@@ -34,8 +34,7 @@ const RATE_LIMIT_MS: u64 = 110;
 /// okx 现货适配器。
 pub struct Okx {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
 }
 
 impl Okx {
@@ -56,33 +55,11 @@ impl Okx {
     ];
 
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
-        Ok(Self {
-            config,
-            client,
-            markets: Mutex::new(None),
-        })
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        Ok(Self { config, core })
     }
 
     // ================= 内部 HTTP =================
-
-    /// 公共 GET(带 query)。
-    async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
-    }
 
     /// 私密请求(OKX v5 签名)。
     async fn private_request(
@@ -109,10 +86,9 @@ impl Okx {
             .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx password required"))?;
         let timestamp = iso8601_now();
         // GET:requestPath 含 ?query;POST:拼接 JSON body
-        let (request_path, body_json, url) = if method == "GET" {
+        let (request_path, body_json) = if method == "GET" {
             let qs = query_string(params);
-            let rp = format!("{path}{qs}");
-            (rp.clone(), None, format!("{BASE_URL}{rp}"))
+            (format!("{path}{qs}"), None)
         } else {
             let body_json = body.or_else(|| {
                 if params.is_empty() {
@@ -121,7 +97,7 @@ impl Okx {
                     Some(json!(params))
                 }
             });
-            (path.to_string(), body_json, format!("{BASE_URL}{path}"))
+            (path.to_string(), body_json)
         };
         let auth = format!(
             "{timestamp}{method}{request_path}{}",
@@ -143,18 +119,18 @@ impl Okx {
             "OK-ACCESS-PASSPHRASE",
             HeaderValue::from_str(passphrase).unwrap(),
         );
-        self.client.request(method, &url, &headers, body_json).await
+        self.core
+            .request(method, &request_path, &headers, body_json)
+            .await
     }
 
     // ================= markets 缓存 =================
 
-    async fn load_markets(&self) -> Result<()> {
-        if self.markets.lock().unwrap().is_some() {
-            return Ok(());
-        }
+    /// 拉取并解析市集(字段映射接缝;缓存由核心 `HttpCore::load_markets` 负责)。
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let mut p = Params::new();
         p.insert("instType".into(), json!("SPOT"));
-        let resp = self.public_get("/public/instruments", &p).await?;
+        let resp = self.core.public_get("/public/instruments", &p).await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -164,8 +140,7 @@ impl Okx {
             let m = self.parse_market(raw);
             map.insert(m.symbol.clone(), m);
         }
-        *self.markets.lock().unwrap() = Some(map);
-        Ok(())
+        Ok(map)
     }
 
     /// 统一 symbol → 交易所 instId(BTC/USDT → BTC-USDT)。
@@ -318,6 +293,20 @@ impl Okx {
             ..Order::default()
         }
     }
+
+    /// 解析仓位(公开,供差分测试与 WS 复用)。
+    pub fn parse_position(&self, raw: &Value) -> Position {
+        Position {
+            symbol: raw["instId"].as_str().map(|s| s.replace('-', "/")),
+            id: raw["posId"].as_str().map(str::to_string),
+            contracts: dec(raw.get("pos")),
+            entry_price: dec(raw.get("avgPx")),
+            unrealized_pnl: dec(raw.get("upl")),
+            notional: dec(raw.get("notionalUsd")),
+            info: raw.clone(),
+            ..Position::default()
+        }
+    }
 }
 
 // ================= Exchange trait =================
@@ -331,20 +320,13 @@ impl Exchange for Okx {
     }
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
-        self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        self.core.load_markets(|| self.fetch_markets_raw()).await?;
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         let p = params1("instId", &self.symbol_id(symbol));
-        let resp = self.public_get("/market/ticker", &p).await?;
+        let resp = self.core.public_get("/market/ticker", &p).await?;
         let raw = resp
             .get("data")
             .and_then(Value::as_array)
@@ -356,7 +338,7 @@ impl Exchange for Okx {
     async fn fetch_tickers(&self, _symbols: Option<&[&str]>, _params: Params) -> Result<Tickers> {
         let mut p = Params::new();
         p.insert("instType".into(), json!("SPOT"));
-        let resp = self.public_get("/market/tickers", &p).await?;
+        let resp = self.core.public_get("/market/tickers", &p).await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -379,7 +361,7 @@ impl Exchange for Okx {
         let mut p = Params::new();
         p.insert("instId".into(), json!(self.symbol_id(symbol)));
         p.insert("sz".into(), json!(limit.unwrap_or(100).min(400)));
-        let resp = self.public_get("/market/books", &p).await?;
+        let resp = self.core.public_get("/market/books", &p).await?;
         Ok(self.parse_order_book(&resp, &symbol.replace('-', "/")))
     }
 
@@ -393,7 +375,7 @@ impl Exchange for Okx {
         let mut p = Params::new();
         p.insert("instId".into(), json!(self.symbol_id(symbol)));
         p.insert("limit".into(), json!(limit.unwrap_or(100).min(500)));
-        let resp = self.public_get("/market/trades", &p).await?;
+        let resp = self.core.public_get("/market/trades", &p).await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -428,7 +410,7 @@ impl Exchange for Okx {
         p.insert("instId".into(), json!(self.symbol_id(symbol)));
         p.insert("bar".into(), json!(bar));
         p.insert("limit".into(), json!(limit.unwrap_or(100).min(300)));
-        let resp = self.public_get("/market/candles", &p).await?;
+        let resp = self.core.public_get("/market/candles", &p).await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -486,16 +468,7 @@ impl Exchange for Okx {
         Ok(arr
             .iter()
             .filter(|p| p["pos"].as_str().map(|s| s != "0").unwrap_or(false))
-            .map(|p| Position {
-                symbol: p["instId"].as_str().map(|s| s.replace('-', "/")),
-                id: p["posId"].as_str().map(str::to_string),
-                contracts: dec(p.get("pos")),
-                entry_price: dec(p.get("avgPx")),
-                unrealized_pnl: dec(p.get("upl")),
-                notional: dec(p.get("notionalUsd")),
-                info: p.clone(),
-                ..Position::default()
-            })
+            .map(|p| self.parse_position(p))
             .collect())
     }
 
@@ -626,69 +599,6 @@ fn params1(k: &str, v: &str) -> Params {
     let mut p = Params::new();
     p.insert(k.into(), json!(v));
     p
-}
-
-fn dec(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(value_decimal)
-}
-
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-/// `[price, amount, ...]` → Level。
-fn parse_level(raw: &Value) -> Level {
-    let arr = raw.as_array();
-    Level {
-        price: arr.and_then(|a| a.first()).and_then(value_decimal),
-        amount: arr.and_then(|a| a.get(1)).and_then(value_decimal),
-    }
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| {
-            let val = match v {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                other => other.to_string(),
-            };
-            format!("{}={}", pct_encode(k), pct_encode(&val))
-        })
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
-fn iso8601_now() -> String {
-    chrono::Utc::now()
-        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-        .to_string()
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 #[cfg(test)]

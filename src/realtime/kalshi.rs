@@ -22,7 +22,7 @@ use tokio::sync::watch;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params, Realtime};
 use crate::realtime::orderbook::OrderBookStore;
-use crate::realtime::ws::{SubscriptionSet, WsSession};
+use crate::realtime::ws::{SubscriptionSet, WsSession, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_BASE: &str = "wss://external-api-ws.kalshi.com/trade-api/ws/v2";
@@ -30,7 +30,8 @@ const SIGN_PATH: &str = "/trade-api/ws/v2";
 
 /// kalshi WS 适配器。
 pub struct KalshiWs {
-    rest: crate::adapters::Kalshi,
+    /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0013 方向)。
+    rest: std::sync::Arc<crate::adapters::Kalshi>,
     sub_tx: Mutex<Option<tokio::sync::watch::Sender<Vec<String>>>>,
     subs: Mutex<SubscriptionSet>,
     tickers: std::sync::Arc<Mutex<HashMap<String, watch::Sender<Ticker>>>>,
@@ -44,7 +45,7 @@ pub struct KalshiWs {
 
 impl KalshiWs {
     pub fn new(config: Config) -> Result<Self> {
-        let rest = crate::adapters::Kalshi::new(config)?;
+        let rest = std::sync::Arc::new(crate::adapters::Kalshi::new(config)?);
         Ok(Self {
             rest,
             sub_tx: Mutex::new(None),
@@ -122,18 +123,26 @@ impl KalshiWs {
         }
         let positions = self.positions.lock().unwrap().clone();
         let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-        let _ = WsSession::spawn(WS_BASE.to_string(), headers, sub_rx, move |msg| {
-            dispatch(
-                msg,
-                &tickers,
-                &trades,
-                &books,
-                &book_stores,
-                &orders,
-                &my_trades,
-                &positions,
-            )
-        });
+        let rest = self.rest.clone();
+        let _ = WsSession::spawn(
+            WS_BASE.to_string(),
+            headers,
+            sub_rx,
+            move |msg| {
+                dispatch(
+                    msg,
+                    &tickers,
+                    &trades,
+                    &books,
+                    &book_stores,
+                    &orders,
+                    &my_trades,
+                    &positions,
+                    &rest,
+                )
+            },
+            None,
+        );
         *self.sub_tx.lock().unwrap() = Some(sub_tx.clone());
         Ok(sub_tx)
     }
@@ -171,6 +180,7 @@ fn dispatch(
     orders: &Option<watch::Sender<Vec<Order>>>,
     my_trades: &Option<watch::Sender<Vec<Trade>>>,
     positions: &Option<watch::Sender<Vec<Position>>>,
+    rest: &crate::adapters::Kalshi,
 ) {
     let msg_type = msg["type"].as_str().unwrap_or_default();
     let m = msg.get("msg").unwrap_or(&Value::Null);
@@ -268,29 +278,7 @@ fn dispatch(
         }
         "order" => {
             if let Some(tx) = orders.as_ref() {
-                let status = m["status"]
-                    .as_str()
-                    .map(|s| match s {
-                        "resting" => "open",
-                        "filled" => "closed",
-                        "cancelled" => "canceled",
-                        other => other,
-                    })
-                    .map(str::to_string);
-                let o = Order {
-                    id: m["order_id"].as_str().map(str::to_string),
-                    timestamp: m["created_time"].as_str().and_then(parse_iso_ms),
-                    datetime: m["created_time"].as_str().map(str::to_string),
-                    status,
-                    symbol: m["ticker"].as_str().map(str::to_string),
-                    side: m["side"].as_str().map(|s| s.to_lowercase()),
-                    price: dec(m.get("price")),
-                    amount: dec(m.get("count")),
-                    filled: dec(m.get("fill_count")),
-                    remaining: dec(m.get("remaining_count")),
-                    info: m.clone(),
-                    ..Order::default()
-                };
+                let o = rest.parse_order(m);
                 let _ = tx.send(vec![o]);
             }
         }
@@ -509,6 +497,44 @@ impl Realtime for KalshiWs {
     }
 }
 
-fn ws_err(e: watch::error::RecvError) -> Error {
-    Error::new(ErrorKind::NetworkError, format!("ws channel closed: {e}"))
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 离线重放(候选 3 解析合一):WS order 消息经共享 REST parse_order。
+    #[tokio::test]
+    async fn replay_ws_order_shared_parse() {
+        let rest = std::sync::Arc::new(crate::adapters::Kalshi::new(Config::new()).unwrap());
+        let tickers = std::sync::Arc::new(Mutex::new(HashMap::new()));
+        let trades = std::sync::Arc::new(Mutex::new(HashMap::new()));
+        let books = std::sync::Arc::new(Mutex::new(HashMap::new()));
+        let book_stores = std::sync::Arc::new(Mutex::new(HashMap::new()));
+        let (tx_o, rx_o) = watch::channel(vec![]);
+        let orders = Some(tx_o);
+        let msg = json!({
+            "type": "order",
+            "msg": {
+                "status": "resting", "order_id": "o1",
+                "created_time": "2026-08-12T03:00:00Z", "ticker": "X:YES",
+                "side": "yes", "price": "0.5", "count": "10",
+                "fill_count": "0", "remaining_count": "10"
+            }
+        });
+        dispatch(
+            msg,
+            &tickers,
+            &trades,
+            &books,
+            &book_stores,
+            &orders,
+            &None,
+            &None,
+            &rest,
+        );
+        let os = rx_o.borrow().clone();
+        assert_eq!(os.len(), 1);
+        assert_eq!(os[0].status.as_deref(), Some("open"));
+        assert_eq!(os[0].order_type.as_deref(), Some("limit"));
+        assert_eq!(os[0].id.as_deref(), Some("o1"));
+    }
 }

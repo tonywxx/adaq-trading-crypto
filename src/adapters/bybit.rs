@@ -11,14 +11,12 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use std::sync::Mutex;
-
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, dec, iso8601, parse_level, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position,
     Precision, Ticker, Tickers, Trade,
@@ -32,8 +30,7 @@ const RECV_WINDOW: &str = "5000";
 /// bybit 现货适配器。
 pub struct Bybit {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
 }
 
 impl Bybit {
@@ -53,32 +50,11 @@ impl Bybit {
     ];
 
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
-        Ok(Self {
-            config,
-            client,
-            markets: Mutex::new(None),
-        })
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        Ok(Self { config, core })
     }
 
     // ================= 内部 HTTP =================
-
-    async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
-    }
 
     /// 私密请求(bybit v5 签名)。
     async fn private_request(
@@ -100,13 +76,9 @@ impl Bybit {
             .ok_or_else(|| Error::new(ErrorKind::Authentication, "bybit secret required"))?;
         let timestamp = now_ms().to_string();
         // payload:GET = query string(不带 ?),POST = JSON body
-        let (payload, body_json, url) = if method == "GET" {
+        let (payload, body_json, req_path) = if method == "GET" {
             let qs = query_string(params).trim_start_matches('?').to_string();
-            (
-                qs.clone(),
-                None,
-                format!("{BASE_URL}{path}{}", query_string(params)),
-            )
+            (qs.clone(), None, format!("{path}{}", query_string(params)))
         } else {
             let b = body.or_else(|| {
                 if params.is_empty() {
@@ -116,7 +88,7 @@ impl Bybit {
                 }
             });
             let s = b.clone().map(|v| v.to_string()).unwrap_or_default();
-            (s.clone(), b, format!("{BASE_URL}{path}"))
+            (s.clone(), b, path.to_string())
         };
         let auth = format!("{timestamp}{api_key}{RECV_WINDOW}{payload}");
         let signature = hmac_sha256_hex(secret, &auth);
@@ -131,18 +103,21 @@ impl Bybit {
             HeaderValue::from_str(RECV_WINDOW).unwrap(),
         );
         headers.insert("X-BAPI-SIGN", HeaderValue::from_str(&signature).unwrap());
-        self.client.request(method, &url, &headers, body_json).await
+        self.core
+            .request(method, &req_path, &headers, body_json)
+            .await
     }
 
     // ================= markets 缓存 =================
 
     async fn load_markets(&self) -> Result<()> {
-        if self.markets.lock().unwrap().is_some() {
-            return Ok(());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let mut p = Params::new();
         p.insert("category".into(), json!("spot"));
-        let resp = self.public_get("/market/instruments-info", &p).await?;
+        let resp = self.core.public_get("/market/instruments-info", &p).await?;
         let arr = resp
             .get("result")
             .and_then(|r| r.get("list"))
@@ -153,8 +128,7 @@ impl Bybit {
             let m = self.parse_market(raw);
             map.insert(m.symbol.clone(), m);
         }
-        *self.markets.lock().unwrap() = Some(map);
-        Ok(())
+        Ok(map)
     }
 
     fn symbol_id(&self, symbol: &str) -> String {
@@ -203,10 +177,15 @@ impl Bybit {
         let id = raw["symbol"].as_str().unwrap_or_default();
         Ticker {
             symbol: id.replace('/', "").replace("USDT", "/USDT"),
-            timestamp: raw["time"].as_str().and_then(|s| s.parse::<i64>().ok()),
+            // WS 推送用 timestamp/ts(REST 用 time,解析合一 fallback;WS 为数字,REST 为字符串)
+            timestamp: raw
+                .get("time")
+                .or_else(|| raw.get("timestamp"))
+                .or_else(|| raw.get("ts"))
+                .and_then(ts_value),
             open: dec(raw.get("prevPrice24h")),
-            high: dec(raw.get("highPrice24h")),
-            low: dec(raw.get("lowPrice24h")),
+            high: dec(raw.get("highPrice24h").or_else(|| raw.get("high24h"))),
+            low: dec(raw.get("lowPrice24h").or_else(|| raw.get("low24h"))),
             close: dec(raw.get("lastPrice")),
             last: dec(raw.get("lastPrice")),
             bid: dec(raw.get("bid1Price")),
@@ -283,16 +262,18 @@ impl Bybit {
         let status = raw["orderStatus"]
             .as_str()
             .map(|s| match s {
-                "New" | "PartiallyFilledCanceled" => "open",
+                "New" | "PartiallyFilled" | "PartiallyFilledCanceled" => "open",
                 "Filled" => "closed",
                 "Cancelled" => "canceled",
                 "Rejected" => "rejected",
                 other => other,
             })
             .map(str::to_string);
-        let ts = raw["createdTime"]
-            .as_str()
-            .and_then(|s| s.parse::<i64>().ok());
+        // WS 推送用 timestamp(REST 用 createdTime,解析合一 fallback;WS 为数字,REST 为字符串)
+        let ts = raw
+            .get("createdTime")
+            .or_else(|| raw.get("timestamp"))
+            .and_then(ts_value);
         Order {
             id: raw["orderId"].as_str().map(str::to_string),
             client_order_id: raw["orderLinkId"].as_str().map(str::to_string),
@@ -324,21 +305,14 @@ impl Exchange for Bybit {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         let mut p = Params::new();
         p.insert("category".into(), json!("spot"));
         p.insert("symbol".into(), json!(self.symbol_id(symbol)));
-        let resp = self.public_get("/market/tickers", &p).await?;
+        let resp = self.core.public_get("/market/tickers", &p).await?;
         let raw = resp
             .get("result")
             .and_then(|r| r.get("list"))
@@ -351,7 +325,7 @@ impl Exchange for Bybit {
     async fn fetch_tickers(&self, _symbols: Option<&[&str]>, _params: Params) -> Result<Tickers> {
         let mut p = Params::new();
         p.insert("category".into(), json!("spot"));
-        let resp = self.public_get("/market/tickers", &p).await?;
+        let resp = self.core.public_get("/market/tickers", &p).await?;
         let arr = resp
             .get("result")
             .and_then(|r| r.get("list"))
@@ -376,7 +350,7 @@ impl Exchange for Bybit {
         p.insert("category".into(), json!("spot"));
         p.insert("symbol".into(), json!(self.symbol_id(symbol)));
         p.insert("limit".into(), json!(limit.unwrap_or(50).clamp(1, 50)));
-        let resp = self.public_get("/market/orderbook", &p).await?;
+        let resp = self.core.public_get("/market/orderbook", &p).await?;
         Ok(self.parse_order_book(&resp, symbol))
     }
 
@@ -391,7 +365,7 @@ impl Exchange for Bybit {
         p.insert("category".into(), json!("spot"));
         p.insert("symbol".into(), json!(self.symbol_id(symbol)));
         p.insert("limit".into(), json!(limit.unwrap_or(60).clamp(1, 60)));
-        let resp = self.public_get("/market/recent-trade", &p).await?;
+        let resp = self.core.public_get("/market/recent-trade", &p).await?;
         let arr = resp
             .get("result")
             .and_then(|r| r.get("list"))
@@ -428,7 +402,7 @@ impl Exchange for Bybit {
         p.insert("symbol".into(), json!(self.symbol_id(symbol)));
         p.insert("interval".into(), json!(interval));
         p.insert("limit".into(), json!(limit.unwrap_or(200).min(1000)));
-        let resp = self.public_get("/market/kline", &p).await?;
+        let resp = self.core.public_get("/market/kline", &p).await?;
         let arr = resp
             .get("result")
             .and_then(|r| r.get("list"))
@@ -619,6 +593,15 @@ fn format_symbol(id: &str) -> String {
     id.replace("USDT", "/USDT")
 }
 
+/// 时间戳取值:兼容字符串(如 REST `"time"`)与数字(如 WS `timestamp`)。
+fn ts_value(v: &Value) -> Option<i64> {
+    match v {
+        Value::String(s) => s.parse().ok(),
+        Value::Number(n) => n.as_i64(),
+        _ => None,
+    }
+}
+
 fn hmac_sha256_hex(secret: &str, data: &str) -> String {
     use hmac::{Hmac, KeyInit, Mac};
     type HmacSha256 = Hmac<sha2::Sha256>;
@@ -627,67 +610,11 @@ fn hmac_sha256_hex(secret: &str, data: &str) -> String {
     hex::encode(mac.finalize().into_bytes())
 }
 
-fn dec(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(value_decimal)
-}
-
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-fn parse_level(raw: &Value) -> Level {
-    let arr = raw.as_array();
-    Level {
-        price: arr.and_then(|a| a.first()).and_then(value_decimal),
-        amount: arr.and_then(|a| a.get(1)).and_then(value_decimal),
-    }
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| {
-            let val = match v {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                other => other.to_string(),
-            };
-            format!("{}={}", pct_encode(k), pct_encode(&val))
-        })
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 #[cfg(test)]

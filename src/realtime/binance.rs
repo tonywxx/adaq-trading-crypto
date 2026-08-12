@@ -21,32 +21,32 @@ use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
 use crate::realtime::orderbook::OrderBookStore;
-use crate::realtime::ws::{SubscriptionSet, WsSession};
+use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_BASE: &str = "wss://stream.binance.com:9443/ws";
 const REST_BASE: &str = "https://api.binance.com/api/v3";
 
 /// symbol + timeframe → OHLCV 频道。
-type OhlcvChannel = Arc<Mutex<HashMap<(String, String), watch::Sender<Vec<OHLCV>>>>>;
-type TickerChannel = Arc<Mutex<HashMap<String, watch::Sender<Ticker>>>>;
-type BookChannel = Arc<Mutex<HashMap<String, watch::Sender<OrderBook>>>>;
+type OhlcvChannel = ChannelMap<(String, String), Vec<OHLCV>>;
+type TickerChannel = ChannelMap<String, Ticker>;
+type BookChannel = ChannelMap<String, OrderBook>;
 type BookStoreMap = Arc<Mutex<HashMap<String, OrderBookStore>>>;
-type TradeChannel = Arc<Mutex<HashMap<String, watch::Sender<Vec<Trade>>>>>;
+type TradeChannel = ChannelMap<String, Vec<Trade>>;
 
 /// binance WS 适配器。
 pub struct BinanceWs {
     config: Config,
     client: Client,
-    /// 公开流连接已就绪信号(懒启动)。
-    pub_connected: Mutex<Option<watch::Receiver<bool>>>,
+    /// 公开流连接就绪信号(懒启动,ADR-0014 Conn 收口)。
+    pub_connected: Conn,
     tickers: TickerChannel,
     books: BookChannel,
     book_stores: BookStoreMap,
     trades: TradeChannel,
     ohlcvs: OhlcvChannel,
     // 私密流
-    user_connected: Mutex<Option<watch::Receiver<bool>>>,
+    user_connected: Conn,
     balances: Mutex<Option<watch::Sender<Balances>>>,
     orders: Mutex<Option<watch::Sender<Vec<Order>>>>,
     my_trades: Mutex<Option<watch::Sender<Vec<Trade>>>>,
@@ -67,13 +67,13 @@ impl BinanceWs {
         Ok(Self {
             config,
             client,
-            pub_connected: Mutex::new(None),
+            pub_connected: Conn::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
             book_stores: Arc::new(Mutex::new(HashMap::new())),
             trades: Arc::new(Mutex::new(HashMap::new())),
             ohlcvs: Arc::new(Mutex::new(HashMap::new())),
-            user_connected: Mutex::new(None),
+            user_connected: Conn::new(),
             balances: Mutex::new(None),
             orders: Mutex::new(None),
             my_trades: Mutex::new(None),
@@ -84,22 +84,22 @@ impl BinanceWs {
 
     /// 懒启动公开流连接(单例),返回连接就绪信号。
     fn ensure_public(&self) -> watch::Receiver<bool> {
-        if let Some(rx) = self.pub_connected.lock().unwrap().clone() {
-            return rx;
-        }
-        let tickers = self.tickers.clone();
-        let books = self.books.clone();
-        let book_stores = self.book_stores.clone();
-        let trades = self.trades.clone();
-        let ohlcvs = self.ohlcvs.clone();
-        let headers = HeaderMap::new();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-        let rx = WsSession::spawn(WS_BASE.to_string(), headers, sub_rx, move |msg| {
-            dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs)
-        });
-        *self.pub_connected.lock().unwrap() = Some(rx.clone());
-        *self.sub_tx.lock().unwrap() = Some(sub_tx);
-        rx
+        self.pub_connected.ensure(|| {
+            let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
+            *self.sub_tx.lock().unwrap() = Some(sub_tx);
+            let tickers = self.tickers.clone();
+            let books = self.books.clone();
+            let book_stores = self.book_stores.clone();
+            let trades = self.trades.clone();
+            let ohlcvs = self.ohlcvs.clone();
+            WsSession::spawn(
+                WS_BASE.to_string(),
+                HeaderMap::new(),
+                sub_rx,
+                move |msg| dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs),
+                None,
+            )
+        })
     }
 
     /// 订阅(仅首次真正发送 SUBSCRIBE 帧)。
@@ -545,16 +545,6 @@ impl Realtime for BinanceWs {
     }
 }
 
-/// 等待 watch channel 首个更新。
-async fn wait_first<T: Clone>(mut rx: watch::Receiver<T>) -> Result<T> {
-    rx.changed().await.map_err(ws_err)?;
-    Ok(rx.borrow().clone())
-}
-
-fn ws_err(e: watch::error::RecvError) -> Error {
-    Error::new(ErrorKind::NetworkError, format!("ws channel closed: {e}"))
-}
-
 impl BinanceWs {
     /// 懒启动私密流(listenKey),返回 (balance, orders, my_trades) 三个 channel。
     async fn ensure_user(
@@ -564,7 +554,7 @@ impl BinanceWs {
         watch::Receiver<Vec<Order>>,
         watch::Receiver<Vec<Trade>>,
     )> {
-        if self.user_connected.lock().unwrap().is_some() {
+        if self.user_connected.is_connected() {
             let balance = self.balances.lock().unwrap().clone().map(|t| t.subscribe());
             let orders = self.orders.lock().unwrap().clone().unwrap().subscribe();
             let my_trades = self.my_trades.lock().unwrap().clone().unwrap().subscribe();
@@ -612,13 +602,137 @@ impl BinanceWs {
         }
         let mt_tx = self.my_trades.lock().unwrap().clone();
         let (_, sub_rx) = tokio::sync::watch::channel(Vec::new());
-        let rx = WsSession::spawn(url, headers, sub_rx, move |msg| {
-            dispatch_user(msg, &balances, &orders_tx, &mt_tx)
+        self.user_connected.ensure(|| {
+            WsSession::spawn(
+                url,
+                headers,
+                sub_rx,
+                move |msg| dispatch_user(msg, &balances, &orders_tx, &mt_tx),
+                None,
+            )
         });
-        *self.user_connected.lock().unwrap() = Some(rx);
         let balance = self.balances.lock().unwrap().clone().map(|t| t.subscribe());
         let orders = self.orders.lock().unwrap().clone().unwrap().subscribe();
         let my_trades = self.my_trades.lock().unwrap().clone().unwrap().subscribe();
         Ok((balance, orders, my_trades))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn channels() -> (
+        TickerChannel,
+        BookChannel,
+        BookStoreMap,
+        TradeChannel,
+        OhlcvChannel,
+    ) {
+        (
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+    }
+
+    /// 离线重放(ADR-0014):合成 binance WS 消息喂 dispatch,验证频道输出。
+    #[tokio::test]
+    async fn replay_mini_ticker_routes_to_channel() {
+        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let (tx, rx) = watch::channel(Ticker::default());
+        tickers.lock().unwrap().insert("BTCUSDT".into(), tx);
+        let msg = json!({
+            "e": "24hrMiniTicker", "s": "BTCUSDT", "E": 123,
+            "o": "95", "h": "101", "l": "94", "c": "100", "v": "10", "q": "1000"
+        });
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs);
+        let t = rx.borrow().clone();
+        assert_eq!(t.symbol, "BTCUSDT");
+        assert_eq!(t.last, Some("100".parse().unwrap()));
+        assert_eq!(t.base_volume, Some("10".parse().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn replay_depth_update_applies_delta() {
+        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let mut store = OrderBookStore::new(0);
+        store.reset(&[("100".parse().unwrap(), "1".parse().unwrap())], &[]);
+        store.last_update_id = Some(1);
+        stores.lock().unwrap().insert("BTCUSDT".into(), store);
+        let (tx, rx) = watch::channel(OrderBook::default());
+        books.lock().unwrap().insert("BTCUSDT".into(), tx);
+        let msg = json!({
+            "e": "depthUpdate", "s": "BTCUSDT", "u": 2, "E": 123,
+            "b": [["100", "2"]], "a": [["101", "3"]]
+        });
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs);
+        let book = rx.borrow().clone();
+        assert_eq!(book.bids[0].amount, Some("2".parse().unwrap()));
+        assert_eq!(book.asks.len(), 1);
+        assert_eq!(book.asks[0].price, Some("101".parse().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn replay_trade_routes_to_channel() {
+        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let (tx, rx) = watch::channel(vec![]);
+        trades.lock().unwrap().insert("BTCUSDT".into(), tx);
+        let msg = json!({"e": "trade", "s": "BTCUSDT", "T": 1, "t": "9", "m": true, "p": "100", "q": "2"});
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs);
+        let ts = rx.borrow().clone();
+        assert_eq!(ts.len(), 1);
+        assert_eq!(ts[0].side.as_deref(), Some("sell")); // m=true → maker sell
+        assert_eq!(ts[0].price, Some("100".parse().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn replay_kline_routes_to_channel() {
+        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let (tx, rx) = watch::channel(vec![]);
+        ohlcvs
+            .lock()
+            .unwrap()
+            .insert(("BTCUSDT".into(), "1m".into()), tx);
+        let msg = json!({
+            "e": "kline", "s": "BTCUSDT",
+            "k": {"t": 1, "i": "1m", "o": "100", "h": "101", "l": "99", "c": "100.5", "v": "3"}
+        });
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs);
+        let cs = rx.borrow().clone();
+        assert_eq!(cs.len(), 1);
+        assert_eq!(cs[0].close, Some("100.5".parse().unwrap()));
+        assert_eq!(cs[0].volume, Some("3".parse().unwrap()));
+    }
+
+    #[tokio::test]
+    async fn replay_user_execution_report_updates_order() {
+        let (tx_o, rx_o) = watch::channel(vec![]);
+        let orders = Some(tx_o);
+        let msg = json!({
+            "e": "executionReport", "E": 1, "s": "BTCUSDT", "i": "123",
+            "X": "FILLED", "o": "LIMIT", "S": "BUY", "p": "100", "L": "99", "q": "1", "z": "1"
+        });
+        dispatch_user(msg, &None, &orders, &None);
+        let os = rx_o.borrow().clone();
+        assert_eq!(os.len(), 1);
+        assert_eq!(os[0].status.as_deref(), Some("closed"));
+        assert_eq!(os[0].id.as_deref(), Some("123"));
+    }
+
+    #[tokio::test]
+    async fn replay_user_balance_position() {
+        let (tx_b, rx_b) = watch::channel(Balances::default());
+        let balances = Some(tx_b);
+        let msg =
+            json!({"e": "outboundAccountPosition", "B": [{"a": "BTC", "f": "1.5", "l": "0.5"}]});
+        dispatch_user(msg, &balances, &None, &None);
+        let b = rx_b.borrow().clone();
+        let acct = b.accounts.get("BTC").unwrap();
+        assert_eq!(acct.free, Some("1.5".parse().unwrap()));
+        assert_eq!(acct.used, Some("0.5".parse().unwrap()));
+        assert_eq!(acct.total, Some("2.0".parse().unwrap()));
     }
 }

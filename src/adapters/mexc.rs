@@ -12,17 +12,15 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use std::sync::Mutex;
-
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, iso8601, parse_level, query_string, value_decimal};
 use crate::types::{
-    Balance, Balances, Level, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker,
-    Tickers, Trade,
+    Balance, Balances, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker, Tickers,
+    Trade,
 };
 
 pub const ID: &str = "mexc";
@@ -37,8 +35,7 @@ const COMMON_QUOTES: &[&str] = &[
 /// mexc 现货适配器。
 pub struct Mexc {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
 }
 
 impl Mexc {
@@ -56,31 +53,14 @@ impl Mexc {
     ];
 
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
-        Ok(Self {
-            config,
-            client,
-            markets: Mutex::new(None),
-        })
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        Ok(Self { config, core })
     }
 
     // ================= 内部 HTTP =================
 
     async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
+        self.core.public_get(path, params).await
     }
 
     /// 私密 GET(binance 式签名)。
@@ -111,15 +91,16 @@ impl Mexc {
                 )
             })?,
         );
-        self.client.request("GET", &url, &headers, None).await
+        self.core.request_url("GET", &url, &headers, None).await
     }
 
     // ================= markets 缓存 =================
 
     async fn load_markets(&self) -> Result<()> {
-        if self.markets.lock().unwrap().is_some() {
-            return Ok(());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let resp = self.public_get("/exchangeInfo", &Params::new()).await?;
         let arr = resp
             .get("symbols")
@@ -130,8 +111,7 @@ impl Mexc {
             let m = self.parse_market(raw);
             map.insert(m.symbol.clone(), m);
         }
-        *self.markets.lock().unwrap() = Some(map);
-        Ok(())
+        Ok(map)
     }
 
     /// 统一 symbol → id(`BTC/USDT` → `BTCUSDT`)。
@@ -141,10 +121,8 @@ impl Mexc {
 
     /// id → 统一 symbol:先查缓存,否则按常见计价币后缀剥离。
     fn market_symbol(&self, id: &str) -> String {
-        if let Some(cache) = self.markets.lock().unwrap().as_ref() {
-            if let Some(m) = cache.values().find(|m| m.id == id) {
-                return m.symbol.clone();
-            }
+        if let Some(m) = self.core.markets_snapshot().values().find(|m| m.id == id) {
+            return m.symbol.clone();
         }
         for q in COMMON_QUOTES {
             if let Some(base) = id.strip_suffix(q) {
@@ -316,14 +294,7 @@ impl Exchange for Mexc {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
@@ -473,64 +444,11 @@ fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
     v.and_then(value_decimal)
 }
 
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-/// `[price, amount]` → Level。
-fn parse_level(raw: &Value) -> Level {
-    let arr = raw.as_array();
-    Level {
-        price: arr.and_then(|a| a.first()).and_then(value_decimal),
-        amount: arr.and_then(|a| a.get(1)).and_then(value_decimal),
-    }
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| {
-            let val = match v {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                other => other.to_string(),
-            };
-            format!("{}={}", pct_encode(k), pct_encode(&val))
-        })
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 fn sign_hmac_sha256(data: &str, secret: &str) -> String {

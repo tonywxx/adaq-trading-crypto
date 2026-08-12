@@ -15,17 +15,15 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use std::sync::Mutex;
-
 use base64::Engine;
 use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 use sha2::Sha256;
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, dec, iso8601, parse_level, pct_encode, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -43,8 +41,7 @@ const COMMON_QUOTES: &[&str] = &[
 /// htx 现货适配器。
 pub struct Htx {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
 }
 
 impl Htx {
@@ -61,32 +58,11 @@ impl Htx {
     ];
 
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
-        Ok(Self {
-            config,
-            client,
-            markets: Mutex::new(None),
-        })
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        Ok(Self { config, core })
     }
 
     // ================= 内部 HTTP =================
-
-    async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
-    }
 
     /// 私密 GET(AWS 风格签名)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
@@ -119,16 +95,18 @@ impl Htx {
             "Content-Type",
             HeaderValue::from_static("application/x-www-form-urlencoded"),
         );
-        self.client.request("GET", &url, &headers, None).await
+        self.core.request_url("GET", &url, &headers, None).await
     }
 
     // ================= markets 缓存 =================
 
     async fn load_markets(&self) -> Result<()> {
-        if self.markets.lock().unwrap().is_some() {
-            return Ok(());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let resp = self
+            .core
             .public_get("/v1/common/symbols", &Params::new())
             .await?;
         let arr = resp
@@ -140,8 +118,7 @@ impl Htx {
             let m = self.parse_market(raw);
             map.insert(m.symbol.clone(), m);
         }
-        *self.markets.lock().unwrap() = Some(map);
-        Ok(())
+        Ok(map)
     }
 
     /// 统一 symbol → id(`BTC/USDT` → `btcusdt` 小写)。
@@ -151,10 +128,13 @@ impl Htx {
 
     /// id → 统一 symbol:先查缓存,否则按常见计价币后缀剥离(小写)。
     pub fn market_symbol(&self, id: &str) -> String {
-        if let Some(cache) = self.markets.lock().unwrap().as_ref() {
-            if let Some(m) = cache.values().find(|m| m.id.eq_ignore_ascii_case(id)) {
-                return m.symbol.clone();
-            }
+        if let Some(m) = self
+            .core
+            .markets_snapshot()
+            .values()
+            .find(|m| m.id.eq_ignore_ascii_case(id))
+        {
+            return m.symbol.clone();
         }
         let lower = id.to_lowercase();
         for q in COMMON_QUOTES {
@@ -208,24 +188,24 @@ impl Htx {
     pub fn parse_ticker(&self, raw: &Value) -> Ticker {
         let id = raw["symbol"].as_str().unwrap_or_default();
         let ts = raw["ts"].as_i64();
-        let close = num(raw.get("close"));
+        let close = dec(raw.get("close"));
         let (bid, bid_size) = bid_ask(raw.get("bid"));
         let (ask, ask_size) = bid_ask(raw.get("ask"));
         Ticker {
             symbol: self.market_symbol(id),
             timestamp: ts,
             datetime: ts.and_then(iso8601),
-            high: num(raw.get("high")),
-            low: num(raw.get("low")),
+            high: dec(raw.get("high")),
+            low: dec(raw.get("low")),
             bid,
             ask,
             bid_volume: bid_size,
             ask_volume: ask_size,
-            open: num(raw.get("open")),
+            open: dec(raw.get("open")),
             close,
             last: close,
-            base_volume: num(raw.get("amount")),
-            quote_volume: num(raw.get("vol")),
+            base_volume: dec(raw.get("amount")),
+            quote_volume: dec(raw.get("vol")),
             info: raw.clone(),
             ..Ticker::default()
         }
@@ -243,18 +223,18 @@ impl Htx {
             .map(|s| s * 1000);
         OHLCV {
             timestamp: ts,
-            open: num(row.get("open")),
-            high: num(row.get("high")),
-            low: num(row.get("low")),
-            close: num(row.get("close")),
-            volume: num(row.get("amount")),
+            open: dec(row.get("open")),
+            high: dec(row.get("high")),
+            low: dec(row.get("low")),
+            close: dec(row.get("close")),
+            volume: dec(row.get("amount")),
         }
     }
 
     pub fn parse_trade(&self, raw: &Value) -> Trade {
         let ts = raw["ts"].as_i64();
-        let price = num(raw.get("price"));
-        let amount = num(raw.get("amount"));
+        let price = dec(raw.get("price"));
+        let amount = dec(raw.get("amount"));
         // trade-id 为数字或字符串(htx 原始响应为数字)
         let id = match raw.get("trade-id") {
             Some(Value::Number(n)) => Some(n.to_string()),
@@ -314,6 +294,7 @@ impl Exchange for Htx {
 
     async fn fetch_time(&self) -> Result<i64> {
         let resp = self
+            .core
             .public_get("/v1/common/timestamp", &Params::new())
             .await?;
         resp["data"]
@@ -323,19 +304,12 @@ impl Exchange for Htx {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         let p = params1("symbol", &self.symbol_id(symbol));
-        let resp = self.public_get("/market/detail/merged", &p).await?;
+        let resp = self.core.public_get("/market/detail/merged", &p).await?;
         let tick = resp
             .get("tick")
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "missing tick"))?;
@@ -349,7 +323,10 @@ impl Exchange for Htx {
     }
 
     async fn fetch_tickers(&self, _symbols: Option<&[&str]>, _params: Params) -> Result<Tickers> {
-        let resp = self.public_get("/market/tickers", &Params::new()).await?;
+        let resp = self
+            .core
+            .public_get("/market/tickers", &Params::new())
+            .await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -392,7 +369,7 @@ impl Exchange for Htx {
         if let Some(l) = limit {
             p.insert("size".into(), json!(l.min(2000)));
         }
-        let resp = self.public_get("/market/history/kline", &p).await?;
+        let resp = self.core.public_get("/market/history/kline", &p).await?;
         let arr = resp
             .get("data")
             .and_then(Value::as_array)
@@ -413,7 +390,7 @@ impl Exchange for Htx {
         if let Some(l) = limit {
             p.insert("depth".into(), json!(l.min(150)));
         }
-        let resp = self.public_get("/market/depth", &p).await?;
+        let resp = self.core.public_get("/market/depth", &p).await?;
         Ok(self.parse_order_book(&resp, symbol))
     }
 
@@ -425,7 +402,7 @@ impl Exchange for Htx {
         _params: Params,
     ) -> Result<Vec<Trade>> {
         let p = params1("symbol", &self.symbol_id(symbol));
-        let resp = self.public_get("/market/trade", &p).await?;
+        let resp = self.core.public_get("/market/trade", &p).await?;
         let arr = resp
             .get("tick")
             .and_then(|t| t.get("data"))
@@ -466,7 +443,7 @@ impl Exchange for Htx {
         {
             for entry in list {
                 if let Some(code) = entry["currency"].as_str() {
-                    let bal = num(entry.get("balance"));
+                    let bal = dec(entry.get("balance"));
                     let is_frozen = entry["type"].as_str() == Some("frozen");
                     let acc = out
                         .accounts
@@ -514,77 +491,27 @@ fn params1(k: &str, v: &str) -> Params {
     p
 }
 
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(value_decimal)
-}
-
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-/// `[price, amount]` → Level。
-fn parse_level(raw: &Value) -> Level {
-    let arr = raw.as_array();
-    Level {
-        price: arr.and_then(|a| a.first()).and_then(value_decimal),
-        amount: arr.and_then(|a| a.get(1)).and_then(value_decimal),
-    }
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| format!("{}={}", pct_encode(k), pct_encode(&val_str(v))))
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
 /// 签名用 query:按 key 排序(htx/AWS 要求)。
 fn sorted_query_string(params: &Params) -> String {
     let mut keys: Vec<&String> = params.keys().collect();
     keys.sort();
     let pairs: Vec<String> = keys
         .iter()
-        .map(|k| format!("{}={}", pct_encode(k), pct_encode(&val_str(&params[*k]))))
+        .map(|k| {
+            let val = match &params[*k] {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                Value::Bool(b) => b.to_string(),
+                other => other.to_string(),
+            };
+            format!("{}={}", pct_encode(k), pct_encode(&val))
+        })
         .collect();
     pairs.join("&")
 }
 
-fn val_str(v: &Value) -> String {
-    match v {
-        Value::String(s) => s.clone(),
-        Value::Number(n) => n.to_string(),
-        Value::Bool(b) => b.to_string(),
-        other => other.to_string(),
-    }
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
 fn utc_now_ts() -> String {
     chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string()
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 #[cfg(test)]

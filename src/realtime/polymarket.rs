@@ -19,7 +19,7 @@ use tokio::sync::watch;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params, Realtime};
 use crate::realtime::orderbook::{OrderBookStore, PriceChange};
-use crate::realtime::ws::{SubscriptionSet, WsSession};
+use crate::realtime::ws::{SubscriptionSet, WsSession, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const MARKET_WS: &str = "wss://ws-subscriptions-clob.polymarket.com/ws/market";
@@ -73,9 +73,13 @@ impl PolymarketWs {
         let trades = self.trades.clone();
         let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
         let headers = reqwest::header::HeaderMap::new();
-        let _ = WsSession::spawn(MARKET_WS.to_string(), headers, sub_rx, move |msg| {
-            dispatch_market(msg, &books, &book_stores, &tickers, &trades)
-        });
+        let _ = WsSession::spawn(
+            MARKET_WS.to_string(),
+            headers,
+            sub_rx,
+            move |msg| dispatch_market(msg, &books, &book_stores, &tickers, &trades),
+            None,
+        );
         *self.sub_tx.lock().unwrap() = Some(sub_tx.clone());
         Ok(sub_tx)
     }
@@ -128,9 +132,13 @@ impl PolymarketWs {
         let mt_tx = self.my_trades.lock().unwrap().clone().unwrap();
         let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
         let headers = reqwest::header::HeaderMap::new();
-        let _ = WsSession::spawn(USER_WS.to_string(), headers, sub_rx, move |msg| {
-            dispatch_user(msg, &orders_tx, &mt_tx)
-        });
+        let _ = WsSession::spawn(
+            USER_WS.to_string(),
+            headers,
+            sub_rx,
+            move |msg| dispatch_user(msg, &orders_tx, &mt_tx),
+            None,
+        );
         let auth = json!({
             "auth": {
                 "apiKey": api_key,
@@ -464,8 +472,4 @@ impl Realtime for PolymarketWs {
     ) -> Result<Vec<Position>> {
         Err(Error::not_supported("watch_positions(polymarket)"))
     }
-}
-
-fn ws_err(e: watch::error::RecvError) -> Error {
-    Error::new(ErrorKind::NetworkError, format!("ws channel closed: {e}"))
 }

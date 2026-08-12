@@ -20,9 +20,9 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256, Sha512};
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, iso8601, parse_level, pct_encode, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position,
     Precision, Ticker, Tickers, Trade,
@@ -35,8 +35,7 @@ const RATE_LIMIT_MS: u64 = 1000;
 /// kraken 现货适配器。
 pub struct Kraken {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
     /// 统一 symbol → kraken pair id(altname)。
     pair_ids: Mutex<Option<HashMap<String, String>>>,
 }
@@ -59,22 +58,10 @@ impl Kraken {
     ];
 
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
         Ok(Self {
             config,
-            client,
-            markets: Mutex::new(None),
+            core,
             pair_ids: Mutex::new(None),
         })
     }
@@ -84,7 +71,7 @@ impl Kraken {
     async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
         let url = format!("{BASE_URL}/0/public{path}{}", query_string(params));
         let headers = HeaderMap::new();
-        let resp = self.client.request("GET", &url, &headers, None).await?;
+        let resp = self.core.request_url("GET", &url, &headers, None).await?;
         ok_result(resp, path)
     }
 
@@ -139,8 +126,8 @@ impl Kraken {
         );
         let url = format!("{BASE_URL}/0/private{path}");
         let resp = self
-            .client
-            .request("POST", &url, &headers, Some(Value::String(body)))
+            .core
+            .request_url("POST", &url, &headers, Some(Value::String(body)))
             .await?;
         ok_result(resp, &path)
     }
@@ -148,9 +135,10 @@ impl Kraken {
     // ================= markets 缓存 =================
 
     async fn load_markets(&self) -> Result<()> {
-        if self.markets.lock().unwrap().is_some() {
-            return Ok(());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let resp = self.public_get("/AssetPairs", &Params::new()).await?;
         let result = resp.as_object().cloned().unwrap_or_default();
         let mut map = Markets::new();
@@ -165,9 +153,8 @@ impl Kraken {
             pair_ids.insert(id.clone(), altname.clone());
             map.insert(m.symbol.clone(), m);
         }
-        *self.markets.lock().unwrap() = Some(map);
         *self.pair_ids.lock().unwrap() = Some(pair_ids);
-        Ok(())
+        Ok(map)
     }
 
     /// 从统一 symbol 查 kraken pair id(altname)。
@@ -360,11 +347,9 @@ impl Kraken {
 
     /// 从 kraken pair id(altname)→ 统一 symbol(通过 markets 缓存;离线回退简单映射)。
     fn symbol_from_pair(&self, pair_id: &str) -> Option<String> {
-        if let Some(map) = self.markets.lock().unwrap().clone() {
-            for (symbol, m) in map.iter() {
-                if m.id == pair_id {
-                    return Some(symbol.clone());
-                }
+        for (symbol, m) in self.core.markets_snapshot().iter() {
+            if m.id == pair_id {
+                return Some(symbol.clone());
             }
         }
         Some(pair_id.to_string())
@@ -383,14 +368,7 @@ impl Exchange for Kraken {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
@@ -744,63 +722,11 @@ fn ok_result(resp: Value, path: &str) -> Result<Value> {
     })
 }
 
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-fn parse_level(raw: &Value) -> Level {
-    let arr = raw.as_array();
-    Level {
-        price: arr.and_then(|a| a.first()).and_then(value_decimal),
-        amount: arr.and_then(|a| a.get(1)).and_then(value_decimal),
-    }
-}
-
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| {
-            let val = match v {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                other => other.to_string(),
-            };
-            format!("{}={}", pct_encode(k), pct_encode(&val))
-        })
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
 }
 
 #[cfg(test)]

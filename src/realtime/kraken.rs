@@ -25,25 +25,25 @@ use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
 use crate::realtime::orderbook::{OrderBookStore, PriceChange};
-use crate::realtime::ws::{SubscriptionSet, WsSession};
+use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://ws.kraken.com";
 const WS_PRIVATE: &str = "wss://ws-auth.kraken.com";
 const REST_BASE: &str = "https://api.kraken.com";
 
-type TickerChannel = Arc<Mutex<HashMap<String, watch::Sender<Ticker>>>>;
-type BookChannel = Arc<Mutex<HashMap<String, watch::Sender<OrderBook>>>>;
+type TickerChannel = ChannelMap<String, Ticker>;
+type BookChannel = ChannelMap<String, OrderBook>;
 type BookStoreMap = Arc<Mutex<HashMap<String, OrderBookStore>>>;
-type TradeChannel = Arc<Mutex<HashMap<String, watch::Sender<Vec<Trade>>>>>;
-type OhlcvChannel = Arc<Mutex<HashMap<(String, String), watch::Sender<Vec<OHLCV>>>>>;
+type TradeChannel = ChannelMap<String, Vec<Trade>>;
+type OhlcvChannel = ChannelMap<(String, String), Vec<OHLCV>>;
 
 /// kraken WS 适配器。
 pub struct KrakenWs {
     config: Config,
     client: Client,
-    pub_connected: Mutex<Option<watch::Receiver<bool>>>,
-    priv_connected: Mutex<Option<watch::Receiver<bool>>>,
+    pub_connected: Conn,
+    priv_connected: Conn,
     tickers: TickerChannel,
     books: BookChannel,
     book_stores: BookStoreMap,
@@ -69,8 +69,8 @@ impl KrakenWs {
         Ok(Self {
             config,
             client,
-            pub_connected: Mutex::new(None),
-            priv_connected: Mutex::new(None),
+            pub_connected: Conn::new(),
+            priv_connected: Conn::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
             book_stores: Arc::new(Mutex::new(HashMap::new())),
@@ -91,22 +91,23 @@ impl KrakenWs {
     }
 
     fn ensure_public(&self) -> watch::Receiver<bool> {
-        if let Some(rx) = self.pub_connected.lock().unwrap().clone() {
-            return rx;
-        }
-        let tickers = self.tickers.clone();
-        let books = self.books.clone();
-        let book_stores = self.book_stores.clone();
-        let trades = self.trades.clone();
-        let ohlcvs = self.ohlcvs.clone();
-        let headers = HeaderMap::new();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-        let rx = WsSession::spawn(WS_PUBLIC.to_string(), headers, sub_rx, move |msg| {
-            dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs)
-        });
-        *self.pub_connected.lock().unwrap() = Some(rx.clone());
-        *self.sub_tx.lock().unwrap() = Some(sub_tx);
-        rx
+        self.pub_connected.ensure(|| {
+            let tickers = self.tickers.clone();
+            let books = self.books.clone();
+            let book_stores = self.book_stores.clone();
+            let trades = self.trades.clone();
+            let ohlcvs = self.ohlcvs.clone();
+            let headers = HeaderMap::new();
+            let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
+            *self.sub_tx.lock().unwrap() = Some(sub_tx);
+            WsSession::spawn(
+                WS_PUBLIC.to_string(),
+                headers,
+                sub_rx,
+                move |msg| dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs),
+                None,
+            )
+        })
     }
 
     async fn subscribe(&self, name: &str, pair: &str) -> Result<()> {
@@ -198,7 +199,7 @@ impl KrakenWs {
     }
 
     async fn ensure_private(&self) -> Result<()> {
-        if self.priv_connected.lock().unwrap().is_some() {
+        if self.priv_connected.is_connected() {
             return Ok(());
         }
         let token = self.fetch_ws_token().await?;
@@ -206,13 +207,18 @@ impl KrakenWs {
         let orders = self.orders.lock().unwrap().clone();
         let my_trades = self.my_trades.lock().unwrap().clone();
         let headers = HeaderMap::new();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-        let token_clone = token.clone();
-        let rx = WsSession::spawn(WS_PRIVATE.to_string(), headers, sub_rx, move |msg| {
-            dispatch_private(msg, &balances, &orders, &my_trades, &token_clone)
+        self.priv_connected.ensure(|| {
+            let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
+            *self.priv_sub_tx.lock().unwrap() = Some(sub_tx);
+            let token_clone = token.clone();
+            WsSession::spawn(
+                WS_PRIVATE.to_string(),
+                headers,
+                sub_rx,
+                move |msg| dispatch_private(msg, &balances, &orders, &my_trades, &token_clone),
+                None,
+            )
         });
-        *self.priv_connected.lock().unwrap() = Some(rx);
-        *self.priv_sub_tx.lock().unwrap() = Some(sub_tx);
         Ok(())
     }
 }
@@ -709,13 +715,4 @@ impl Realtime for KrakenWs {
         // kraken 无持仓 WS 频道(与 ccxt 一致)
         Err(Error::not_supported("watch_positions(kraken)"))
     }
-}
-
-async fn wait_first<T: Clone>(mut rx: watch::Receiver<T>) -> Result<T> {
-    rx.changed().await.map_err(ws_err)?;
-    Ok(rx.borrow().clone())
-}
-
-fn ws_err(e: watch::error::RecvError) -> Error {
-    Error::new(ErrorKind::NetworkError, format!("ws channel closed: {e}"))
 }

@@ -20,23 +20,25 @@ use tokio::sync::watch;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
 use crate::realtime::orderbook::OrderBookStore;
-use crate::realtime::ws::{SubscriptionSet, WsSession};
+use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://stream.bybit.com/v5/public/spot";
 const WS_PRIVATE: &str = "wss://stream.bybit.com/v5/private";
 
-type TickerChannel = Arc<Mutex<HashMap<String, watch::Sender<Ticker>>>>;
-type BookChannel = Arc<Mutex<HashMap<String, watch::Sender<OrderBook>>>>;
+type TickerChannel = ChannelMap<String, Ticker>;
+type BookChannel = ChannelMap<String, OrderBook>;
 type BookStoreMap = Arc<Mutex<HashMap<String, OrderBookStore>>>;
-type TradeChannel = Arc<Mutex<HashMap<String, watch::Sender<Vec<Trade>>>>>;
-type OhlcvChannel = Arc<Mutex<HashMap<(String, String), watch::Sender<Vec<OHLCV>>>>>;
+type TradeChannel = ChannelMap<String, Vec<Trade>>;
+type OhlcvChannel = ChannelMap<(String, String), Vec<OHLCV>>;
 
 /// bybit WS 适配器。
 pub struct BybitWs {
     config: Config,
-    pub_connected: Mutex<Option<watch::Receiver<bool>>>,
-    priv_connected: Mutex<Option<watch::Receiver<bool>>>,
+    /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0013 方向)。
+    rest: Arc<crate::adapters::Bybit>,
+    pub_connected: Conn,
+    priv_connected: Conn,
     tickers: TickerChannel,
     books: BookChannel,
     book_stores: BookStoreMap,
@@ -53,10 +55,12 @@ pub struct BybitWs {
 
 impl BybitWs {
     pub fn new(config: Config) -> Result<Self> {
+        let rest = Arc::new(crate::adapters::Bybit::new(config.clone())?);
         Ok(Self {
             config,
-            pub_connected: Mutex::new(None),
-            priv_connected: Mutex::new(None),
+            rest,
+            pub_connected: Conn::new(),
+            priv_connected: Conn::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
             book_stores: Arc::new(Mutex::new(HashMap::new())),
@@ -77,22 +81,26 @@ impl BybitWs {
     }
 
     fn ensure_public(&self) -> watch::Receiver<bool> {
-        if let Some(rx) = self.pub_connected.lock().unwrap().clone() {
-            return rx;
-        }
-        let tickers = self.tickers.clone();
-        let books = self.books.clone();
-        let book_stores = self.book_stores.clone();
-        let trades = self.trades.clone();
-        let ohlcvs = self.ohlcvs.clone();
-        let headers = HeaderMap::new();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-        let rx = WsSession::spawn(WS_PUBLIC.to_string(), headers, sub_rx, move |msg| {
-            dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs)
-        });
-        *self.pub_connected.lock().unwrap() = Some(rx.clone());
-        *self.sub_tx.lock().unwrap() = Some(sub_tx);
-        rx
+        self.pub_connected.ensure(|| {
+            let tickers = self.tickers.clone();
+            let books = self.books.clone();
+            let book_stores = self.book_stores.clone();
+            let trades = self.trades.clone();
+            let ohlcvs = self.ohlcvs.clone();
+            let rest = self.rest.clone();
+            let headers = HeaderMap::new();
+            let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
+            *self.sub_tx.lock().unwrap() = Some(sub_tx);
+            WsSession::spawn(
+                WS_PUBLIC.to_string(),
+                headers,
+                sub_rx,
+                move |msg| {
+                    dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs, &rest)
+                },
+                None,
+            )
+        })
     }
 
     async fn subscribe(&self, arg: &str) -> Result<()> {
@@ -129,7 +137,7 @@ impl BybitWs {
     }
 
     async fn ensure_private(&self) -> Result<()> {
-        if self.priv_connected.lock().unwrap().is_some() {
+        if self.priv_connected.is_connected() {
             return Ok(());
         }
         let api_key = self
@@ -158,13 +166,19 @@ impl BybitWs {
         let orders = self.orders.lock().unwrap().clone();
         let positions = self.positions.lock().unwrap().clone();
         let my_trades = self.my_trades.lock().unwrap().clone();
+        let rest = self.rest.clone();
         let headers = HeaderMap::new();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(vec![auth_frame]);
-        let rx = WsSession::spawn(WS_PRIVATE.to_string(), headers, sub_rx, move |msg| {
-            dispatch_private(msg, &balances, &orders, &positions, &my_trades)
+        self.priv_connected.ensure(|| {
+            let (sub_tx, sub_rx) = tokio::sync::watch::channel(vec![auth_frame]);
+            *self.priv_sub_tx.lock().unwrap() = Some(sub_tx);
+            WsSession::spawn(
+                WS_PRIVATE.to_string(),
+                headers,
+                sub_rx,
+                move |msg| dispatch_private(msg, &balances, &orders, &positions, &my_trades, &rest),
+                None,
+            )
         });
-        *self.priv_connected.lock().unwrap() = Some(rx);
-        *self.priv_sub_tx.lock().unwrap() = Some(sub_tx);
         Ok(())
     }
 }
@@ -176,6 +190,7 @@ fn dispatch_public(
     book_stores: &BookStoreMap,
     trades: &TradeChannel,
     ohlcvs: &OhlcvChannel,
+    rest: &crate::adapters::Bybit,
 ) {
     let topic = msg["topic"].as_str().unwrap_or_default().to_string();
     let data = msg["data"].clone();
@@ -186,7 +201,7 @@ fn dispatch_public(
             .get(topic.trim_start_matches("tickers."))
             .cloned()
         {
-            let _ = tx.send(parse_ticker(&data));
+            let _ = tx.send(rest.parse_ticker(&data));
         }
     } else if topic.starts_with("orderbook.") {
         let sym = topic.rsplit('.').next().unwrap_or_default().to_string();
@@ -246,6 +261,7 @@ fn dispatch_private(
     orders: &Option<watch::Sender<Vec<Order>>>,
     positions: &Option<watch::Sender<Vec<Position>>>,
     my_trades: &Option<watch::Sender<Vec<Trade>>>,
+    rest: &crate::adapters::Bybit,
 ) {
     let topic = msg["topic"].as_str().unwrap_or_default();
     let data = msg["data"].clone();
@@ -281,7 +297,7 @@ fn dispatch_private(
         "order" => {
             if let Some(tx) = orders.as_ref() {
                 let arr = data.as_array().cloned().unwrap_or_default();
-                let parsed: Vec<Order> = arr.iter().map(parse_order).collect();
+                let parsed: Vec<Order> = arr.iter().map(|o| rest.parse_order(o)).collect();
                 let _ = tx.send(parsed);
             }
         }
@@ -304,26 +320,6 @@ fn dispatch_private(
             }
         }
         _ => {}
-    }
-}
-
-fn parse_ticker(raw: &Value) -> Ticker {
-    let sym = raw["symbol"].as_str().unwrap_or_default().to_string();
-    let ts = raw["timestamp"].as_i64().or_else(|| raw["ts"].as_i64());
-    Ticker {
-        symbol: sym,
-        timestamp: ts,
-        datetime: ts.and_then(iso8601),
-        high: dec(raw.get("high24h")),
-        low: dec(raw.get("low24h")),
-        bid: dec(raw.get("bid1Price")),
-        ask: dec(raw.get("ask1Price")),
-        last: dec(raw.get("lastPrice")),
-        close: dec(raw.get("lastPrice")),
-        base_volume: dec(raw.get("volume24h")),
-        quote_volume: dec(raw.get("turnover24h")),
-        info: raw.clone(),
-        ..Ticker::default()
     }
 }
 
@@ -350,33 +346,6 @@ fn parse_candle(raw: &Value) -> OHLCV {
         low: dec(raw.get("low")),
         close: dec(raw.get("close")),
         volume: dec(raw.get("volume")),
-    }
-}
-
-fn parse_order(raw: &Value) -> Order {
-    let status = raw["orderStatus"].as_str().map(|s| match s {
-        "New" | "PartiallyFilled" => "open",
-        "Filled" => "closed",
-        "Cancelled" => "canceled",
-        "Rejected" => "rejected",
-        other => other,
-    });
-    let ts = raw["timestamp"].as_i64();
-    Order {
-        id: raw["orderId"].as_str().map(str::to_string),
-        client_order_id: raw["orderLinkId"].as_str().map(str::to_string),
-        timestamp: ts,
-        datetime: ts.and_then(iso8601),
-        status: status.map(str::to_string),
-        symbol: raw["symbol"].as_str().map(str::to_string),
-        order_type: raw["orderType"].as_str().map(|s| s.to_lowercase()),
-        side: raw["side"].as_str().map(|s| s.to_lowercase()),
-        price: dec(raw.get("price")),
-        average: dec(raw.get("avgPrice")),
-        amount: dec(raw.get("qty")),
-        filled: dec(raw.get("cumExecQty")),
-        info: raw.clone(),
-        ..Order::default()
     }
 }
 
@@ -608,11 +577,58 @@ impl Realtime for BybitWs {
     }
 }
 
-async fn wait_first<T: Clone>(mut rx: watch::Receiver<T>) -> Result<T> {
-    rx.changed().await.map_err(ws_err)?;
-    Ok(rx.borrow().clone())
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn ws_err(e: watch::error::RecvError) -> Error {
-    Error::new(ErrorKind::NetworkError, format!("ws channel closed: {e}"))
+    fn rest() -> Arc<crate::adapters::Bybit> {
+        Arc::new(crate::adapters::Bybit::new(Config::new()).unwrap())
+    }
+
+    /// 离线重放(候选 3 解析合一):WS ticker 数字时间戳经共享 REST parse。
+    #[tokio::test]
+    async fn replay_ws_ticker_numeric_ts_shared_parse() {
+        let rest = rest();
+        let tickers: TickerChannel = Arc::new(Mutex::new(HashMap::new()));
+        let books: BookChannel = Arc::new(Mutex::new(HashMap::new()));
+        let stores: BookStoreMap = Arc::new(Mutex::new(HashMap::new()));
+        let trades: TradeChannel = Arc::new(Mutex::new(HashMap::new()));
+        let ohlcvs: OhlcvChannel = Arc::new(Mutex::new(HashMap::new()));
+        let (tx, rx) = watch::channel(Ticker::default());
+        tickers.lock().unwrap().insert("BTCUSDT".into(), tx);
+        let msg = json!({
+            "topic": "tickers.BTCUSDT",
+            "data": {
+                "symbol": "BTCUSDT", "timestamp": 123, "high24h": "101", "low24h": "94",
+                "bid1Price": "99.9", "ask1Price": "100.1", "lastPrice": "100",
+                "volume24h": "10", "turnover24h": "1000"
+            }
+        });
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs, &rest);
+        let t = rx.borrow().clone();
+        assert_eq!(t.symbol, "BTC/USDT"); // REST 统一 symbol 格式
+        assert_eq!(t.timestamp, Some(123)); // 数字时间戳 fallback
+        assert_eq!(t.last, Some("100".parse().unwrap()));
+    }
+
+    /// 离线重放(候选 3):WS order PartiallyFilled + 数字时间戳经共享 REST parse。
+    #[tokio::test]
+    async fn replay_ws_order_partially_filled_shared_parse() {
+        let rest = rest();
+        let (tx_o, rx_o) = watch::channel(vec![]);
+        let orders = Some(tx_o);
+        let msg = json!({
+            "topic": "order",
+            "data": [{
+                "orderId": "o1", "orderStatus": "PartiallyFilled", "timestamp": 123,
+                "symbol": "BTCUSDT", "orderType": "Limit", "side": "Buy",
+                "price": "100", "qty": "1", "cumExecQty": "0.5"
+            }]
+        });
+        dispatch_private(msg, &None, &orders, &None, &None, &rest);
+        let os = rx_o.borrow().clone();
+        assert_eq!(os.len(), 1);
+        assert_eq!(os[0].status.as_deref(), Some("open")); // PartiallyFilled→open
+        assert_eq!(os[0].timestamp, Some(123)); // 数字时间戳 fallback
+    }
 }

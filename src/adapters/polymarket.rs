@@ -20,9 +20,9 @@ use serde_json::{Value, json};
 use sha2::Sha256;
 use sha3::Digest;
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, Order, OrderBook, Position, Precision,
     Ticker, Tickers, Trade,
@@ -47,8 +47,7 @@ pub struct OutcomeCtx {
 /// polymarket 预测市场适配器。
 pub struct Polymarket {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
     outcomes: Mutex<Option<HashMap<String, OutcomeCtx>>>,
 }
 
@@ -69,22 +68,12 @@ impl Polymarket {
 
     /// 构造适配器(限速 100ms/次,对齐 polymarket rateLimit)。
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
+        // 多 base(data-api/gamma-api/clob)都经 core.request_url 全 URL 直发,
+        // 此 base_url 仅作 HttpCore 占位。
+        let core = HttpCore::new(&config, GAMMA_URL, RATE_LIMIT_MS)?;
         Ok(Self {
             config,
-            client,
-            markets: Mutex::new(None),
+            core,
             outcomes: Mutex::new(None),
         })
     }
@@ -93,15 +82,15 @@ impl Polymarket {
 
     async fn public_get(&self, base: &str, path: &str, params: &Params) -> Result<Value> {
         let url = format!("{base}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
+        self.core
+            .request_url("GET", &url, &HeaderMap::new(), None)
+            .await
     }
 
     async fn public_post(&self, base: &str, path: &str, body: Value) -> Result<Value> {
         let url = format!("{base}{path}");
-        let headers = HeaderMap::new();
-        self.client
-            .request("POST", &url, &headers, Some(body))
+        self.core
+            .request_url("POST", &url, &HeaderMap::new(), Some(body))
             .await
     }
 
@@ -171,19 +160,20 @@ impl Polymarket {
         } else {
             format!("{CLOB_URL}{path}")
         };
-        self.client.request(method, &url, &headers, body).await
+        self.core.request_url(method, &url, &headers, body).await
     }
 
     // ================= markets / outcomes 索引 =================
 
     /// 确保 markets/outcomes 已加载(Gamma /events 翻页,对齐 eventsPageSize=100)。
     pub(crate) async fn load_markets(&self) -> Result<()> {
-        if self.outcomes.lock().unwrap().is_some() {
-            return Ok(());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    /// 拉取并解析市集 + outcomes 索引(字段映射接缝;缓存由核心 `HttpCore::load_markets` 负责)。
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let limit = 200usize; // fetchMarketsLimit(默认)
         let page_size = 100usize; // eventsPageSize(Gamma 硬上限)
-        let mut markets = Vec::new();
         let mut market_map = HashMap::new();
         let mut outcomes = HashMap::new();
         let mut offset = 0usize;
@@ -248,8 +238,7 @@ impl Polymarket {
                             },
                         );
                     }
-                    market_map.insert(symbol.clone(), m.clone());
-                    markets.push(m);
+                    market_map.insert(symbol, m);
                 }
             }
             offset += page_size;
@@ -257,10 +246,8 @@ impl Polymarket {
                 break;
             }
         }
-        *self.markets.lock().unwrap() = Some(market_map);
         *self.outcomes.lock().unwrap() = Some(outcomes);
-        let _ = markets;
-        Ok(())
+        Ok(market_map)
     }
 
     /// 解析统一 symbol → outcome 上下文(outcome symbol 或裸 token_id)。
@@ -481,14 +468,7 @@ impl Exchange for Polymarket {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
@@ -894,49 +874,6 @@ fn params1(k: &str, v: &str) -> Params {
     let mut p = Params::new();
     p.insert(k.into(), json!(v));
     p
-}
-
-/// 值 → Decimal(兼容字符串/数字)。
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-/// 构造 URL 查询串(带 `?`,已百分号编码)。
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| {
-            let val = match v {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                other => other.to_string(),
-            };
-            format!("{}={}", pct_encode(k), pct_encode(&val))
-        })
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-/// 百分号编码(RFC 3986 unreserved 除外)。
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
 }
 
 /// 毫秒时间戳。

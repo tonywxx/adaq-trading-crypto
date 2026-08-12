@@ -62,3 +62,7 @@ _Avoid_: 浮点、decimal 混称
 | 0009 | accepted | 实时 v1 范围:核心 8 频道 + 共享 OrderBook 增量引擎 + sync 仅 REST |
 | 0010 | accepted | 差分测试:录制 fixtures 为主,CI 定期 live 差分兜底 |
 | 0011 | accepted | 交付:单 crate + 按交易所 feature + MSRV 1.85 + nextest/clippy/docs.rs |
+| 0012 | accepted | 依赖升级:6 个 0.x 大版本一次升到最新(ADR-0012) |
+| 0013 | accepted | 适配器模型:HttpCore 深模块 + 四接缝(describe/sign/handle_errors/字段映射);新增交易所一律按此模式,转译只填接缝 |
+| 0014 | accepted | 实时层收口:最小收口 + 测试先行(离线重放)+ 心跳/重连进共享层;不做完整 WsHub 框架;先收口后解析合一 |
+| 0015 | accepted | 解析合一:watch_* 复用 REST parse_*(realtime 持有 REST 适配器实例);形状兼容则加纯加法 fallback,不兼容则保持独立 |

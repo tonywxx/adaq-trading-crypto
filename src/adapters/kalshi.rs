@@ -19,9 +19,9 @@ use openssl::sign::Signer;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
+use crate::httpcore::{HttpCore, dec, query_string, value_decimal};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position,
     Precision, Ticker, Tickers, Trade,
@@ -44,8 +44,7 @@ pub struct OutcomeCtx {
 /// kalshi 预测市场适配器。
 pub struct Kalshi {
     config: Config,
-    client: Client,
-    markets: Mutex<Option<Markets>>,
+    core: HttpCore,
     outcomes: Mutex<Option<HashMap<String, OutcomeCtx>>>,
 }
 
@@ -68,22 +67,10 @@ impl Kalshi {
 
     /// 构造适配器(限速 200ms/次,对齐 kalshi rateLimit)。
     pub fn new(config: Config) -> Result<Self> {
-        let rate_limit_ms = if config.rate_limit_ms > 0 {
-            config.rate_limit_ms
-        } else {
-            RATE_LIMIT_MS
-        };
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
-        )?;
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
         Ok(Self {
             config,
-            client,
-            markets: Mutex::new(None),
+            core,
             outcomes: Mutex::new(None),
         })
     }
@@ -91,9 +78,7 @@ impl Kalshi {
     // ================= 内部 HTTP =================
 
     async fn public_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let url = format!("{BASE_URL}{path}{}", query_string(params));
-        let headers = HeaderMap::new();
-        self.client.request("GET", &url, &headers, None).await
+        self.core.public_get(path, params).await
     }
 
     /// 私密请求:RSA-PSS SHA-256 签名头(KALSHI-ACCESS-*)。
@@ -150,16 +135,18 @@ impl Kalshi {
             });
             (url, body)
         };
-        self.client.request(method, &url, &headers, body).await
+        self.core.request_url(method, &url, &headers, body).await
     }
 
     // ================= outcomes 索引 =================
 
     /// 确保 markets/outcomes 已加载(缓存)。
     pub(crate) async fn load_markets(&self) -> Result<()> {
-        if self.outcomes.lock().unwrap().is_some() {
-            return Ok(());
-        }
+        self.core.load_markets(|| self.fetch_markets_raw()).await
+    }
+
+    /// 拉取并解析市集 + outcomes 索引(字段映射接缝;缓存由核心 `HttpCore::load_markets` 负责)。
+    async fn fetch_markets_raw(&self) -> Result<Markets> {
         let mut p = Params::new();
         p.insert("limit".into(), json!(1000));
         let resp = self.public_get("/markets", &p).await?;
@@ -167,7 +154,6 @@ impl Kalshi {
             .get("markets")
             .and_then(Value::as_array)
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "markets not array"))?;
-        let mut markets = Vec::with_capacity(arr.len());
         let mut market_map = HashMap::with_capacity(arr.len());
         let mut outcomes = HashMap::new();
         for raw in arr {
@@ -214,12 +200,10 @@ impl Kalshi {
                     },
                 );
             }
-            market_map.insert(market.symbol.clone(), market.clone());
-            markets.push(market);
+            market_map.insert(market.symbol.clone(), market);
         }
-        *self.markets.lock().unwrap() = Some(market_map);
         *self.outcomes.lock().unwrap() = Some(outcomes);
-        Ok(())
+        Ok(market_map)
     }
 
     /// 解析统一 symbol → outcome 上下文。支持:
@@ -564,14 +548,7 @@ impl Exchange for Kalshi {
 
     async fn fetch_markets(&self) -> Result<Vec<Market>> {
         self.load_markets().await?;
-        Ok(self
-            .markets
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_default()
-            .into_values()
-            .collect())
+        Ok(self.core.markets_snapshot().into_values().collect())
     }
 
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
@@ -1067,53 +1044,6 @@ fn invert_level(raw: &Value) -> Level {
         .map(crate::precise::one_minus_decimal);
     let amount = arr.and_then(|a| a.get(1)).and_then(value_decimal);
     Level { price, amount }
-}
-
-/// 值 → Decimal(兼容字符串/数字)。
-pub fn value_decimal(v: &Value) -> Option<rust_decimal::Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
-/// 构造 URL 查询串(带 `?`,已百分号编码)。
-fn query_string(params: &Params) -> String {
-    if params.is_empty() {
-        return String::new();
-    }
-    let pairs: Vec<String> = params
-        .iter()
-        .map(|(k, v)| {
-            let val = match v {
-                Value::String(s) => s.clone(),
-                Value::Number(n) => n.to_string(),
-                Value::Bool(b) => b.to_string(),
-                other => other.to_string(),
-            };
-            format!("{}={}", pct_encode(k), pct_encode(&val))
-        })
-        .collect();
-    format!("?{}", pairs.join("&"))
-}
-
-/// 百分号编码(RFC 3986 unreserved 除外)。
-fn pct_encode(s: &str) -> String {
-    let mut out = String::new();
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
-}
-
-fn dec(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(value_decimal)
 }
 
 /// ISO8601 → 毫秒时间戳。

@@ -1,0 +1,7 @@
+# 实时层收口:最小收口 + 测试先行 + 心跳/重连进共享层(不做完整框架)
+
+架构评审候选 2 评估结论(2026-08-12):`src/realtime/` 的重复脚手架(`wait_first` ×4、`ws_err` ×6、`TickerChannel/BookChannel/...` 别名 ×4、`ensure_public` 单例模板 ×4)值得收口,但**收益核心不是去重,而是测试能力与心跳修复**:realtime 层目前零离线测试(`realtime_smoke` 全部网络 gated),而 ws.rs 的 `dispatch: Fn(Value)` + `sub_rx: watch` 使离线重放完全可行。同时确认应用层心跳缺口(kalshi 文档声明 10s Ping 但未实现;全层仅有 tungstenite 传输层 Ping→Pong),重连为固定 3s 无退避。决策:1) **最小收口**,只把逐字重复的助手/频道注册表/单例模板收进 ws.rs,subscribe 帧编码与私密流引导(binance listenKey / okx login / kraken auth / kalshi token 等)作为接缝原样保留——**不做带钩子的完整 WsHub 会话状态机框架**(对 6 家适配器是过度设计,接缝收进框架只会抽象泄漏);2) **测试先行**:先把会话改为消息源可注入(离线重放 harness 是重构的安全网,尤其心跳/重连路径),再重构;3) 心跳(可配置间隔,如 kalshi 10s)与重连退避(指数+抖动)做进共享层,一处实现六家生效;4) **先收口后做解析合一**(候选 3),收口提供可测试的 dispatch 路由地基。被否决:完整 WsHub 框架、跳过测试直接重构、把帧编码/认证引导收进共享层。
+
+- **Status**: accepted
+
+**实施注记(2026-08-12)**:已完成最小收口——`ws.rs` 新增 `wait_first`/`ws_err`/`ChannelMap<K,V>`/`Conn`(ensure/is_connected)/`Heartbeat`/`next_backoff`(指数退避封顶 30s+亚秒抖动)/`heartbeat_tick`,6 家适配器删除本地副本并改用共享件(okx/kraken/bybit 的连接信号字段换为 `Conn`,kalshi/polymarket 的 ensure_conn/ensure_market 因返回订阅 Sender 保留原状);`WsSession::spawn` 增加 heartbeat 参数与退避重连。离线重放测试的落地方式为**直接测 dispatch**(各适配器模块内 `#[cfg(test)]` 喂合成 WS 消息验证频道输出,binance 已覆盖 public+user 流 6 例;ws.rs 覆盖 Conn/wait_first/退避/心跳 tick)——比改造会话循环为可注入流更薄、零新依赖,会话循环保持 socket 绑定。心跳能力已就绪但**各家帧格式未接线(均传 None)**,待有真实会话验证帧格式后再逐家启用;应用层心跳缺口(kalshi 文档 10s Ping 未实现)留待候选 3(解析合一)一并处理。
