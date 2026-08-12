@@ -1,0 +1,59 @@
+[package]
+name = "adaq-trading-crypto"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0"
+description = "Unified trading interface for crypto and prediction markets (ccxt-compatible), for the AdaQ quant platform."
+keywords = ["trading", "crypto", "exchange", "prediction-market", "ccxt"]
+categories = ["cryptocurrency", "finance", "api-bindings"]
+exclude = ["src/main.rs"]
+
+[features]
+default = ["binance", "okx", "kalshi", "polymarket"]
+sync = []
+realtime = []
+binance = []
+okx = []
+coinbase = []
+bybit = []
+bitget = []
+kraken = []
+gate = []
+mexc = []
+htx = []
+kucoin = []
+kalshi = []
+polymarket = []
+manifold = []
+prediction = ["kalshi", "polymarket", "manifold"]
+futures = []
+full = [
+  "binance", "okx", "coinbase", "bybit", "bitget", "kraken", "gate",
+  "mexc", "htx", "kucoin", "prediction", "realtime",
+]
+
+[dependencies]
+async-trait = "0.1"
+num-bigint = "0.4.3"
+num-traits = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+rust_decimal = { version = "1", features = ["serde-str"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1.44.2", features = ["rt-multi-thread", "macros", "time", "sync", "net"] }
+chrono = { version = "0.4.20", features = ["serde"] }
+hex = "0.4"
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22.1"
+openssl = "0.10.72"
+sha3 = "0.10"
+libsecp256k1 = "0.7"
+tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-native-roots"] }
+futures-util = "0.3.34"
+
+[build-dependencies]
+regex = "1.5.5"
+
+[dev-dependencies]

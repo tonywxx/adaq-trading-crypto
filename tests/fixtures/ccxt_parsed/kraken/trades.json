@@ -1,0 +1,140 @@
+{
+  "method": "fetch_trades",
+  "parsed": [
+    {
+      "id": "105022606",
+      "order": null,
+      "info": [
+        "63797.10000",
+        "0.00005100",
+        1786512943.6717653,
+        "s",
+        "l",
+        "",
+        105022606
+      ],
+      "timestamp": 1786512943671,
+      "datetime": "2026-08-12T05:35:43.671Z",
+      "symbol": "BTC/USD",
+      "type": "limit",
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63797.1,
+      "amount": 5.1e-05,
+      "cost": 3.2536521,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "id": "105022607",
+      "order": null,
+      "info": [
+        "63788.00000",
+        "0.00039194",
+        1786512944.4181576,
+        "s",
+        "l",
+        "",
+        105022607
+      ],
+      "timestamp": 1786512944418,
+      "datetime": "2026-08-12T05:35:44.418Z",
+      "symbol": "BTC/USD",
+      "type": "limit",
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63788.0,
+      "amount": 0.00039194,
+      "cost": 25.00106872,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "id": "105022608",
+      "order": null,
+      "info": [
+        "63789.10000",
+        "0.00030526",
+        1786512944.668419,
+        "s",
+        "l",
+        "",
+        105022608
+      ],
+      "timestamp": 1786512944668,
+      "datetime": "2026-08-12T05:35:44.668Z",
+      "symbol": "BTC/USD",
+      "type": "limit",
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63789.1,
+      "amount": 0.00030526,
+      "cost": 19.472260666,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "id": "105022609",
+      "order": null,
+      "info": [
+        "63789.30000",
+        "0.00039192",
+        1786512949.987903,
+        "s",
+        "l",
+        "",
+        105022609
+      ],
+      "timestamp": 1786512949987,
+      "datetime": "2026-08-12T05:35:49.987Z",
+      "symbol": "BTC/USD",
+      "type": "limit",
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63789.3,
+      "amount": 0.00039192,
+      "cost": 25.000302456,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "id": "105022610",
+      "order": null,
+      "info": [
+        "63789.30000",
+        "0.00006609",
+        1786512949.987903,
+        "s",
+        "l",
+        "",
+        105022610
+      ],
+      "timestamp": 1786512949987,
+      "datetime": "2026-08-12T05:35:49.987Z",
+      "symbol": "BTC/USD",
+      "type": "limit",
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63789.3,
+      "amount": 6.609e-05,
+      "cost": 4.215834837,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    }
+  ]
+}

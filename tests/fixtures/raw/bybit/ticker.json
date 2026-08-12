@@ -1,0 +1,18 @@
+{
+  "method": "fetch_ticker",
+  "raw": {
+    "symbol": "BTCUSDT",
+    "bid1Price": "63855.2",
+    "bid1Size": "2.166214",
+    "ask1Price": "63855.3",
+    "ask1Size": "0.171384",
+    "lastPrice": "63855.2",
+    "prevPrice24h": "63970.5",
+    "price24hPcnt": "-0.0018",
+    "highPrice24h": "64501",
+    "lowPrice24h": "63232.1",
+    "turnover24h": "438415301.50445251",
+    "volume24h": "6859.246321",
+    "usdIndexPrice": "63794.043784"
+  }
+}

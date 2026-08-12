@@ -1,0 +1,51 @@
+{
+  "method": "fetch_trades",
+  "symbol": "BTC/USDT",
+  "raw": [
+    {
+      "id": 6569202401,
+      "price": "63839.45000000",
+      "qty": "0.05826000",
+      "quoteQty": "3719.28635700",
+      "time": 1786506048651,
+      "isBuyerMaker": false,
+      "isBestMatch": true
+    },
+    {
+      "id": 6569202402,
+      "price": "63839.44000000",
+      "qty": "0.00008000",
+      "quoteQty": "5.10715520",
+      "time": 1786506048801,
+      "isBuyerMaker": true,
+      "isBestMatch": true
+    },
+    {
+      "id": 6569202403,
+      "price": "63839.45000000",
+      "qty": "0.00012000",
+      "quoteQty": "7.66073400",
+      "time": 1786506050871,
+      "isBuyerMaker": false,
+      "isBestMatch": true
+    },
+    {
+      "id": 6569202404,
+      "price": "63839.44000000",
+      "qty": "0.00028000",
+      "quoteQty": "17.87504320",
+      "time": 1786506051199,
+      "isBuyerMaker": true,
+      "isBestMatch": true
+    },
+    {
+      "id": 6569202405,
+      "price": "63839.45000000",
+      "qty": "0.00368000",
+      "quoteQty": "234.92917600",
+      "time": 1786506052145,
+      "isBuyerMaker": false,
+      "isBestMatch": true
+    }
+  ]
+}

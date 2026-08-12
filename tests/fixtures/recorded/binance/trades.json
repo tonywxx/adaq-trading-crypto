@@ -1,0 +1,142 @@
+{
+  "exchange": "binance",
+  "symbol": "BTC/USDT",
+  "method": "fetch_trades",
+  "normalized": [
+    {
+      "info": {
+        "a": 4032189549,
+        "p": "63791.90000000",
+        "q": "0.07983000",
+        "f": 6569167717,
+        "l": 6569167717,
+        "t": 1786503989648,
+        "m": true
+      },
+      "timestamp": 1786503989648,
+      "datetime": "2026-08-12T03:06:29.648Z",
+      "symbol": "BTC/USDT",
+      "id": "4032189549",
+      "order": null,
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63791.9,
+      "amount": 0.07983,
+      "cost": 5092.507377,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "info": {
+        "a": 4032189550,
+        "p": "63791.90000000",
+        "q": "0.00017000",
+        "f": 6569167718,
+        "l": 6569167718,
+        "t": 1786503990969,
+        "m": true
+      },
+      "timestamp": 1786503990969,
+      "datetime": "2026-08-12T03:06:30.969Z",
+      "symbol": "BTC/USDT",
+      "id": "4032189550",
+      "order": null,
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63791.9,
+      "amount": 0.00017,
+      "cost": 10.844623,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "info": {
+        "a": 4032189551,
+        "p": "63791.90000000",
+        "q": "0.00086000",
+        "f": 6569167719,
+        "l": 6569167719,
+        "t": 1786503993055,
+        "m": true
+      },
+      "timestamp": 1786503993055,
+      "datetime": "2026-08-12T03:06:33.055Z",
+      "symbol": "BTC/USDT",
+      "id": "4032189551",
+      "order": null,
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63791.9,
+      "amount": 0.00086,
+      "cost": 54.861034,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "info": {
+        "a": 4032189552,
+        "p": "63791.90000000",
+        "q": "0.00313000",
+        "f": 6569167720,
+        "l": 6569167720,
+        "t": 1786503993457,
+        "m": true
+      },
+      "timestamp": 1786503993457,
+      "datetime": "2026-08-12T03:06:33.457Z",
+      "symbol": "BTC/USDT",
+      "id": "4032189552",
+      "order": null,
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63791.9,
+      "amount": 0.00313,
+      "cost": 199.668647,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "info": {
+        "a": 4032189553,
+        "p": "63791.91000000",
+        "q": "0.00169000",
+        "f": 6569167721,
+        "l": 6569167721,
+        "t": 1786503993612,
+        "m": true
+      },
+      "timestamp": 1786503993612,
+      "datetime": "2026-08-12T03:06:33.612Z",
+      "symbol": "BTC/USDT",
+      "id": "4032189553",
+      "order": null,
+      "type": null,
+      "side": "buy",
+      "taker_or_maker": null,
+      "price": 63791.91,
+      "amount": 0.00169,
+      "cost": 107.8083279,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    }
+  ]
+}

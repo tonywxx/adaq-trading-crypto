@@ -1,0 +1,60 @@
+{
+  "method": "fetch_trades",
+  "raw": [
+    {
+      "execId": "2290000001189886055",
+      "symbol": "BTCUSDT",
+      "price": "63855.2",
+      "size": "0.001853",
+      "side": "Sell",
+      "time": "1786512662680",
+      "isBlockTrade": false,
+      "isRPITrade": false,
+      "seq": "112561825544"
+    },
+    {
+      "execId": "2290000001189886054",
+      "symbol": "BTCUSDT",
+      "price": "63855.3",
+      "size": "0.001584",
+      "side": "Buy",
+      "time": "1786512660596",
+      "isBlockTrade": false,
+      "isRPITrade": false,
+      "seq": "112561825087"
+    },
+    {
+      "execId": "2290000001189886053",
+      "symbol": "BTCUSDT",
+      "price": "63855.3",
+      "size": "0.000015",
+      "side": "Buy",
+      "time": "1786512656434",
+      "isBlockTrade": false,
+      "isRPITrade": false,
+      "seq": "112561823815"
+    },
+    {
+      "execId": "2290000001189886052",
+      "symbol": "BTCUSDT",
+      "price": "63855.2",
+      "size": "0.000214",
+      "side": "Sell",
+      "time": "1786512654168",
+      "isBlockTrade": false,
+      "isRPITrade": false,
+      "seq": "112561823486"
+    },
+    {
+      "execId": "2290000001189886051",
+      "symbol": "BTCUSDT",
+      "price": "63855.3",
+      "size": "0.000586",
+      "side": "Buy",
+      "time": "1786512652498",
+      "isBlockTrade": false,
+      "isRPITrade": false,
+      "seq": "112561823092"
+    }
+  ]
+}

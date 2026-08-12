@@ -1,0 +1,7 @@
+/target
+.workbuddy
+tony
+/ccxt
+.env
+.venv/
+.codegraph/

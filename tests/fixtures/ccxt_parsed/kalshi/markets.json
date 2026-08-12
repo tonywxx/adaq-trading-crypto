@@ -1,0 +1,2175 @@
+{
+  "method": "fetch_markets",
+  "parsed": [
+    {
+      "id": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC-936B94F0D8D",
+      "market": "KXMVESPORTSMULTIGAMEEXTENDED_S202672BD6808EDC_YES_LLOYD_HARRIS_YES_HENRY_SEARLE_YES_MARCO_CECCHINATO_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_SHINTARO_IMAI_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_YUKI_MOCHIZUKI_YES_SHINJI_HAZAWA_YES_JOSHUA_CHARLTON_YES_ARVID_NORDQUIST_YES_ARDA_AZKARA_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT_YES_DIANA_IOANA_SIMIONESCU_YES_MARIIA_TKACHEVA",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC-936B94F0D8D",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1787751000000,
+      "expiry_datetime": "2026-08-26T13:30:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC-936B94F0D8D",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC-936B94F0D8D",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S202672BD6808EDC_YES_LLOYD_HARRIS_YES_HENRY_SEARLE_YES_MARCO_CECCHINATO_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_SHINTARO_IMAI_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_YUKI_MOCHIZUKI_YES_SHINJI_HAZAWA_YES_JOSHUA_CHARLTON_YES_ARVID_NORDQUIST_YES_ARDA_AZKARA_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT_YES_DIANA_IOANA_SIMIONESCU_YES_MARIIA_TKACHEVA:YES",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S202672BD6808EDC_YES_LLOYD_HARRIS_YES_HENRY_SEARLE_YES_MARCO_CECCHINATO_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_SHINTARO_IMAI_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_YUKI_MOCHIZUKI_YES_SHINJI_HAZAWA_YES_JOSHUA_CHARLTON_YES_ARVID_NORDQUIST_YES_ARDA_AZKARA_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT_YES_DIANA_IOANA_SIMIONESCU_YES_MARIIA_TKACHEVA",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC-936B94F0D8D",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Lloyd Harris,yes Henry Searle,yes Marco Cecchinato,yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Shintaro Imai,yes Omar Jasika,yes Yun Seong Chung,yes Yuki Mochizuki,yes Shinji Hazawa,yes Joshua Charlton,yes Arvid Nordquist,yes Arda Azkara,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt,yes Diana-Ioana Simionescu,yes Mariia Tkacheva",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC-936B94F0D8D-NO",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC-936B94F0D8D-NO",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S202672BD6808EDC_YES_LLOYD_HARRIS_YES_HENRY_SEARLE_YES_MARCO_CECCHINATO_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_SHINTARO_IMAI_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_YUKI_MOCHIZUKI_YES_SHINJI_HAZAWA_YES_JOSHUA_CHARLTON_YES_ARVID_NORDQUIST_YES_ARDA_AZKARA_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT_YES_DIANA_IOANA_SIMIONESCU_YES_MARIIA_TKACHEVA:NO",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S202672BD6808EDC_YES_LLOYD_HARRIS_YES_HENRY_SEARLE_YES_MARCO_CECCHINATO_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_SHINTARO_IMAI_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_YUKI_MOCHIZUKI_YES_SHINJI_HAZAWA_YES_JOSHUA_CHARLTON_YES_ARVID_NORDQUIST_YES_ARDA_AZKARA_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT_YES_DIANA_IOANA_SIMIONESCU_YES_MARIIA_TKACHEVA",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC-936B94F0D8D",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Lloyd Harris,yes Henry Searle,yes Marco Cecchinato,yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Shintaro Imai,yes Omar Jasika,yes Yun Seong Chung,yes Yuki Mochizuki,yes Shinji Hazawa,yes Joshua Charlton,yes Arvid Nordquist,yes Arda Azkara,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt,yes Diana-Ioana Simionescu,yes Mariia Tkacheva",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-26T13:30:00Z",
+        "created_time": "2026-08-12T04:35:30.153755Z",
+        "custom_strike": {
+          "associated events": "KXATPCHALLENGERMATCH-26AUG11HARFEN,KXATPCHALLENGERMATCH-26AUG11SEAROT,KXATPCHALLENGERMATCH-26AUG12CECFOR,KXATPCHALLENGERMATCH-26AUG12KUMMAT,KXATPCHALLENGERMATCH-26AUG12RATSUL,KXITFMATCH-26AUG11ARCIMA,KXITFMATCH-26AUG11CHOJAS,KXITFMATCH-26AUG11CHUHAN,KXITFMATCH-26AUG11MOCMEN,KXITFMATCH-26AUG11TSIHAZ,KXITFMATCH-26AUG11ZHACHA,KXITFMATCH-26AUG12ANDNOR,KXITFMATCH-26AUG12AZKTAM,KXITFMATCH-26AUG12DUMBRE,KXITFMATCH-26AUG12GHEGOL,KXITFMATCH-26AUG12HUALEE,KXITFMATCH-26AUG12JONTRO,KXITFWMATCH-26AUG12KAKKUR,KXITFWMATCH-26AUG12SIMADA,KXITFWMATCH-26AUG12TKAKHO",
+          "associated market sides": "yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes",
+          "associated markets": "KXATPCHALLENGERMATCH-26AUG11HARFEN-HAR,KXATPCHALLENGERMATCH-26AUG11SEAROT-SEA,KXATPCHALLENGERMATCH-26AUG12CECFOR-CEC,KXATPCHALLENGERMATCH-26AUG12KUMMAT-MAT,KXATPCHALLENGERMATCH-26AUG12RATSUL-SUL,KXITFMATCH-26AUG11ARCIMA-IMA,KXITFMATCH-26AUG11CHOJAS-JAS,KXITFMATCH-26AUG11CHUHAN-CHU,KXITFMATCH-26AUG11MOCMEN-MOC,KXITFMATCH-26AUG11TSIHAZ-HAZ,KXITFMATCH-26AUG11ZHACHA-CHA,KXITFMATCH-26AUG12ANDNOR-NOR,KXITFMATCH-26AUG12AZKTAM-AZK,KXITFMATCH-26AUG12DUMBRE-BRE,KXITFMATCH-26AUG12GHEGOL-GHE,KXITFMATCH-26AUG12HUALEE-HUA,KXITFMATCH-26AUG12JONTRO-JON,KXITFWMATCH-26AUG12KAKKUR-KUR,KXITFWMATCH-26AUG12SIMADA-SIM,KXITFWMATCH-26AUG12TKAKHO-TKA",
+          "multivariate event ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC"
+        },
+        "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-12T20:00:00Z",
+        "expiration_time": "2026-08-26T13:30:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-26T13:30:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG11HARFEN",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG11HARFEN-HAR",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG11SEAROT",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG11SEAROT-SEA",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12CECFOR",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12CECFOR-CEC",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12KUMMAT",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12KUMMAT-MAT",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12RATSUL",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12RATSUL-SUL",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG11ARCIMA",
+            "market_ticker": "KXITFMATCH-26AUG11ARCIMA-IMA",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG11CHOJAS",
+            "market_ticker": "KXITFMATCH-26AUG11CHOJAS-JAS",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG11CHUHAN",
+            "market_ticker": "KXITFMATCH-26AUG11CHUHAN-CHU",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG11MOCMEN",
+            "market_ticker": "KXITFMATCH-26AUG11MOCMEN-MOC",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG11TSIHAZ",
+            "market_ticker": "KXITFMATCH-26AUG11TSIHAZ-HAZ",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG11ZHACHA",
+            "market_ticker": "KXITFMATCH-26AUG11ZHACHA-CHA",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12ANDNOR",
+            "market_ticker": "KXITFMATCH-26AUG12ANDNOR-NOR",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12AZKTAM",
+            "market_ticker": "KXITFMATCH-26AUG12AZKTAM-AZK",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12DUMBRE",
+            "market_ticker": "KXITFMATCH-26AUG12DUMBRE-BRE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12GHEGOL",
+            "market_ticker": "KXITFMATCH-26AUG12GHEGOL-GHE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12HUALEE",
+            "market_ticker": "KXITFMATCH-26AUG12HUALEE-HUA",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12JONTRO",
+            "market_ticker": "KXITFMATCH-26AUG12JONTRO-JON",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFWMATCH-26AUG12KAKKUR",
+            "market_ticker": "KXITFWMATCH-26AUG12KAKKUR-KUR",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFWMATCH-26AUG12SIMADA",
+            "market_ticker": "KXITFWMATCH-26AUG12SIMADA-SIM",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFWMATCH-26AUG12TKAKHO",
+            "market_ticker": "KXITFWMATCH-26AUG12TKAKHO-TKA",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Lloyd Harris,yes Henry Searle,yes Marco Cecchinato,yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Shintaro Imai,yes Omar Jasika,yes Yun Seong Chung,yes Yuki Mochizuki,yes Shinji Hazawa,yes Joshua Charlton,yes Arvid Nordquist,yes Arda Azkara,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt,yes Diana-Ioana Simionescu,yes Mariia Tkacheva",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:30Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202672BD6808EDC-936B94F0D8D",
+        "title": "yes Lloyd Harris,yes Henry Searle,yes Marco Cecchinato,yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Shintaro Imai,yes Omar Jasika,yes Yun Seong Chung,yes Yuki Mochizuki,yes Shinji Hazawa,yes Joshua Charlton,yes Arvid Nordquist,yes Arda Azkara,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt,yes Diana-Ioana Simionescu,yes Mariia Tkacheva",
+        "updated_time": "2026-08-12T04:35:30.153802Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Lloyd Harris,yes Henry Searle,yes Marco Cecchinato,yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Shintaro Imai,yes Omar Jasika,yes Yun Seong Chung,yes Yuki Mochizuki,yes Shinji Hazawa,yes Joshua Charlton,yes Arvid Nordquist,yes Arda Azkara,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt,yes Diana-Ioana Simionescu,yes Mariia Tkacheva",
+        "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+        "subtitle": "yes Lloyd Harris,yes Henry Searle,yes Marco Cecchinato,yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Shintaro Imai,yes Omar Jasika,yes Yun Seong Chung,yes Yuki Mochizuki,yes Shinji Hazawa,yes Joshua Charlton,yes Arvid Nordquist,yes Arda Azkara,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt,yes Diana-Ioana Simionescu,yes Mariia Tkacheva",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    },
+    {
+      "id": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA-C81DF0BDE17",
+      "market": "KXMVECROSSCATEGORY_S2026ABBC20DC3EA_YES_ARIZONA_YES_CINCINNATI_YES_PITTSBURGH_YES_NEW_ENGLAND_YES_HOUSTON_YES_SAN_FRANCISCO_YES_ATLANTA_YES_WASHINGTON_YES_TAMPA_BAY_YES_CAROLINA_YES_CHICAGO_YES_SEATTLE_YES_JACKSONVILLE_YES_KANSAS_CITY_YES_NEW_YORK_G_YES_BALTIMORE",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA-C81DF0BDE17",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1787011200000,
+      "expiry_datetime": "2026-08-18T00:00:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA-C81DF0BDE17",
+          "outcome_id": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA-C81DF0BDE17",
+          "outcome": "KXMVECROSSCATEGORY_S2026ABBC20DC3EA_YES_ARIZONA_YES_CINCINNATI_YES_PITTSBURGH_YES_NEW_ENGLAND_YES_HOUSTON_YES_SAN_FRANCISCO_YES_ATLANTA_YES_WASHINGTON_YES_TAMPA_BAY_YES_CAROLINA_YES_CHICAGO_YES_SEATTLE_YES_JACKSONVILLE_YES_KANSAS_CITY_YES_NEW_YORK_G_YES_BALTIMORE:YES",
+          "market": "KXMVECROSSCATEGORY_S2026ABBC20DC3EA_YES_ARIZONA_YES_CINCINNATI_YES_PITTSBURGH_YES_NEW_ENGLAND_YES_HOUSTON_YES_SAN_FRANCISCO_YES_ATLANTA_YES_WASHINGTON_YES_TAMPA_BAY_YES_CAROLINA_YES_CHICAGO_YES_SEATTLE_YES_JACKSONVILLE_YES_KANSAS_CITY_YES_NEW_YORK_G_YES_BALTIMORE",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA-C81DF0BDE17",
+            "event_ticker": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA",
+            "series_ticker": "KXMVECROSSCATEGORY",
+            "subtitle": "yes Arizona,yes Cincinnati,yes Pittsburgh,yes New England,yes Houston,yes San Francisco,yes Atlanta,yes Washington,yes Tampa Bay,yes Carolina,yes Chicago,yes Seattle,yes Jacksonville,yes Kansas City,yes New York G,yes Baltimore",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA-C81DF0BDE17-NO",
+          "outcome_id": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA-C81DF0BDE17-NO",
+          "outcome": "KXMVECROSSCATEGORY_S2026ABBC20DC3EA_YES_ARIZONA_YES_CINCINNATI_YES_PITTSBURGH_YES_NEW_ENGLAND_YES_HOUSTON_YES_SAN_FRANCISCO_YES_ATLANTA_YES_WASHINGTON_YES_TAMPA_BAY_YES_CAROLINA_YES_CHICAGO_YES_SEATTLE_YES_JACKSONVILLE_YES_KANSAS_CITY_YES_NEW_YORK_G_YES_BALTIMORE:NO",
+          "market": "KXMVECROSSCATEGORY_S2026ABBC20DC3EA_YES_ARIZONA_YES_CINCINNATI_YES_PITTSBURGH_YES_NEW_ENGLAND_YES_HOUSTON_YES_SAN_FRANCISCO_YES_ATLANTA_YES_WASHINGTON_YES_TAMPA_BAY_YES_CAROLINA_YES_CHICAGO_YES_SEATTLE_YES_JACKSONVILLE_YES_KANSAS_CITY_YES_NEW_YORK_G_YES_BALTIMORE",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA-C81DF0BDE17",
+            "event_ticker": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA",
+            "series_ticker": "KXMVECROSSCATEGORY",
+            "subtitle": "yes Arizona,yes Cincinnati,yes Pittsburgh,yes New England,yes Houston,yes San Francisco,yes Atlanta,yes Washington,yes Tampa Bay,yes Carolina,yes Chicago,yes Seattle,yes Jacksonville,yes Kansas City,yes New York G,yes Baltimore",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-18T00:00:00Z",
+        "created_time": "2026-08-12T04:35:30.130076Z",
+        "custom_strike": {
+          "associated events": "KXNFLGAME-26AUG13ARILV,KXNFLGAME-26AUG13DETCIN,KXNFLGAME-26AUG13GBPIT,KXNFLGAME-26AUG13INDNE,KXNFLGAME-26AUG13LACHOU,KXNFLGAME-26AUG13TENSF,KXNFLGAME-26AUG14DENATL,KXNFLGAME-26AUG14MIAWAS,KXNFLGAME-26AUG14TBNYJ,KXNFLGAME-26AUG15CARBUF,KXNFLGAME-26AUG15CLECHI,KXNFLGAME-26AUG15DALSEA,KXNFLGAME-26AUG15JACNO,KXNFLGAME-26AUG15LARKC,KXNFLGAME-26AUG15MINNYG,KXNFLGAME-26AUG15PHIBAL",
+          "associated market sides": "yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes",
+          "associated markets": "KXNFLGAME-26AUG13ARILV-ARI,KXNFLGAME-26AUG13DETCIN-CIN,KXNFLGAME-26AUG13GBPIT-PIT,KXNFLGAME-26AUG13INDNE-NE,KXNFLGAME-26AUG13LACHOU-HOU,KXNFLGAME-26AUG13TENSF-SF,KXNFLGAME-26AUG14DENATL-ATL,KXNFLGAME-26AUG14MIAWAS-WAS,KXNFLGAME-26AUG14TBNYJ-TB,KXNFLGAME-26AUG15CARBUF-CAR,KXNFLGAME-26AUG15CLECHI-CHI,KXNFLGAME-26AUG15DALSEA-SEA,KXNFLGAME-26AUG15JACNO-JAC,KXNFLGAME-26AUG15LARKC-KC,KXNFLGAME-26AUG15MINNYG-NYG,KXNFLGAME-26AUG15PHIBAL-BAL",
+          "multivariate event ticker": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA"
+        },
+        "event_ticker": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-16T06:00:00Z",
+        "expiration_time": "2026-08-18T00:00:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-18T00:00:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVECROSSCATEGORY-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXNFLGAME-26AUG13ARILV",
+            "market_ticker": "KXNFLGAME-26AUG13ARILV-ARI",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG13DETCIN",
+            "market_ticker": "KXNFLGAME-26AUG13DETCIN-CIN",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG13GBPIT",
+            "market_ticker": "KXNFLGAME-26AUG13GBPIT-PIT",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG13INDNE",
+            "market_ticker": "KXNFLGAME-26AUG13INDNE-NE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG13LACHOU",
+            "market_ticker": "KXNFLGAME-26AUG13LACHOU-HOU",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG13TENSF",
+            "market_ticker": "KXNFLGAME-26AUG13TENSF-SF",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG14DENATL",
+            "market_ticker": "KXNFLGAME-26AUG14DENATL-ATL",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG14MIAWAS",
+            "market_ticker": "KXNFLGAME-26AUG14MIAWAS-WAS",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG14TBNYJ",
+            "market_ticker": "KXNFLGAME-26AUG14TBNYJ-TB",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG15CARBUF",
+            "market_ticker": "KXNFLGAME-26AUG15CARBUF-CAR",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG15CLECHI",
+            "market_ticker": "KXNFLGAME-26AUG15CLECHI-CHI",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG15DALSEA",
+            "market_ticker": "KXNFLGAME-26AUG15DALSEA-SEA",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG15JACNO",
+            "market_ticker": "KXNFLGAME-26AUG15JACNO-JAC",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG15LARKC",
+            "market_ticker": "KXNFLGAME-26AUG15LARKC-KC",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG15MINNYG",
+            "market_ticker": "KXNFLGAME-26AUG15MINNYG-NYG",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXNFLGAME-26AUG15PHIBAL",
+            "market_ticker": "KXNFLGAME-26AUG15PHIBAL-BAL",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Arizona,yes Cincinnati,yes Pittsburgh,yes New England,yes Houston,yes San Francisco,yes Atlanta,yes Washington,yes Tampa Bay,yes Carolina,yes Chicago,yes Seattle,yes Jacksonville,yes Kansas City,yes New York G,yes Baltimore",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:30Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVECROSSCATEGORY-S2026ABBC20DC3EA-C81DF0BDE17",
+        "title": "yes Arizona,yes Cincinnati,yes Pittsburgh,yes New England,yes Houston,yes San Francisco,yes Atlanta,yes Washington,yes Tampa Bay,yes Carolina,yes Chicago,yes Seattle,yes Jacksonville,yes Kansas City,yes New York G,yes Baltimore",
+        "updated_time": "2026-08-12T04:35:30.130514Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Arizona,yes Cincinnati,yes Pittsburgh,yes New England,yes Houston,yes San Francisco,yes Atlanta,yes Washington,yes Tampa Bay,yes Carolina,yes Chicago,yes Seattle,yes Jacksonville,yes Kansas City,yes New York G,yes Baltimore",
+        "series_ticker": "KXMVECROSSCATEGORY",
+        "subtitle": "yes Arizona,yes Cincinnati,yes Pittsburgh,yes New England,yes Houston,yes San Francisco,yes Atlanta,yes Washington,yes Tampa Bay,yes Carolina,yes Chicago,yes Seattle,yes Jacksonville,yes Kansas City,yes New York G,yes Baltimore",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    },
+    {
+      "id": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323-78E1E58A300",
+      "market": "KXMVESPORTSMULTIGAMEEXTENDED_S202619F76865323_YES_MARCO_CECCHINATO_YES_JACOB_FEARNLEY_YES_LUCA_VAN_ASSCHE_YES_OVER_1_5_GOALS_SCORED",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323-78E1E58A300",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1787752800000,
+      "expiry_datetime": "2026-08-26T14:00:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323-78E1E58A300",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323-78E1E58A300",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S202619F76865323_YES_MARCO_CECCHINATO_YES_JACOB_FEARNLEY_YES_LUCA_VAN_ASSCHE_YES_OVER_1_5_GOALS_SCORED:YES",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S202619F76865323_YES_MARCO_CECCHINATO_YES_JACOB_FEARNLEY_YES_LUCA_VAN_ASSCHE_YES_OVER_1_5_GOALS_SCORED",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323-78E1E58A300",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Marco Cecchinato,yes Jacob Fearnley,yes Luca Van Assche,yes Over 1.5 goals scored",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323-78E1E58A300-NO",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323-78E1E58A300-NO",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S202619F76865323_YES_MARCO_CECCHINATO_YES_JACOB_FEARNLEY_YES_LUCA_VAN_ASSCHE_YES_OVER_1_5_GOALS_SCORED:NO",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S202619F76865323_YES_MARCO_CECCHINATO_YES_JACOB_FEARNLEY_YES_LUCA_VAN_ASSCHE_YES_OVER_1_5_GOALS_SCORED",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323-78E1E58A300",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Marco Cecchinato,yes Jacob Fearnley,yes Luca Van Assche,yes Over 1.5 goals scored",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-26T14:00:00Z",
+        "created_time": "2026-08-12T04:35:30.072197Z",
+        "custom_strike": {
+          "associated events": "KXATPCHALLENGERMATCH-26AUG12CECFOR,KXATPMATCH-26AUG11MEJFEA,KXATPMATCH-26AUG12VANLAJ,KXLEAGUESCUPTOTAL-26AUG12ORLASL",
+          "associated market sides": "yes,yes,yes,yes",
+          "associated markets": "KXATPCHALLENGERMATCH-26AUG12CECFOR-CEC,KXATPMATCH-26AUG11MEJFEA-FEA,KXATPMATCH-26AUG12VANLAJ-VAN,KXLEAGUESCUPTOTAL-26AUG12ORLASL-2",
+          "multivariate event ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323"
+        },
+        "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-13T05:30:00Z",
+        "expiration_time": "2026-08-26T14:00:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-26T14:00:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12CECFOR",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12CECFOR-CEC",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPMATCH-26AUG11MEJFEA",
+            "market_ticker": "KXATPMATCH-26AUG11MEJFEA-FEA",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPMATCH-26AUG12VANLAJ",
+            "market_ticker": "KXATPMATCH-26AUG12VANLAJ-VAN",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXLEAGUESCUPTOTAL-26AUG12ORLASL",
+            "market_ticker": "KXLEAGUESCUPTOTAL-26AUG12ORLASL-2",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Marco Cecchinato,yes Jacob Fearnley,yes Luca Van Assche,yes Over 1.5 goals scored",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:30Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202619F76865323-78E1E58A300",
+        "title": "yes Marco Cecchinato,yes Jacob Fearnley,yes Luca Van Assche,yes Over 1.5 goals scored",
+        "updated_time": "2026-08-12T04:35:30.072238Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Marco Cecchinato,yes Jacob Fearnley,yes Luca Van Assche,yes Over 1.5 goals scored",
+        "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+        "subtitle": "yes Marco Cecchinato,yes Jacob Fearnley,yes Luca Van Assche,yes Over 1.5 goals scored",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    },
+    {
+      "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE-65E38F72037",
+      "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20269EAF79D13DE_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_ARIZONA_YES_OVER_5_5_RUNS_SCORED_YES_OVER_4_5_RUNS_SCORED_YES_DALLAS",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE-65E38F72037",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1786824600000,
+      "expiry_datetime": "2026-08-15T20:10:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE-65E38F72037",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE-65E38F72037",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S20269EAF79D13DE_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_ARIZONA_YES_OVER_5_5_RUNS_SCORED_YES_OVER_4_5_RUNS_SCORED_YES_DALLAS:YES",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20269EAF79D13DE_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_ARIZONA_YES_OVER_5_5_RUNS_SCORED_YES_OVER_4_5_RUNS_SCORED_YES_DALLAS",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE-65E38F72037",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Kansas City,yes Tampa Bay,yes Arizona,yes Over 5.5 runs scored,yes Over 4.5 runs scored,yes Dallas",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE-65E38F72037-NO",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE-65E38F72037-NO",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S20269EAF79D13DE_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_ARIZONA_YES_OVER_5_5_RUNS_SCORED_YES_OVER_4_5_RUNS_SCORED_YES_DALLAS:NO",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20269EAF79D13DE_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_ARIZONA_YES_OVER_5_5_RUNS_SCORED_YES_OVER_4_5_RUNS_SCORED_YES_DALLAS",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE-65E38F72037",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Kansas City,yes Tampa Bay,yes Arizona,yes Over 5.5 runs scored,yes Over 4.5 runs scored,yes Dallas",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-15T20:10:00Z",
+        "created_time": "2026-08-12T04:35:29.943951Z",
+        "custom_strike": {
+          "associated events": "KXMLBGAME-26AUG112210KCLAD,KXMLBGAME-26AUG121505TBATH,KXMLBGAME-26AUG121540COLAZ,KXMLBTOTAL-26AUG121540COLAZ,KXMLBTOTAL-26AUG121610MILSD,KXWNBAGAME-26AUG12TORDAL",
+          "associated market sides": "yes,yes,yes,yes,yes,yes",
+          "associated markets": "KXMLBGAME-26AUG112210KCLAD-KC,KXMLBGAME-26AUG121505TBATH-TB,KXMLBGAME-26AUG121540COLAZ-AZ,KXMLBTOTAL-26AUG121540COLAZ-6,KXMLBTOTAL-26AUG121610MILSD-5,KXWNBAGAME-26AUG12TORDAL-DAL",
+          "multivariate event ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE"
+        },
+        "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-13T06:00:00Z",
+        "expiration_time": "2026-08-15T20:10:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-15T20:10:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXMLBGAME-26AUG112210KCLAD",
+            "market_ticker": "KXMLBGAME-26AUG112210KCLAD-KC",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXMLBGAME-26AUG121505TBATH",
+            "market_ticker": "KXMLBGAME-26AUG121505TBATH-TB",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXMLBGAME-26AUG121540COLAZ",
+            "market_ticker": "KXMLBGAME-26AUG121540COLAZ-AZ",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXMLBTOTAL-26AUG121540COLAZ",
+            "market_ticker": "KXMLBTOTAL-26AUG121540COLAZ-6",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXMLBTOTAL-26AUG121610MILSD",
+            "market_ticker": "KXMLBTOTAL-26AUG121610MILSD-5",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXWNBAGAME-26AUG12TORDAL",
+            "market_ticker": "KXWNBAGAME-26AUG12TORDAL-DAL",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Kansas City,yes Tampa Bay,yes Arizona,yes Over 5.5 runs scored,yes Over 4.5 runs scored,yes Dallas",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:29Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20269EAF79D13DE-65E38F72037",
+        "title": "yes Kansas City,yes Tampa Bay,yes Arizona,yes Over 5.5 runs scored,yes Over 4.5 runs scored,yes Dallas",
+        "updated_time": "2026-08-12T04:35:29.94399Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Kansas City,yes Tampa Bay,yes Arizona,yes Over 5.5 runs scored,yes Over 4.5 runs scored,yes Dallas",
+        "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+        "subtitle": "yes Kansas City,yes Tampa Bay,yes Arizona,yes Over 5.5 runs scored,yes Over 4.5 runs scored,yes Dallas",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    },
+    {
+      "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F-513C93C2137",
+      "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20261956654FA4F_YES_LOS_ANGELES_F_YES_ESTEBAN_RIBOVICS_YES_DONTE_JOHNSON_YES_CHARLES_JOHNSON_YES_ISLAM_MAKHACHEV_YES_JOEL_ALVAREZ_YES_KAUE_FERNANDES_YES_MYKTYBEK_OROLBAY_UULU",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F-513C93C2137",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1788054600000,
+      "expiry_datetime": "2026-08-30T01:50:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F-513C93C2137",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F-513C93C2137",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S20261956654FA4F_YES_LOS_ANGELES_F_YES_ESTEBAN_RIBOVICS_YES_DONTE_JOHNSON_YES_CHARLES_JOHNSON_YES_ISLAM_MAKHACHEV_YES_JOEL_ALVAREZ_YES_KAUE_FERNANDES_YES_MYKTYBEK_OROLBAY_UULU:YES",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20261956654FA4F_YES_LOS_ANGELES_F_YES_ESTEBAN_RIBOVICS_YES_DONTE_JOHNSON_YES_CHARLES_JOHNSON_YES_ISLAM_MAKHACHEV_YES_JOEL_ALVAREZ_YES_KAUE_FERNANDES_YES_MYKTYBEK_OROLBAY_UULU",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F-513C93C2137",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Los Angeles F,yes Esteban Ribovics,yes Donte Johnson,yes Charles Johnson,yes Islam Makhachev,yes Joel Alvarez,yes Kaue Fernandes,yes Myktybek Orolbay Uulu",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F-513C93C2137-NO",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F-513C93C2137-NO",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S20261956654FA4F_YES_LOS_ANGELES_F_YES_ESTEBAN_RIBOVICS_YES_DONTE_JOHNSON_YES_CHARLES_JOHNSON_YES_ISLAM_MAKHACHEV_YES_JOEL_ALVAREZ_YES_KAUE_FERNANDES_YES_MYKTYBEK_OROLBAY_UULU:NO",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20261956654FA4F_YES_LOS_ANGELES_F_YES_ESTEBAN_RIBOVICS_YES_DONTE_JOHNSON_YES_CHARLES_JOHNSON_YES_ISLAM_MAKHACHEV_YES_JOEL_ALVAREZ_YES_KAUE_FERNANDES_YES_MYKTYBEK_OROLBAY_UULU",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F-513C93C2137",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Los Angeles F,yes Esteban Ribovics,yes Donte Johnson,yes Charles Johnson,yes Islam Makhachev,yes Joel Alvarez,yes Kaue Fernandes,yes Myktybek Orolbay Uulu",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-30T01:50:00Z",
+        "created_time": "2026-08-12T04:35:29.92028Z",
+        "custom_strike": {
+          "associated events": "KXLEAGUESCUPGAME-26AUG12LAFCQUE,KXUFCFIGHT-26AUG15BARRIB,KXUFCFIGHT-26AUG15JOHMCC,KXUFCFIGHT-26AUG15JOHOCH,KXUFCFIGHT-26AUG15MAKMGI,KXUFCFIGHT-26AUG15NJOALV,KXUFCFIGHT-26AUG15TURFER,KXUFCFIGHT-26AUG15WELORO",
+          "associated market sides": "yes,yes,yes,yes,yes,yes,yes,yes",
+          "associated markets": "KXLEAGUESCUPGAME-26AUG12LAFCQUE-LAFC,KXUFCFIGHT-26AUG15BARRIB-RIB,KXUFCFIGHT-26AUG15JOHMCC-JOH,KXUFCFIGHT-26AUG15JOHOCH-JOH,KXUFCFIGHT-26AUG15MAKMGI-MAK,KXUFCFIGHT-26AUG15NJOALV-ALV,KXUFCFIGHT-26AUG15TURFER-FER,KXUFCFIGHT-26AUG15WELORO-ORO",
+          "multivariate event ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F"
+        },
+        "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-16T08:30:00Z",
+        "expiration_time": "2026-08-30T01:50:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-30T01:50:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXLEAGUESCUPGAME-26AUG12LAFCQUE",
+            "market_ticker": "KXLEAGUESCUPGAME-26AUG12LAFCQUE-LAFC",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXUFCFIGHT-26AUG15BARRIB",
+            "market_ticker": "KXUFCFIGHT-26AUG15BARRIB-RIB",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXUFCFIGHT-26AUG15JOHMCC",
+            "market_ticker": "KXUFCFIGHT-26AUG15JOHMCC-JOH",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXUFCFIGHT-26AUG15JOHOCH",
+            "market_ticker": "KXUFCFIGHT-26AUG15JOHOCH-JOH",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXUFCFIGHT-26AUG15MAKMGI",
+            "market_ticker": "KXUFCFIGHT-26AUG15MAKMGI-MAK",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXUFCFIGHT-26AUG15NJOALV",
+            "market_ticker": "KXUFCFIGHT-26AUG15NJOALV-ALV",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXUFCFIGHT-26AUG15TURFER",
+            "market_ticker": "KXUFCFIGHT-26AUG15TURFER-FER",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXUFCFIGHT-26AUG15WELORO",
+            "market_ticker": "KXUFCFIGHT-26AUG15WELORO-ORO",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Los Angeles F,yes Esteban Ribovics,yes Donte Johnson,yes Charles Johnson,yes Islam Makhachev,yes Joel Alvarez,yes Kaue Fernandes,yes Myktybek Orolbay Uulu",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:29Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20261956654FA4F-513C93C2137",
+        "title": "yes Los Angeles F,yes Esteban Ribovics,yes Donte Johnson,yes Charles Johnson,yes Islam Makhachev,yes Joel Alvarez,yes Kaue Fernandes,yes Myktybek Orolbay Uulu",
+        "updated_time": "2026-08-12T04:35:29.920324Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Los Angeles F,yes Esteban Ribovics,yes Donte Johnson,yes Charles Johnson,yes Islam Makhachev,yes Joel Alvarez,yes Kaue Fernandes,yes Myktybek Orolbay Uulu",
+        "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+        "subtitle": "yes Los Angeles F,yes Esteban Ribovics,yes Donte Johnson,yes Charles Johnson,yes Islam Makhachev,yes Joel Alvarez,yes Kaue Fernandes,yes Myktybek Orolbay Uulu",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    },
+    {
+      "id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF-1331F8EDC0A",
+      "market": "KXMVESPORTSMULTIGAMEEXTENDED_S2026B8CD8D3ADDF_YES_LLOYD_HARRIS_YES_AIDAN_MAYO_YES_FEDERICO_CINA_YES_HENRY_SEARLE_YES_BERNARD_TOMIC_YES_ABDULLAH_SHELBAYH_YES_HAYATO_MATSUOKA_YES_LUCIO_RATTI_YES_NIKOLAS_SANCHEZ_IZQUIERDO",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF-1331F8EDC0A",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1787758200000,
+      "expiry_datetime": "2026-08-26T15:30:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF-1331F8EDC0A",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF-1331F8EDC0A",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S2026B8CD8D3ADDF_YES_LLOYD_HARRIS_YES_AIDAN_MAYO_YES_FEDERICO_CINA_YES_HENRY_SEARLE_YES_BERNARD_TOMIC_YES_ABDULLAH_SHELBAYH_YES_HAYATO_MATSUOKA_YES_LUCIO_RATTI_YES_NIKOLAS_SANCHEZ_IZQUIERDO:YES",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S2026B8CD8D3ADDF_YES_LLOYD_HARRIS_YES_AIDAN_MAYO_YES_FEDERICO_CINA_YES_HENRY_SEARLE_YES_BERNARD_TOMIC_YES_ABDULLAH_SHELBAYH_YES_HAYATO_MATSUOKA_YES_LUCIO_RATTI_YES_NIKOLAS_SANCHEZ_IZQUIERDO",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF-1331F8EDC0A",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Lloyd Harris,yes Aidan Mayo,yes Federico Cina,yes Henry Searle,yes Bernard Tomic,yes Abdullah Shelbayh,yes Hayato Matsuoka,yes Lucio Ratti,yes Nikolas Sanchez Izquierdo",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF-1331F8EDC0A-NO",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF-1331F8EDC0A-NO",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S2026B8CD8D3ADDF_YES_LLOYD_HARRIS_YES_AIDAN_MAYO_YES_FEDERICO_CINA_YES_HENRY_SEARLE_YES_BERNARD_TOMIC_YES_ABDULLAH_SHELBAYH_YES_HAYATO_MATSUOKA_YES_LUCIO_RATTI_YES_NIKOLAS_SANCHEZ_IZQUIERDO:NO",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S2026B8CD8D3ADDF_YES_LLOYD_HARRIS_YES_AIDAN_MAYO_YES_FEDERICO_CINA_YES_HENRY_SEARLE_YES_BERNARD_TOMIC_YES_ABDULLAH_SHELBAYH_YES_HAYATO_MATSUOKA_YES_LUCIO_RATTI_YES_NIKOLAS_SANCHEZ_IZQUIERDO",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF-1331F8EDC0A",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Lloyd Harris,yes Aidan Mayo,yes Federico Cina,yes Henry Searle,yes Bernard Tomic,yes Abdullah Shelbayh,yes Hayato Matsuoka,yes Lucio Ratti,yes Nikolas Sanchez Izquierdo",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-26T15:30:00Z",
+        "created_time": "2026-08-12T04:35:29.916425Z",
+        "custom_strike": {
+          "associated events": "KXATPCHALLENGERMATCH-26AUG11HARFEN,KXATPCHALLENGERMATCH-26AUG11KOZMAY,KXATPCHALLENGERMATCH-26AUG11SCHCIN,KXATPCHALLENGERMATCH-26AUG11SEAROT,KXATPCHALLENGERMATCH-26AUG11TOMWIN,KXATPCHALLENGERMATCH-26AUG11VANSHE,KXATPCHALLENGERMATCH-26AUG12KUMMAT,KXATPCHALLENGERMATCH-26AUG12RATSUL,KXATPCHALLENGERMATCH-26AUG12SAIMRV",
+          "associated market sides": "yes,yes,yes,yes,yes,yes,yes,yes,yes",
+          "associated markets": "KXATPCHALLENGERMATCH-26AUG11HARFEN-HAR,KXATPCHALLENGERMATCH-26AUG11KOZMAY-MAY,KXATPCHALLENGERMATCH-26AUG11SCHCIN-CIN,KXATPCHALLENGERMATCH-26AUG11SEAROT-SEA,KXATPCHALLENGERMATCH-26AUG11TOMWIN-TOM,KXATPCHALLENGERMATCH-26AUG11VANSHE-SHE,KXATPCHALLENGERMATCH-26AUG12KUMMAT-MAT,KXATPCHALLENGERMATCH-26AUG12RATSUL-RAT,KXATPCHALLENGERMATCH-26AUG12SAIMRV-SAI",
+          "multivariate event ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF"
+        },
+        "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-12T23:10:00Z",
+        "expiration_time": "2026-08-26T15:30:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-26T15:30:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG11HARFEN",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG11HARFEN-HAR",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG11KOZMAY",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG11KOZMAY-MAY",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG11SCHCIN",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG11SCHCIN-CIN",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG11SEAROT",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG11SEAROT-SEA",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG11TOMWIN",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG11TOMWIN-TOM",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG11VANSHE",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG11VANSHE-SHE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12KUMMAT",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12KUMMAT-MAT",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12RATSUL",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12RATSUL-RAT",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12SAIMRV",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12SAIMRV-SAI",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Lloyd Harris,yes Aidan Mayo,yes Federico Cina,yes Henry Searle,yes Bernard Tomic,yes Abdullah Shelbayh,yes Hayato Matsuoka,yes Lucio Ratti,yes Nikolas Sanchez Izquierdo",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:29Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026B8CD8D3ADDF-1331F8EDC0A",
+        "title": "yes Lloyd Harris,yes Aidan Mayo,yes Federico Cina,yes Henry Searle,yes Bernard Tomic,yes Abdullah Shelbayh,yes Hayato Matsuoka,yes Lucio Ratti,yes Nikolas Sanchez Izquierdo",
+        "updated_time": "2026-08-12T04:35:29.916463Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Lloyd Harris,yes Aidan Mayo,yes Federico Cina,yes Henry Searle,yes Bernard Tomic,yes Abdullah Shelbayh,yes Hayato Matsuoka,yes Lucio Ratti,yes Nikolas Sanchez Izquierdo",
+        "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+        "subtitle": "yes Lloyd Harris,yes Aidan Mayo,yes Federico Cina,yes Henry Searle,yes Bernard Tomic,yes Abdullah Shelbayh,yes Hayato Matsuoka,yes Lucio Ratti,yes Nikolas Sanchez Izquierdo",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    },
+    {
+      "id": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE-0DF1C372E3A",
+      "market": "KXMVESPORTSMULTIGAMEEXTENDED_S202696B0C5722CE_YES_MIAMI_YES_MONTERREY_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_SAN_FRANCISCO_YES_GOLDEN_STATE_YES_MINNESOTA_YES_DALLAS",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE-0DF1C372E3A",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1786823100000,
+      "expiry_datetime": "2026-08-15T19:45:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE-0DF1C372E3A",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE-0DF1C372E3A",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S202696B0C5722CE_YES_MIAMI_YES_MONTERREY_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_SAN_FRANCISCO_YES_GOLDEN_STATE_YES_MINNESOTA_YES_DALLAS:YES",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S202696B0C5722CE_YES_MIAMI_YES_MONTERREY_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_SAN_FRANCISCO_YES_GOLDEN_STATE_YES_MINNESOTA_YES_DALLAS",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE-0DF1C372E3A",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Miami,yes Monterrey,yes Kansas City,yes Tampa Bay,yes San Francisco,yes Golden State,yes Minnesota,yes Dallas",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE-0DF1C372E3A-NO",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE-0DF1C372E3A-NO",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S202696B0C5722CE_YES_MIAMI_YES_MONTERREY_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_SAN_FRANCISCO_YES_GOLDEN_STATE_YES_MINNESOTA_YES_DALLAS:NO",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S202696B0C5722CE_YES_MIAMI_YES_MONTERREY_YES_KANSAS_CITY_YES_TAMPA_BAY_YES_SAN_FRANCISCO_YES_GOLDEN_STATE_YES_MINNESOTA_YES_DALLAS",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE-0DF1C372E3A",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Miami,yes Monterrey,yes Kansas City,yes Tampa Bay,yes San Francisco,yes Golden State,yes Minnesota,yes Dallas",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-15T19:45:00Z",
+        "created_time": "2026-08-12T04:35:29.884097Z",
+        "custom_strike": {
+          "associated events": "KXLEAGUESCUPGAME-26AUG12MIALEO,KXLEAGUESCUPGAME-26AUG12MONNSH,KXMLBGAME-26AUG112210KCLAD,KXMLBGAME-26AUG121505TBATH,KXMLBGAME-26AUG121545HOUSF,KXWNBAGAME-26AUG12CHIGS,KXWNBAGAME-26AUG12MINPDX,KXWNBAGAME-26AUG12TORDAL",
+          "associated market sides": "yes,yes,yes,yes,yes,yes,yes,yes",
+          "associated markets": "KXLEAGUESCUPGAME-26AUG12MIALEO-MIA,KXLEAGUESCUPGAME-26AUG12MONNSH-MON,KXMLBGAME-26AUG112210KCLAD-KC,KXMLBGAME-26AUG121505TBATH-TB,KXMLBGAME-26AUG121545HOUSF-SF,KXWNBAGAME-26AUG12CHIGS-GS,KXWNBAGAME-26AUG12MINPDX-MIN,KXWNBAGAME-26AUG12TORDAL-DAL",
+          "multivariate event ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE"
+        },
+        "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-13T08:00:00Z",
+        "expiration_time": "2026-08-15T19:45:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-15T19:45:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXLEAGUESCUPGAME-26AUG12MIALEO",
+            "market_ticker": "KXLEAGUESCUPGAME-26AUG12MIALEO-MIA",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXLEAGUESCUPGAME-26AUG12MONNSH",
+            "market_ticker": "KXLEAGUESCUPGAME-26AUG12MONNSH-MON",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXMLBGAME-26AUG112210KCLAD",
+            "market_ticker": "KXMLBGAME-26AUG112210KCLAD-KC",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXMLBGAME-26AUG121505TBATH",
+            "market_ticker": "KXMLBGAME-26AUG121505TBATH-TB",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXMLBGAME-26AUG121545HOUSF",
+            "market_ticker": "KXMLBGAME-26AUG121545HOUSF-SF",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXWNBAGAME-26AUG12CHIGS",
+            "market_ticker": "KXWNBAGAME-26AUG12CHIGS-GS",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXWNBAGAME-26AUG12MINPDX",
+            "market_ticker": "KXWNBAGAME-26AUG12MINPDX-MIN",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXWNBAGAME-26AUG12TORDAL",
+            "market_ticker": "KXWNBAGAME-26AUG12TORDAL-DAL",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Miami,yes Monterrey,yes Kansas City,yes Tampa Bay,yes San Francisco,yes Golden State,yes Minnesota,yes Dallas",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:29Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S202696B0C5722CE-0DF1C372E3A",
+        "title": "yes Miami,yes Monterrey,yes Kansas City,yes Tampa Bay,yes San Francisco,yes Golden State,yes Minnesota,yes Dallas",
+        "updated_time": "2026-08-12T04:35:29.884141Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Miami,yes Monterrey,yes Kansas City,yes Tampa Bay,yes San Francisco,yes Golden State,yes Minnesota,yes Dallas",
+        "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+        "subtitle": "yes Miami,yes Monterrey,yes Kansas City,yes Tampa Bay,yes San Francisco,yes Golden State,yes Minnesota,yes Dallas",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    },
+    {
+      "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128-6EDDF58A752",
+      "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20260512C213128_YES_PANTERAS_DE_AGUASCALIENTES_YES_SOLES_DE_MEXICALI_YES_OVER_8_5_RUNS_SCORED",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128-6EDDF58A752",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1787713200000,
+      "expiry_datetime": "2026-08-26T03:00:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128-6EDDF58A752",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128-6EDDF58A752",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S20260512C213128_YES_PANTERAS_DE_AGUASCALIENTES_YES_SOLES_DE_MEXICALI_YES_OVER_8_5_RUNS_SCORED:YES",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20260512C213128_YES_PANTERAS_DE_AGUASCALIENTES_YES_SOLES_DE_MEXICALI_YES_OVER_8_5_RUNS_SCORED",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128-6EDDF58A752",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Panteras de Aguascalientes,yes Soles de Mexicali,yes Over 8.5 runs scored",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128-6EDDF58A752-NO",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128-6EDDF58A752-NO",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S20260512C213128_YES_PANTERAS_DE_AGUASCALIENTES_YES_SOLES_DE_MEXICALI_YES_OVER_8_5_RUNS_SCORED:NO",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20260512C213128_YES_PANTERAS_DE_AGUASCALIENTES_YES_SOLES_DE_MEXICALI_YES_OVER_8_5_RUNS_SCORED",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128-6EDDF58A752",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Panteras de Aguascalientes,yes Soles de Mexicali,yes Over 8.5 runs scored",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-26T03:00:00Z",
+        "created_time": "2026-08-12T04:35:29.881201Z",
+        "custom_strike": {
+          "associated events": "KXLNBPGAME-26AUG112230LOBPAN,KXLNBPGAME-26AUG112300ABESOL,KXMLBTOTAL-26AUG112210KCLAD",
+          "associated market sides": "yes,yes,yes",
+          "associated markets": "KXLNBPGAME-26AUG112230LOBPAN-PAN,KXLNBPGAME-26AUG112300ABESOL-SOL,KXMLBTOTAL-26AUG112210KCLAD-9",
+          "multivariate event ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128"
+        },
+        "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-12T09:00:00Z",
+        "expiration_time": "2026-08-26T03:00:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-26T03:00:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXLNBPGAME-26AUG112230LOBPAN",
+            "market_ticker": "KXLNBPGAME-26AUG112230LOBPAN-PAN",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXLNBPGAME-26AUG112300ABESOL",
+            "market_ticker": "KXLNBPGAME-26AUG112300ABESOL-SOL",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXMLBTOTAL-26AUG112210KCLAD",
+            "market_ticker": "KXMLBTOTAL-26AUG112210KCLAD-9",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Panteras de Aguascalientes,yes Soles de Mexicali,yes Over 8.5 runs scored",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:29Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20260512C213128-6EDDF58A752",
+        "title": "yes Panteras de Aguascalientes,yes Soles de Mexicali,yes Over 8.5 runs scored",
+        "updated_time": "2026-08-12T04:35:29.881241Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Panteras de Aguascalientes,yes Soles de Mexicali,yes Over 8.5 runs scored",
+        "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+        "subtitle": "yes Panteras de Aguascalientes,yes Soles de Mexicali,yes Over 8.5 runs scored",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    },
+    {
+      "id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012-6C9625FE322",
+      "market": "KXMVESPORTSMULTIGAMEEXTENDED_S2026C2951FC7012_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_HALIAK_YANG_YES_YE_CHEN_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_JAESUNG_CHOE_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012-6C9625FE322",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1787725800000,
+      "expiry_datetime": "2026-08-26T06:30:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012-6C9625FE322",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012-6C9625FE322",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S2026C2951FC7012_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_HALIAK_YANG_YES_YE_CHEN_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_JAESUNG_CHOE_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT:YES",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S2026C2951FC7012_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_HALIAK_YANG_YES_YE_CHEN_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_JAESUNG_CHOE_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012-6C9625FE322",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Haliak / Yang,yes Ye Chen,yes Omar Jasika,yes Yun Seong Chung,yes Jaesung Choe,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012-6C9625FE322-NO",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012-6C9625FE322-NO",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S2026C2951FC7012_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_HALIAK_YANG_YES_YE_CHEN_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_JAESUNG_CHOE_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT:NO",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S2026C2951FC7012_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_HALIAK_YANG_YES_YE_CHEN_YES_OMAR_JASIKA_YES_YUN_SEONG_CHUNG_YES_JAESUNG_CHOE_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_TSUNG_HAO_HUANG_YES_MILES_JONES_YES_IREM_KURT",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012-6C9625FE322",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Haliak / Yang,yes Ye Chen,yes Omar Jasika,yes Yun Seong Chung,yes Jaesung Choe,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-26T06:30:00Z",
+        "created_time": "2026-08-12T04:35:29.872635Z",
+        "custom_strike": {
+          "associated events": "KXATPCHALLENGERMATCH-26AUG12KUMMAT,KXATPCHALLENGERMATCH-26AUG12RATSUL,KXITFDOUBLES-26AUG12LIULUXHALYAN,KXITFMATCH-26AUG11BECCHE,KXITFMATCH-26AUG11CHOJAS,KXITFMATCH-26AUG11CHUHAN,KXITFMATCH-26AUG12CHOJIA,KXITFMATCH-26AUG12DUMBRE,KXITFMATCH-26AUG12GHEGOL,KXITFMATCH-26AUG12HUALEE,KXITFMATCH-26AUG12JONTRO,KXITFWMATCH-26AUG12KAKKUR",
+          "associated market sides": "yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes,yes",
+          "associated markets": "KXATPCHALLENGERMATCH-26AUG12KUMMAT-MAT,KXATPCHALLENGERMATCH-26AUG12RATSUL-SUL,KXITFDOUBLES-26AUG12LIULUXHALYAN-HALYAN,KXITFMATCH-26AUG11BECCHE-CHE,KXITFMATCH-26AUG11CHOJAS-JAS,KXITFMATCH-26AUG11CHUHAN-CHU,KXITFMATCH-26AUG12CHOJIA-CHO,KXITFMATCH-26AUG12DUMBRE-BRE,KXITFMATCH-26AUG12GHEGOL-GHE,KXITFMATCH-26AUG12HUALEE-HUA,KXITFMATCH-26AUG12JONTRO-JON,KXITFWMATCH-26AUG12KAKKUR-KUR",
+          "multivariate event ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012"
+        },
+        "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-12T12:42:37Z",
+        "expiration_time": "2026-08-26T06:30:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-26T06:30:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12KUMMAT",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12KUMMAT-MAT",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12RATSUL",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12RATSUL-SUL",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFDOUBLES-26AUG12LIULUXHALYAN",
+            "market_ticker": "KXITFDOUBLES-26AUG12LIULUXHALYAN-HALYAN",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG11BECCHE",
+            "market_ticker": "KXITFMATCH-26AUG11BECCHE-CHE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG11CHOJAS",
+            "market_ticker": "KXITFMATCH-26AUG11CHOJAS-JAS",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG11CHUHAN",
+            "market_ticker": "KXITFMATCH-26AUG11CHUHAN-CHU",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12CHOJIA",
+            "market_ticker": "KXITFMATCH-26AUG12CHOJIA-CHO",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12DUMBRE",
+            "market_ticker": "KXITFMATCH-26AUG12DUMBRE-BRE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12GHEGOL",
+            "market_ticker": "KXITFMATCH-26AUG12GHEGOL-GHE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12HUALEE",
+            "market_ticker": "KXITFMATCH-26AUG12HUALEE-HUA",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12JONTRO",
+            "market_ticker": "KXITFMATCH-26AUG12JONTRO-JON",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFWMATCH-26AUG12KAKKUR",
+            "market_ticker": "KXITFWMATCH-26AUG12KAKKUR-KUR",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Haliak / Yang,yes Ye Chen,yes Omar Jasika,yes Yun Seong Chung,yes Jaesung Choe,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:29Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S2026C2951FC7012-6C9625FE322",
+        "title": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Haliak / Yang,yes Ye Chen,yes Omar Jasika,yes Yun Seong Chung,yes Jaesung Choe,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt",
+        "updated_time": "2026-08-12T04:35:29.872679Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Haliak / Yang,yes Ye Chen,yes Omar Jasika,yes Yun Seong Chung,yes Jaesung Choe,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt",
+        "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+        "subtitle": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Haliak / Yang,yes Ye Chen,yes Omar Jasika,yes Yun Seong Chung,yes Jaesung Choe,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Tsung-Hao Huang,yes Miles Jones,yes Irem Kurt",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    },
+    {
+      "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29-54552F60195",
+      "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20263C04BED8F29_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_SIMONA_OGESCU_YES_DARIA_ZELINSKAYA_YES_DIANA_IOANA_SIMIONESCU_YES_LOS_ANGELES_D",
+      "base": "USD",
+      "quote": "USD",
+      "settle": null,
+      "base_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29-54552F60195",
+      "quote_id": "USD",
+      "settle_id": null,
+      "type": "prediction",
+      "market_type": "binary",
+      "execution_model": "clob",
+      "spot": false,
+      "margin": false,
+      "swap": false,
+      "future": false,
+      "option": false,
+      "prediction": true,
+      "active": true,
+      "resolved": false,
+      "resolved_outcome": null,
+      "contract": false,
+      "linear": null,
+      "inverse": null,
+      "contract_size": null,
+      "expiry": 1787725800000,
+      "expiry_datetime": "2026-08-26T06:30:00Z",
+      "strike": null,
+      "option_type": null,
+      "taker": 0.07,
+      "maker": 0.0,
+      "percentage": true,
+      "tier_based": false,
+      "fee_side": "get",
+      "precision": {
+        "amount": 1,
+        "price": 0.001
+      },
+      "limits": {
+        "leverage": {
+          "min": 1,
+          "max": 1
+        },
+        "amount": {
+          "min": 1,
+          "max": null
+        },
+        "price": {
+          "min": 0.01,
+          "max": 0.99
+        },
+        "cost": {
+          "min": null,
+          "max": null
+        }
+      },
+      "outcomes": [
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29-54552F60195",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29-54552F60195",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S20263C04BED8F29_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_SIMONA_OGESCU_YES_DARIA_ZELINSKAYA_YES_DIANA_IOANA_SIMIONESCU_YES_LOS_ANGELES_D:YES",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20263C04BED8F29_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_SIMONA_OGESCU_YES_DARIA_ZELINSKAYA_YES_DIANA_IOANA_SIMIONESCU_YES_LOS_ANGELES_D",
+          "label": "YES",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29-54552F60195",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Simona Ogescu,yes Daria Zelinskaya,yes Diana-Ioana Simionescu,yes Los Angeles D",
+            "outcome_label": "YES",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        },
+        {
+          "id": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29-54552F60195-NO",
+          "outcome_id": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29-54552F60195-NO",
+          "outcome": "KXMVESPORTSMULTIGAMEEXTENDED_S20263C04BED8F29_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_SIMONA_OGESCU_YES_DARIA_ZELINSKAYA_YES_DIANA_IOANA_SIMIONESCU_YES_LOS_ANGELES_D:NO",
+          "market": "KXMVESPORTSMULTIGAMEEXTENDED_S20263C04BED8F29_YES_HAYATO_MATSUOKA_YES_KHUMOYUN_SULTANOV_YES_VLAD_CRISTIAN_BREAZU_YES_GABRIEL_GHETU_YES_SIMONA_OGESCU_YES_DARIA_ZELINSKAYA_YES_DIANA_IOANA_SIMIONESCU_YES_LOS_ANGELES_D",
+          "label": "NO",
+          "active": true,
+          "winner": null,
+          "settle_fraction": null,
+          "precision": {
+            "amount": 1,
+            "price": 0.001
+          },
+          "info": {
+            "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29-54552F60195",
+            "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29",
+            "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+            "subtitle": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Simona Ogescu,yes Daria Zelinskaya,yes Diana-Ioana Simionescu,yes Los Angeles D",
+            "outcome_label": "NO",
+            "volume": 0.0,
+            "liquidity": 0.0,
+            "open_interest": 0.0
+          }
+        }
+      ],
+      "info": {
+        "can_close_early": true,
+        "close_time": "2026-08-26T06:30:00Z",
+        "created_time": "2026-08-12T04:35:29.85876Z",
+        "custom_strike": {
+          "associated events": "KXATPCHALLENGERMATCH-26AUG12KUMMAT,KXATPCHALLENGERMATCH-26AUG12RATSUL,KXITFMATCH-26AUG12DUMBRE,KXITFMATCH-26AUG12GHEGOL,KXITFWMATCH-26AUG12ANGOGE,KXITFWMATCH-26AUG12KIMZEL,KXITFWMATCH-26AUG12SIMADA,KXMLBGAME-26AUG112210KCLAD",
+          "associated market sides": "yes,yes,yes,yes,yes,yes,yes,yes",
+          "associated markets": "KXATPCHALLENGERMATCH-26AUG12KUMMAT-MAT,KXATPCHALLENGERMATCH-26AUG12RATSUL-SUL,KXITFMATCH-26AUG12DUMBRE-BRE,KXITFMATCH-26AUG12GHEGOL-GHE,KXITFWMATCH-26AUG12ANGOGE-OGE,KXITFWMATCH-26AUG12KIMZEL-ZEL,KXITFWMATCH-26AUG12SIMADA-SIM,KXMLBGAME-26AUG112210KCLAD-LAD",
+          "multivariate event ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29"
+        },
+        "event_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29",
+        "exchange_index": 0,
+        "expected_expiration_time": "2026-08-12T12:30:00Z",
+        "expiration_time": "2026-08-26T06:30:00Z",
+        "expiration_value": "",
+        "is_provisional": true,
+        "last_price_dollars": "0.0000",
+        "latest_expiration_time": "2026-08-26T06:30:00Z",
+        "liquidity_dollars": "0.0000",
+        "market_type": "binary",
+        "mve_collection_ticker": "KXMVESPORTSMULTIGAMEEXTENDED-R",
+        "mve_selected_legs": [
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12KUMMAT",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12KUMMAT-MAT",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXATPCHALLENGERMATCH-26AUG12RATSUL",
+            "market_ticker": "KXATPCHALLENGERMATCH-26AUG12RATSUL-SUL",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12DUMBRE",
+            "market_ticker": "KXITFMATCH-26AUG12DUMBRE-BRE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFMATCH-26AUG12GHEGOL",
+            "market_ticker": "KXITFMATCH-26AUG12GHEGOL-GHE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFWMATCH-26AUG12ANGOGE",
+            "market_ticker": "KXITFWMATCH-26AUG12ANGOGE-OGE",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFWMATCH-26AUG12KIMZEL",
+            "market_ticker": "KXITFWMATCH-26AUG12KIMZEL-ZEL",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXITFWMATCH-26AUG12SIMADA",
+            "market_ticker": "KXITFWMATCH-26AUG12SIMADA-SIM",
+            "side": "yes"
+          },
+          {
+            "event_ticker": "KXMLBGAME-26AUG112210KCLAD",
+            "market_ticker": "KXMLBGAME-26AUG112210KCLAD-LAD",
+            "side": "yes"
+          }
+        ],
+        "no_ask_dollars": "1.0000",
+        "no_bid_dollars": "1.0000",
+        "no_sub_title": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Simona Ogescu,yes Daria Zelinskaya,yes Diana-Ioana Simionescu,yes Los Angeles D",
+        "notional_value_dollars": "1.0000",
+        "open_interest_fp": "0.00",
+        "open_time": "2026-08-12T04:35:29Z",
+        "previous_price_dollars": "0.0000",
+        "previous_yes_ask_dollars": "0.0000",
+        "previous_yes_bid_dollars": "0.0000",
+        "price_level_structure": "deci_cent",
+        "price_ranges": [
+          {
+            "end": "1.0000",
+            "start": "0.0000",
+            "step": "0.0010"
+          }
+        ],
+        "result": "",
+        "rules_primary": "",
+        "rules_secondary": "Kalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+        "settlement_timer_seconds": 5,
+        "status": "active",
+        "strike_type": "custom",
+        "ticker": "KXMVESPORTSMULTIGAMEEXTENDED-S20263C04BED8F29-54552F60195",
+        "title": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Simona Ogescu,yes Daria Zelinskaya,yes Diana-Ioana Simionescu,yes Los Angeles D",
+        "updated_time": "2026-08-12T04:35:29.858799Z",
+        "volume_24h_fp": "0.00",
+        "volume_fp": "0.00",
+        "yes_ask_dollars": "0.0000",
+        "yes_ask_size_fp": "0.00",
+        "yes_bid_dollars": "0.0000",
+        "yes_bid_size_fp": "0.00",
+        "yes_sub_title": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Simona Ogescu,yes Daria Zelinskaya,yes Diana-Ioana Simionescu,yes Los Angeles D",
+        "series_ticker": "KXMVESPORTSMULTIGAMEEXTENDED",
+        "subtitle": "yes Hayato Matsuoka,yes Khumoyun Sultanov,yes Vlad Cristian Breazu,yes Gabriel Ghetu,yes Simona Ogescu,yes Daria Zelinskaya,yes Diana-Ioana Simionescu,yes Los Angeles D",
+        "volume": 0.0,
+        "liquidity": 0.0,
+        "open_interest": 0.0
+      },
+      "created": null
+    }
+  ]
+}

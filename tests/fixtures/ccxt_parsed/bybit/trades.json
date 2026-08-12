@@ -1,0 +1,150 @@
+{
+  "method": "fetch_trades",
+  "parsed": [
+    {
+      "id": "2290000001189886055",
+      "info": {
+        "exec_id": "2290000001189886055",
+        "symbol": "BTCUSDT",
+        "price": "63855.2",
+        "size": "0.001853",
+        "side": "Sell",
+        "time": "1786512662680",
+        "is_block_trade": false,
+        "is_rpitrade": false,
+        "seq": "112561825544"
+      },
+      "timestamp": 1786512662680,
+      "datetime": "2026-08-12T05:31:02.680Z",
+      "symbol": "BTC/USDT",
+      "order": null,
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63855.2,
+      "amount": 0.001853,
+      "cost": 118.3236856,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "id": "2290000001189886054",
+      "info": {
+        "exec_id": "2290000001189886054",
+        "symbol": "BTCUSDT",
+        "price": "63855.3",
+        "size": "0.001584",
+        "side": "Buy",
+        "time": "1786512660596",
+        "is_block_trade": false,
+        "is_rpitrade": false,
+        "seq": "112561825087"
+      },
+      "timestamp": 1786512660596,
+      "datetime": "2026-08-12T05:31:00.596Z",
+      "symbol": "BTC/USDT",
+      "order": null,
+      "type": null,
+      "side": "buy",
+      "taker_or_maker": null,
+      "price": 63855.3,
+      "amount": 0.001584,
+      "cost": 101.1467952,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "id": "2290000001189886053",
+      "info": {
+        "exec_id": "2290000001189886053",
+        "symbol": "BTCUSDT",
+        "price": "63855.3",
+        "size": "0.000015",
+        "side": "Buy",
+        "time": "1786512656434",
+        "is_block_trade": false,
+        "is_rpitrade": false,
+        "seq": "112561823815"
+      },
+      "timestamp": 1786512656434,
+      "datetime": "2026-08-12T05:30:56.434Z",
+      "symbol": "BTC/USDT",
+      "order": null,
+      "type": null,
+      "side": "buy",
+      "taker_or_maker": null,
+      "price": 63855.3,
+      "amount": 1.5e-05,
+      "cost": 0.9578295,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "id": "2290000001189886052",
+      "info": {
+        "exec_id": "2290000001189886052",
+        "symbol": "BTCUSDT",
+        "price": "63855.2",
+        "size": "0.000214",
+        "side": "Sell",
+        "time": "1786512654168",
+        "is_block_trade": false,
+        "is_rpitrade": false,
+        "seq": "112561823486"
+      },
+      "timestamp": 1786512654168,
+      "datetime": "2026-08-12T05:30:54.168Z",
+      "symbol": "BTC/USDT",
+      "order": null,
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63855.2,
+      "amount": 0.000214,
+      "cost": 13.6650128,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    },
+    {
+      "id": "2290000001189886051",
+      "info": {
+        "exec_id": "2290000001189886051",
+        "symbol": "BTCUSDT",
+        "price": "63855.3",
+        "size": "0.000586",
+        "side": "Buy",
+        "time": "1786512652498",
+        "is_block_trade": false,
+        "is_rpitrade": false,
+        "seq": "112561823092"
+      },
+      "timestamp": 1786512652498,
+      "datetime": "2026-08-12T05:30:52.498Z",
+      "symbol": "BTC/USDT",
+      "order": null,
+      "type": null,
+      "side": "buy",
+      "taker_or_maker": null,
+      "price": 63855.3,
+      "amount": 0.000586,
+      "cost": 37.4192058,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    }
+  ]
+}
