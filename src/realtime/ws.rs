@@ -5,12 +5,16 @@
 //! 收到的消息与调用方的订阅命令(mpsc),消息解析后分发给 `watch` channel;
 //! watch_* 方法等待 [`tokio::sync::watch`] 的下一条更新。
 
+#[cfg(feature = "realtime")]
 use std::sync::Arc;
 
+#[cfg(feature = "realtime")]
 use futures_util::{SinkExt, StreamExt};
 use reqwest::header::HeaderMap;
 use tokio::net::TcpStream;
+#[cfg(feature = "realtime")]
 use tokio::sync::watch;
+#[cfg(feature = "realtime")]
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -42,6 +46,7 @@ pub async fn connect(url: &str, headers: &HeaderMap) -> Result<WsStream> {
 /// - `sub_rx`:订阅命令通道,调用方通过它发送订阅 JSON 帧(如 binance `SUBSCRIBE`);
 /// - `dispatch`:收到的 JSON 消息分发回调;
 /// - 返回连接就绪信号(watch)。
+#[cfg(feature = "realtime")]
 impl<'a> WsSession<'a> {
     pub fn spawn<F>(
         url: String,
@@ -84,6 +89,7 @@ impl<'a> WsSession<'a> {
     }
 } // impl WsSession
 
+#[cfg(feature = "realtime")]
 pub(crate) struct WsSession<'a> {
     ws: WsStream,
     sub_rx: watch::Receiver<Vec<String>>,
@@ -91,6 +97,7 @@ pub(crate) struct WsSession<'a> {
     sent: &'a mut std::collections::HashSet<String>,
 }
 
+#[cfg(feature = "realtime")]
 impl<'a> WsSession<'a> {
     async fn run(&mut self) -> Result<()> {
         loop {

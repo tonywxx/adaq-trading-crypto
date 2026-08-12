@@ -62,26 +62,54 @@ fn ws_names_are_watch_methods() {
 #[test]
 fn adapter_implemented_subset_of_manifest() {
     // M2d/M3d:适配器声明的已实现方法必须是统一方法面的子集(防止实现未枚举的方法)
-    use adaq_trading_crypto::adapters::{
-        Binance, Bitget, Bybit, Coinbase, Gate, Htx, Kalshi, Kraken, Kucoin, Manifold, Mexc, Okx,
-        Polymarket,
-    };
+    // 仅校验当前 feature 组合下已编译的适配器(其余交易所按 feature 门控,见 ADR)。
+    #[cfg(feature = "bitget")]
+    use adaq_trading_crypto::adapters::Bitget;
+    #[cfg(feature = "bybit")]
+    use adaq_trading_crypto::adapters::Bybit;
+    #[cfg(feature = "coinbase")]
+    use adaq_trading_crypto::adapters::Coinbase;
+    #[cfg(feature = "gate")]
+    use adaq_trading_crypto::adapters::Gate;
+    #[cfg(feature = "htx")]
+    use adaq_trading_crypto::adapters::Htx;
+    #[cfg(feature = "kraken")]
+    use adaq_trading_crypto::adapters::Kraken;
+    #[cfg(feature = "kucoin")]
+    use adaq_trading_crypto::adapters::Kucoin;
+    #[cfg(feature = "manifold")]
+    use adaq_trading_crypto::adapters::Manifold;
+    #[cfg(feature = "mexc")]
+    use adaq_trading_crypto::adapters::Mexc;
+    use adaq_trading_crypto::adapters::{Binance, Kalshi, Okx, Polymarket};
+
     let manifest: HashSet<&str> = all_methods().iter().copied().collect();
-    for (exchange, implemented) in [
+    let pairs = vec![
         ("binance", Binance::IMPLEMENTED),
-        ("coinbase", Coinbase::IMPLEMENTED),
-        ("bitget", Bitget::IMPLEMENTED),
-        ("gate", Gate::IMPLEMENTED),
-        ("mexc", Mexc::IMPLEMENTED),
-        ("htx", Htx::IMPLEMENTED),
-        ("kucoin", Kucoin::IMPLEMENTED),
-        ("manifold", Manifold::IMPLEMENTED),
+        ("okx", Okx::IMPLEMENTED),
         ("kalshi", Kalshi::IMPLEMENTED),
         ("polymarket", Polymarket::IMPLEMENTED),
-        ("okx", Okx::IMPLEMENTED),
+        #[cfg(feature = "coinbase")]
+        ("coinbase", Coinbase::IMPLEMENTED),
+        #[cfg(feature = "bitget")]
+        ("bitget", Bitget::IMPLEMENTED),
+        #[cfg(feature = "gate")]
+        ("gate", Gate::IMPLEMENTED),
+        #[cfg(feature = "mexc")]
+        ("mexc", Mexc::IMPLEMENTED),
+        #[cfg(feature = "htx")]
+        ("htx", Htx::IMPLEMENTED),
+        #[cfg(feature = "kucoin")]
+        ("kucoin", Kucoin::IMPLEMENTED),
+        #[cfg(feature = "manifold")]
+        ("manifold", Manifold::IMPLEMENTED),
+        #[cfg(feature = "bybit")]
         ("bybit", Bybit::IMPLEMENTED),
+        #[cfg(feature = "kraken")]
         ("kraken", Kraken::IMPLEMENTED),
-    ] {
+    ];
+
+    for (exchange, implemented) in pairs {
         assert!(!implemented.is_empty(), "{exchange} IMPLEMENTED 非空");
         for name in implemented {
             assert!(
