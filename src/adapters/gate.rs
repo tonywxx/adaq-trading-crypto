@@ -399,7 +399,7 @@ impl Exchange for Gate {
             p.insert("limit".into(), json!(l.min(100)));
         }
         let resp = self.public_get("/spot/order_book", &p).await?;
-        Ok(self.parse_order_book(&resp, &symbol.replace('/', "/")))
+        Ok(self.parse_order_book(&resp, symbol))
     }
 
     async fn fetch_trades(
