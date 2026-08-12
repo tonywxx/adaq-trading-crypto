@@ -380,7 +380,7 @@ impl Exchange for Kucoin {
         let resp = self
             .public_get("/api/v1/market/orderbook/level2_20", &p)
             .await?;
-        Ok(self.parse_order_book(&resp, &symbol.replace('/', "/")))
+        Ok(self.parse_order_book(&resp, symbol))
     }
 
     async fn fetch_trades(
