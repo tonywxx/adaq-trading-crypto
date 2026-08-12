@@ -1,0 +1,115 @@
+{
+  "method": "fetch_markets",
+  "parsed": [
+    {
+      "id": "METALUSDT",
+      "symbol": "METAL/USDT",
+      "base": "METAL",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-05
+      }
+    },
+    {
+      "id": "NEXUSDT",
+      "symbol": "NEX/USDT",
+      "base": "NEX",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1.0,
+        "price": 1e-09
+      }
+    },
+    {
+      "id": "PYTHUSDT",
+      "symbol": "PYTH/USDT",
+      "base": "PYTH",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-05
+      }
+    },
+    {
+      "id": "AOUSDT",
+      "symbol": "AO/USDT",
+      "base": "AO",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 0.001
+      }
+    },
+    {
+      "id": "BNTUSDT",
+      "symbol": "BNT/USDT",
+      "base": "BNT",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 0.0001
+      }
+    },
+    {
+      "id": "NTXUSDT",
+      "symbol": "NTX/USDT",
+      "base": "NTX",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "DEVVEUSDT",
+      "symbol": "DEVVE/USDT",
+      "base": "DEVVE",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "SBETONUSDT",
+      "symbol": "SBETON/USDT",
+      "base": "SBETON",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 0.001
+      }
+    },
+    {
+      "id": "NMRETH",
+      "symbol": "NMR/ETH",
+      "base": "NMR",
+      "quote": "ETH",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "HTRUSDT",
+      "symbol": "HTR/USDT",
+      "base": "HTR",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-06
+      }
+    }
+  ]
+}

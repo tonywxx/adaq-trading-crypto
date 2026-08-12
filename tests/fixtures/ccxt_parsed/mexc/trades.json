@@ -1,0 +1,145 @@
+{
+  "method": "fetch_trades",
+  "parsed": [
+    {
+      "id": "1786521882407-sell-0.0002066-63830.15-taker",
+      "order": null,
+      "timestamp": 1786521882407,
+      "datetime": "2026-08-12T08:04:42.407Z",
+      "symbol": "BTC/USDT",
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": "taker",
+      "price": 63830.15,
+      "amount": 0.0002066,
+      "cost": 13.18730899,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "info": {
+        "id": null,
+        "price": "63830.15",
+        "qty": "0.0002066",
+        "quote_qty": "13.187308990",
+        "time": 1786521882407,
+        "is_buyer_maker": true,
+        "is_best_match": true,
+        "trade_type": "ASK"
+      },
+      "fees": []
+    },
+    {
+      "id": "1786521882403-sell-0.00019755-63830.15-taker",
+      "order": null,
+      "timestamp": 1786521882403,
+      "datetime": "2026-08-12T08:04:42.403Z",
+      "symbol": "BTC/USDT",
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": "taker",
+      "price": 63830.15,
+      "amount": 0.00019755,
+      "cost": 12.6096461325,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "info": {
+        "id": null,
+        "price": "63830.15",
+        "qty": "0.00019755",
+        "quote_qty": "12.6096461325",
+        "time": 1786521882403,
+        "is_buyer_maker": true,
+        "is_best_match": true,
+        "trade_type": "ASK"
+      },
+      "fees": []
+    },
+    {
+      "id": "1786521882403-sell-0.00004595-63830.15-taker",
+      "order": null,
+      "timestamp": 1786521882403,
+      "datetime": "2026-08-12T08:04:42.403Z",
+      "symbol": "BTC/USDT",
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": "taker",
+      "price": 63830.15,
+      "amount": 4.595e-05,
+      "cost": 2.9329953925,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "info": {
+        "id": null,
+        "price": "63830.15",
+        "qty": "0.00004595",
+        "quote_qty": "2.9329953925",
+        "time": 1786521882403,
+        "is_buyer_maker": true,
+        "is_best_match": true,
+        "trade_type": "ASK"
+      },
+      "fees": []
+    },
+    {
+      "id": "1786521880410-sell-0.00503975-63830.16-taker",
+      "order": null,
+      "timestamp": 1786521880410,
+      "datetime": "2026-08-12T08:04:40.410Z",
+      "symbol": "BTC/USDT",
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": "taker",
+      "price": 63830.16,
+      "amount": 0.00503975,
+      "cost": 321.68804886,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "info": {
+        "id": null,
+        "price": "63830.16",
+        "qty": "0.00503975",
+        "quote_qty": "321.6880488600",
+        "time": 1786521880410,
+        "is_buyer_maker": true,
+        "is_best_match": true,
+        "trade_type": "ASK"
+      },
+      "fees": []
+    },
+    {
+      "id": "1786521880403-buy-0.00149866-63830.16-taker",
+      "order": null,
+      "timestamp": 1786521880403,
+      "datetime": "2026-08-12T08:04:40.403Z",
+      "symbol": "BTC/USDT",
+      "type": null,
+      "side": "buy",
+      "taker_or_maker": "taker",
+      "price": 63830.16,
+      "amount": 0.00149866,
+      "cost": 95.6597075856,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "info": {
+        "id": null,
+        "price": "63830.16",
+        "qty": "0.00149866",
+        "quote_qty": "95.6597075856",
+        "time": 1786521880403,
+        "is_buyer_maker": false,
+        "is_best_match": true,
+        "trade_type": "BID"
+      },
+      "fees": []
+    }
+  ]
+}

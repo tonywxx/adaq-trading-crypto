@@ -1,0 +1,472 @@
+{
+  "method": "fetch_markets",
+  "raw": [
+    {
+      "symbol": "METALUSDT",
+      "status": "1",
+      "baseAsset": "METAL",
+      "baseAssetPrecision": 2,
+      "quoteAsset": "USDT",
+      "quotePrecision": 5,
+      "quoteAssetPrecision": 5,
+      "baseCommissionPrecision": 2,
+      "quoteCommissionPrecision": 5,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "1",
+      "baseSizePrecision": "0.1",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.2",
+          "askMultiplierDown": "0.2"
+        }
+      ],
+      "maxQuoteAmount": "2000000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "1",
+      "maxQuoteAmountMarket": "100000",
+      "fullName": "Metal Blockchain",
+      "tradeSideType": 1,
+      "contractAddress": "xtokens",
+      "conceptPlateIds": [
+        51
+      ],
+      "conceptPlates": [
+        "mc-trade-zone-innovation"
+      ],
+      "st": false
+    },
+    {
+      "symbol": "NEXUSDT",
+      "status": "1",
+      "baseAsset": "NEX",
+      "baseAssetPrecision": 0,
+      "quoteAsset": "USDT",
+      "quotePrecision": 9,
+      "quoteAssetPrecision": 9,
+      "baseCommissionPrecision": 0,
+      "quoteCommissionPrecision": 9,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "1",
+      "baseSizePrecision": "0",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.2",
+          "askMultiplierDown": "0.2"
+        }
+      ],
+      "maxQuoteAmount": "2000000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "1",
+      "maxQuoteAmountMarket": "100000",
+      "fullName": "Nexus",
+      "tradeSideType": 1,
+      "contractAddress": "0xf57D49646621F563b0B905aFc8336923AC569Ec5",
+      "conceptPlateIds": [
+        51,
+        23
+      ],
+      "firstOpenTime": 1779289200000,
+      "conceptPlates": [
+        "mc-trade-zone-innovation",
+        "mc-trade-zone-ai"
+      ],
+      "st": false
+    },
+    {
+      "symbol": "PYTHUSDT",
+      "status": "1",
+      "baseAsset": "PYTH",
+      "baseAssetPrecision": 2,
+      "quoteAsset": "USDT",
+      "quotePrecision": 5,
+      "quoteAssetPrecision": 5,
+      "baseCommissionPrecision": 2,
+      "quoteCommissionPrecision": 5,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "1",
+      "baseSizePrecision": "0",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.02",
+          "askMultiplierDown": "0.02"
+        }
+      ],
+      "maxQuoteAmount": "2000000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "1",
+      "maxQuoteAmountMarket": "200000",
+      "fullName": "Pyth Network",
+      "tradeSideType": 1,
+      "contractAddress": "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3",
+      "conceptPlateIds": [
+        50
+      ],
+      "firstOpenTime": 1700488800000,
+      "conceptPlates": [
+        "mc-trade-zone-mainly"
+      ],
+      "st": false
+    },
+    {
+      "symbol": "AOUSDT",
+      "status": "1",
+      "baseAsset": "AO",
+      "baseAssetPrecision": 2,
+      "quoteAsset": "USDT",
+      "quotePrecision": 3,
+      "quoteAssetPrecision": 3,
+      "baseCommissionPrecision": 2,
+      "quoteCommissionPrecision": 3,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "1",
+      "baseSizePrecision": "0",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.2",
+          "askMultiplierDown": "0.2"
+        }
+      ],
+      "maxQuoteAmount": "2000000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "1",
+      "maxQuoteAmountMarket": "100000",
+      "fullName": "AO",
+      "tradeSideType": 1,
+      "contractAddress": "",
+      "conceptPlateIds": [
+        51,
+        40
+      ],
+      "firstOpenTime": 1741932000000,
+      "conceptPlates": [
+        "mc-trade-zone-innovation",
+        "mc-trade-zone-DePIN"
+      ],
+      "st": false
+    },
+    {
+      "symbol": "BNTUSDT",
+      "status": "1",
+      "baseAsset": "BNT",
+      "baseAssetPrecision": 2,
+      "quoteAsset": "USDT",
+      "quotePrecision": 4,
+      "quoteAssetPrecision": 4,
+      "baseCommissionPrecision": 2,
+      "quoteCommissionPrecision": 4,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "1",
+      "baseSizePrecision": "0.1",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.2",
+          "askMultiplierDown": "0.2"
+        }
+      ],
+      "maxQuoteAmount": "2000000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "1",
+      "maxQuoteAmountMarket": "100000",
+      "fullName": "Bancor",
+      "tradeSideType": 1,
+      "contractAddress": "0x1f573d6fb3f13d689ff844b4ce37794d79a7ff1c",
+      "conceptPlateIds": [
+        51
+      ],
+      "conceptPlates": [
+        "mc-trade-zone-innovation"
+      ],
+      "st": false
+    },
+    {
+      "symbol": "NTXUSDT",
+      "status": "1",
+      "baseAsset": "NTX",
+      "baseAssetPrecision": 2,
+      "quoteAsset": "USDT",
+      "quotePrecision": 6,
+      "quoteAssetPrecision": 6,
+      "baseCommissionPrecision": 2,
+      "quoteCommissionPrecision": 6,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "1",
+      "baseSizePrecision": "0.001",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.2",
+          "askMultiplierDown": "0.2"
+        }
+      ],
+      "maxQuoteAmount": "2000000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "1",
+      "maxQuoteAmountMarket": "100000",
+      "fullName": "NuNet",
+      "tradeSideType": 1,
+      "contractAddress": "0xf0d33beda4d734c72684b5f9abbebf715d0a7935",
+      "conceptPlateIds": [
+        51,
+        23,
+        40
+      ],
+      "firstOpenTime": 1641549600000,
+      "conceptPlates": [
+        "mc-trade-zone-innovation",
+        "mc-trade-zone-ai",
+        "mc-trade-zone-DePIN"
+      ],
+      "st": false
+    },
+    {
+      "symbol": "DEVVEUSDT",
+      "status": "1",
+      "baseAsset": "DEVVE",
+      "baseAssetPrecision": 2,
+      "quoteAsset": "USDT",
+      "quotePrecision": 6,
+      "quoteAssetPrecision": 6,
+      "baseCommissionPrecision": 2,
+      "quoteCommissionPrecision": 6,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "1",
+      "baseSizePrecision": "0",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.2",
+          "askMultiplierDown": "0.2"
+        }
+      ],
+      "maxQuoteAmount": "2000000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "1",
+      "maxQuoteAmountMarket": "100000",
+      "fullName": "DevvE",
+      "tradeSideType": 1,
+      "contractAddress": "0x8248270620Aa532E4d64316017bE5E873E37cc09",
+      "conceptPlateIds": [
+        52
+      ],
+      "firstOpenTime": 1708340400000,
+      "conceptPlates": [
+        "mc-trade-zone-assessment"
+      ],
+      "st": false
+    },
+    {
+      "symbol": "SBETONUSDT",
+      "status": "1",
+      "baseAsset": "SBETON",
+      "baseAssetPrecision": 2,
+      "quoteAsset": "USDT",
+      "quotePrecision": 3,
+      "quoteAssetPrecision": 3,
+      "baseCommissionPrecision": 2,
+      "quoteCommissionPrecision": 3,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "1",
+      "baseSizePrecision": "0",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.2",
+          "askMultiplierDown": "0.2"
+        }
+      ],
+      "maxQuoteAmount": "2000000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "1",
+      "maxQuoteAmountMarket": "100000",
+      "fullName": "SharpLink Gaming",
+      "tradeSideType": 1,
+      "contractAddress": "0xfDb46864A7C476F0914c5E82CdED3364a9F56F8a",
+      "conceptPlateIds": [
+        51,
+        56
+      ],
+      "firstOpenTime": 1757430000000,
+      "conceptPlates": [
+        "mc-trade-zone-innovation",
+        "mc-trade-zone-xStocks"
+      ],
+      "st": false
+    },
+    {
+      "symbol": "NMRETH",
+      "status": "1",
+      "baseAsset": "NMR",
+      "baseAssetPrecision": 2,
+      "quoteAsset": "ETH",
+      "quotePrecision": 6,
+      "quoteAssetPrecision": 6,
+      "baseCommissionPrecision": 2,
+      "quoteCommissionPrecision": 6,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "0.0001",
+      "baseSizePrecision": "0.01",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.1",
+          "askMultiplierDown": "0.1"
+        }
+      ],
+      "maxQuoteAmount": "1000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "0.0001",
+      "maxQuoteAmountMarket": "50",
+      "fullName": "Numeraire",
+      "tradeSideType": 1,
+      "contractAddress": "0x1776e1F26f98b1A5dF9cD347953a26dd3Cb46671",
+      "conceptPlateIds": [
+        51
+      ],
+      "conceptPlates": [
+        "mc-trade-zone-innovation"
+      ],
+      "st": false
+    },
+    {
+      "symbol": "HTRUSDT",
+      "status": "1",
+      "baseAsset": "HTR",
+      "baseAssetPrecision": 2,
+      "quoteAsset": "USDT",
+      "quotePrecision": 6,
+      "quoteAssetPrecision": 6,
+      "baseCommissionPrecision": 2,
+      "quoteCommissionPrecision": 6,
+      "orderTypes": [
+        "LIMIT",
+        "MARKET",
+        "LIMIT_MAKER"
+      ],
+      "isSpotTradingAllowed": true,
+      "isMarginTradingAllowed": false,
+      "quoteAmountPrecision": "1",
+      "baseSizePrecision": "0",
+      "permissions": [
+        "SPOT"
+      ],
+      "filters": [
+        {
+          "filterType": "PERCENT_PRICE_BY_SIDE",
+          "bidMultiplierUp": "0.2",
+          "askMultiplierDown": "0.2"
+        }
+      ],
+      "maxQuoteAmount": "2000000",
+      "makerCommission": "0",
+      "takerCommission": "0.0005",
+      "quoteAmountPrecisionMarket": "1",
+      "maxQuoteAmountMarket": "100000",
+      "fullName": "HTR",
+      "tradeSideType": 1,
+      "contractAddress": "",
+      "conceptPlateIds": [
+        51
+      ],
+      "firstOpenTime": 1717419600000,
+      "conceptPlates": [
+        "mc-trade-zone-innovation"
+      ],
+      "st": false
+    }
+  ]
+}

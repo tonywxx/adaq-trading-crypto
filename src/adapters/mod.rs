@@ -53,3 +53,9 @@ pub mod gate;
 
 #[cfg(feature = "gate")]
 pub use gate::{Gate, ID as GATE_ID};
+
+#[cfg(feature = "mexc")]
+pub mod mexc;
+
+#[cfg(feature = "mexc")]
+pub use mexc::{ID as MEXC_ID, Mexc};

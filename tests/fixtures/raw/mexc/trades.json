@@ -1,0 +1,55 @@
+{
+  "method": "fetch_trades",
+  "raw": [
+    {
+      "id": null,
+      "price": "63830.15",
+      "qty": "0.0002066",
+      "quoteQty": "13.187308990",
+      "time": 1786521882407,
+      "isBuyerMaker": true,
+      "isBestMatch": true,
+      "tradeType": "ASK"
+    },
+    {
+      "id": null,
+      "price": "63830.15",
+      "qty": "0.00019755",
+      "quoteQty": "12.6096461325",
+      "time": 1786521882403,
+      "isBuyerMaker": true,
+      "isBestMatch": true,
+      "tradeType": "ASK"
+    },
+    {
+      "id": null,
+      "price": "63830.15",
+      "qty": "0.00004595",
+      "quoteQty": "2.9329953925",
+      "time": 1786521882403,
+      "isBuyerMaker": true,
+      "isBestMatch": true,
+      "tradeType": "ASK"
+    },
+    {
+      "id": null,
+      "price": "63830.16",
+      "qty": "0.00503975",
+      "quoteQty": "321.6880488600",
+      "time": 1786521880410,
+      "isBuyerMaker": true,
+      "isBestMatch": true,
+      "tradeType": "ASK"
+    },
+    {
+      "id": null,
+      "price": "63830.16",
+      "qty": "0.00149866",
+      "quoteQty": "95.6597075856",
+      "time": 1786521880403,
+      "isBuyerMaker": false,
+      "isBestMatch": true,
+      "tradeType": "BID"
+    }
+  ]
+}
