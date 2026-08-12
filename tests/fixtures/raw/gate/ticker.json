@@ -1,0 +1,16 @@
+{
+  "method": "fetch_ticker",
+  "raw": {
+    "currency_pair": "BTC_USDT",
+    "last": "63772.7",
+    "lowest_ask": "63772.7",
+    "lowest_size": "5.624826",
+    "highest_bid": "63772.6",
+    "highest_size": "4.917152",
+    "change_percentage": "-0.44",
+    "base_volume": "4685.79761",
+    "quote_volume": "299098662.9820549",
+    "high_24h": "64495.9",
+    "low_24h": "63234.7"
+  }
+}

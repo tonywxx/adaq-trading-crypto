@@ -63,13 +63,14 @@ fn ws_names_are_watch_methods() {
 fn adapter_implemented_subset_of_manifest() {
     // M2d/M3d:适配器声明的已实现方法必须是统一方法面的子集(防止实现未枚举的方法)
     use adaq_trading_crypto::adapters::{
-        Binance, Bitget, Bybit, Coinbase, Kalshi, Kraken, Okx, Polymarket,
+        Binance, Bitget, Bybit, Coinbase, Gate, Kalshi, Kraken, Okx, Polymarket,
     };
     let manifest: HashSet<&str> = all_methods().iter().copied().collect();
     for (exchange, implemented) in [
         ("binance", Binance::IMPLEMENTED),
         ("coinbase", Coinbase::IMPLEMENTED),
         ("bitget", Bitget::IMPLEMENTED),
+        ("gate", Gate::IMPLEMENTED),
         ("kalshi", Kalshi::IMPLEMENTED),
         ("polymarket", Polymarket::IMPLEMENTED),
         ("okx", Okx::IMPLEMENTED),

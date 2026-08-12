@@ -47,3 +47,9 @@ pub mod kraken;
 
 #[cfg(feature = "kraken")]
 pub use kraken::{ID as KRAKEN_ID, Kraken};
+
+#[cfg(feature = "gate")]
+pub mod gate;
+
+#[cfg(feature = "gate")]
+pub use gate::{Gate, ID as GATE_ID};

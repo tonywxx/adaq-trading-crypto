@@ -1,0 +1,55 @@
+{
+  "method": "fetch_trades",
+  "raw": [
+    {
+      "id": "214957209",
+      "create_time": "1786521335",
+      "create_time_ms": "1786521335980.582000",
+      "currency_pair": "BTC_USDT",
+      "side": "buy",
+      "amount": "0.000837",
+      "price": "63772.7",
+      "sequence_id": "214957209"
+    },
+    {
+      "id": "214957208",
+      "create_time": "1786521334",
+      "create_time_ms": "1786521334407.594000",
+      "currency_pair": "BTC_USDT",
+      "side": "sell",
+      "amount": "0.000629",
+      "price": "63772.6",
+      "sequence_id": "214957208"
+    },
+    {
+      "id": "214957207",
+      "create_time": "1786521334",
+      "create_time_ms": "1786521334407.591000",
+      "currency_pair": "BTC_USDT",
+      "side": "sell",
+      "amount": "0.005642",
+      "price": "63772.6",
+      "sequence_id": "214957207"
+    },
+    {
+      "id": "214957206",
+      "create_time": "1786521334",
+      "create_time_ms": "1786521334407.585000",
+      "currency_pair": "BTC_USDT",
+      "side": "sell",
+      "amount": "0.000001",
+      "price": "63772.6",
+      "sequence_id": "214957206"
+    },
+    {
+      "id": "214957205",
+      "create_time": "1786521332",
+      "create_time_ms": "1786521332011.943000",
+      "currency_pair": "BTC_USDT",
+      "side": "buy",
+      "amount": "0.000278",
+      "price": "63772.3",
+      "sequence_id": "214957205"
+    }
+  ]
+}

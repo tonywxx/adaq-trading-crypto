@@ -1,0 +1,115 @@
+{
+  "method": "fetch_markets",
+  "parsed": [
+    {
+      "id": "ALEPH_USDT",
+      "symbol": "ALEPH/USDT",
+      "base": "ALEPH",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1.0,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "POOL_USDT",
+      "symbol": "POOL/USDT",
+      "base": "POOL",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 0.0001
+      }
+    },
+    {
+      "id": "PEIPEI_USDT",
+      "symbol": "PEIPEI/USDT",
+      "base": "PEIPEI",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1.0,
+        "price": 1e-12
+      }
+    },
+    {
+      "id": "ACN3S_USDT",
+      "symbol": "ACN3S/USDT",
+      "base": "ACN3S",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-05
+      }
+    },
+    {
+      "id": "HFT_USDT",
+      "symbol": "HFT/USDT",
+      "base": "HFT",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1.0,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "COINX_USDT",
+      "symbol": "COINX/USDT",
+      "base": "COINX",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.001,
+        "price": 0.01
+      }
+    },
+    {
+      "id": "VET_USDT",
+      "symbol": "VET/USDT",
+      "base": "VET",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1.0,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "ARG_USDT",
+      "symbol": "ARG/USDT",
+      "base": "ARG",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1.0,
+        "price": 1e-05
+      }
+    },
+    {
+      "id": "BLUE_USDT",
+      "symbol": "BLUE/USDT",
+      "base": "BLUE",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 1.0,
+        "price": 1e-06
+      }
+    },
+    {
+      "id": "HGPT_USDT",
+      "symbol": "HGPT/USDT",
+      "base": "HGPT",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.1,
+        "price": 1e-06
+      }
+    }
+  ]
+}
