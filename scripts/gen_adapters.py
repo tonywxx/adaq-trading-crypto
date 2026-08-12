@@ -242,6 +242,73 @@ def extract(src, ex_id: str):
     }
 
 
+def fmt_list(indent: str, prefix: str, items: list[str], suffix: str) -> list[str]:
+    """Emit a rustfmt-stable bracketed list of Rust atoms (default config).
+
+    Mirrors rustfmt's array rules (verified empirically against rustfmt 1.97
+    and 1.85; the construct only appears as a struct-field value at indent 4
+    in this codebase):
+      * single line iff items+separators total (real_total) <= array_width (60);
+      * else, if every element is short (len <= short_array_element_width_
+        threshold = 10): Mixed — packed lines, wrapping before a non-last
+        item once the running line would exceed the nested width (91 here);
+        the last item always joins the current line (rustfmt allows the final
+        line to exceed the budget rather than leave a dangling item);
+      * else Vertical: one item per line with trailing commas.
+    """
+    if not items:
+        return [f"{indent}{prefix}[]" + suffix]
+    real_total = sum(len(it) for it in items) + (len(items) - 1) * 2
+    if real_total <= 60:
+        return [f"{indent}{prefix}[{', '.join(items)}]{suffix}"]
+    if all(len(it) <= 10 for it in items):
+        # Mixed: pack as many items per line as fit the budget; never break
+        # before the last item.
+        out = [f"{indent}{prefix}["]
+        item_indent = indent + "    "
+        line_len = 0
+        line_items = []
+        for i, it in enumerate(items):
+            tw = len(it) + 1  # item + separator `,`
+            last = i == len(items) - 1
+            if line_len > 0 and not last and line_len + 1 + tw > 91:
+                out.append(item_indent + ", ".join(line_items) + ",")
+                line_items = []
+                line_len = 0
+            elif line_len > 0:
+                line_len += 1  # space between items
+            line_items.append(it)
+            line_len += tw
+        if line_items:
+            out.append(item_indent + ", ".join(line_items) + ",")
+        out.append(f"{indent}]{suffix}")
+        return out
+    # Vertical: one element per line, trailing comma.
+    out = [f"{indent}{prefix}["]
+    for it in items:
+        out.append(f"{indent}    {it},")
+    out.append(f"{indent}]{suffix}")
+    return out
+
+
+def fmt_endpoint(indent: str, base: str, verb: str, key: str, pth: str, auth: bool) -> list[str]:
+    """Emits one `Endpoint { ... }` struct literal, always field-per-line.
+
+    rustfmt never collapses struct literals (verified empirically: even a
+    short one that fits in 100 cols is forced to one-field-per-line), so
+    always emitting the multi-line shape is the stable fixpoint.
+    """
+    return [
+        f"{indent}Endpoint {{",
+        f"{indent}    base: {rust_str(base)},",
+        f"{indent}    verb: {rust_str(verb)},",
+        f"{indent}    key: {rust_str(key)},",
+        f"{indent}    path: {rust_str(pth)},",
+        f"{indent}    auth: {str(auth).lower()},",
+        f"{indent}}},",
+    ]
+
+
 def render(spec) -> str:
     lines = []
     lines.append(f"//! {spec['name']} (`{spec['id']}`) 转译适配器 — 由 `scripts/gen_adapters.py`")
@@ -259,21 +326,14 @@ def render(spec) -> str:
     lines.append(f"    name: {rust_str(spec['name'])},")
     lines.append(f"    version: {rust_str(spec['version'])},")
     lines.append(f"    rate_limit_ms: {spec['rate_limit_ms']},")
-    has = ", ".join(rust_str(h) for h in spec["has"]) or ""
-    lines.append(f"    has: &[{has}],")
-    ep_lines = []
-    for base, verb, key, pth, auth in spec["endpoints"]:
-        ep_lines.append(
-            f"        Endpoint {{ base: {rust_str(base)}, verb: {rust_str(verb)}, "
-            f"key: {rust_str(key)}, path: {rust_str(pth)}, auth: {str(auth).lower()} }},"
-        )
+    lines.extend(fmt_list("    ", "has: &", [rust_str(h) for h in spec["has"]], ","))
     lines.append("    endpoints: &[")
-    lines.extend(ep_lines)
+    for base, verb, key, pth, auth in spec["endpoints"]:
+        lines.extend(fmt_endpoint("        ", base, verb, key, pth, auth))
     lines.append("    ],")
     lines.append(f"    taker: {spec['taker']!r},")
     lines.append(f"    maker: {spec['maker']!r},")
-    tf = ", ".join(rust_str(t) for t in spec["timeframes"]) or ""
-    lines.append(f"    timeframes: &[{tf}],")
+    lines.extend(fmt_list("    ", "timeframes: &", [rust_str(t) for t in spec["timeframes"]], ","))
     lines.append(f"    kind: MarketKind::{spec['kind']},")
     lines.append("};")
     lines.append("")
@@ -428,14 +488,15 @@ def main():
             generated.append((mod, spec))
             counts[spec["kind"]] += 1
 
-    # 聚合模块
+    # 聚合模块(按模块名排序:rustfmt reorder_modules 会按字典序重排 `pub mod`,
+    # 生成端先排好可保证 `cargo fmt --check` 稳定)。
     agg = []
     agg.append("//! 转译生成的交易所适配器聚合模块(ADR-0016)。")
     agg.append("//! 由 `scripts/gen_adapters.py` 从 ccxt 4.5.73 `describe()` 自动生成;")
     agg.append("//! 不要手改 —— 重新运行脚本即可重建。")
     agg.append("#![allow(clippy::too_many_arguments)]")
     agg.append("")
-    for mod, _ in generated:
+    for mod, _ in sorted(generated, key=lambda m: m[0]):
         agg.append(f'#[cfg(feature = "{mod}")]')
         agg.append(f"pub mod {mod};")
     agg.append("")

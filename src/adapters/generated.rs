@@ -137,6 +137,8 @@ pub mod latoken;
 pub mod lbank;
 #[cfg(feature = "lighter")]
 pub mod lighter;
+#[cfg(feature = "limitless")]
+pub mod limitless;
 #[cfg(feature = "luno")]
 pub mod luno;
 #[cfg(feature = "mercado")]
@@ -147,6 +149,8 @@ pub mod modetrade;
 pub mod mudrex;
 #[cfg(feature = "myokx")]
 pub mod myokx;
+#[cfg(feature = "myriad")]
+pub mod myriad;
 #[cfg(feature = "nado")]
 pub mod nado;
 #[cfg(feature = "ndax")]
@@ -155,6 +159,8 @@ pub mod ndax;
 pub mod okxus;
 #[cfg(feature = "onetrading")]
 pub mod onetrading;
+#[cfg(feature = "opinion")]
+pub mod opinion;
 #[cfg(feature = "p2b")]
 pub mod p2b;
 #[cfg(feature = "pacifica")]
@@ -187,9 +193,3 @@ pub mod xt;
 pub mod zaif;
 #[cfg(feature = "zebpay")]
 pub mod zebpay;
-#[cfg(feature = "limitless")]
-pub mod limitless;
-#[cfg(feature = "myriad")]
-pub mod myriad;
-#[cfg(feature = "opinion")]
-pub mod opinion;

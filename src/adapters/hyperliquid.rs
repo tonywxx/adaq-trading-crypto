@@ -24,9 +24,7 @@ use serde_json::{Value, json};
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
 use crate::httpcore::{HttpCore, iso8601, value_decimal};
-use crate::types::{
-    Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker, Tickers,
-};
+use crate::types::{Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker, Tickers};
 
 pub const ID: &str = "hyperliquid";
 const BASE_URL: &str = "https://api.hyperliquid.xyz";
@@ -40,8 +38,12 @@ pub struct Hyperliquid {
 
 impl Hyperliquid {
     /// 已实现(非 NotSupported)的 REST 方法面(契约声明)。
-    pub const IMPLEMENTED: &'static [&'static str] =
-        &["fetch_markets", "fetch_tickers", "fetch_ohlcv", "fetch_order_book"];
+    pub const IMPLEMENTED: &'static [&'static str] = &[
+        "fetch_markets",
+        "fetch_tickers",
+        "fetch_ohlcv",
+        "fetch_order_book",
+    ];
 
     pub fn new(config: Config) -> Result<Self> {
         let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
@@ -51,7 +53,12 @@ impl Hyperliquid {
     /// 单一 `info` RPC:`POST /info`,body 即 `{"type": ..., ...}`。
     async fn info(&self, body: Value) -> Result<Value> {
         self.core
-            .request("POST", "/info", &reqwest::header::HeaderMap::new(), Some(body))
+            .request(
+                "POST",
+                "/info",
+                &reqwest::header::HeaderMap::new(),
+                Some(body),
+            )
             .await
     }
 
@@ -70,7 +77,11 @@ impl Hyperliquid {
                 .and_then(|u| u.as_array())
                 .cloned()
                 .unwrap_or_default();
-            let ctxs = arr.get(1).and_then(|c| c.as_array()).cloned().unwrap_or_default();
+            let ctxs = arr
+                .get(1)
+                .and_then(|c| c.as_array())
+                .cloned()
+                .unwrap_or_default();
             for (i, u) in universe.iter().enumerate() {
                 let mut data = u.clone();
                 if let (Some(Value::Object(m)), Value::Object(d)) = (ctxs.get(i), &mut data) {
@@ -98,7 +109,11 @@ impl Hyperliquid {
                 .and_then(|u| u.as_array())
                 .cloned()
                 .unwrap_or_default();
-            let ctxs = arr.get(1).and_then(|c| c.as_array()).cloned().unwrap_or_default();
+            let ctxs = arr
+                .get(1)
+                .and_then(|c| c.as_array())
+                .cloned()
+                .unwrap_or_default();
             for (i, u) in universe.iter().enumerate() {
                 let extra = ctxs.get(i).cloned().unwrap_or(Value::Null);
                 if let Some(m) = parse_spot_market(u, &extra, &tokens) {
@@ -234,11 +249,7 @@ impl Exchange for Hyperliquid {
         Ok(self.core.markets_snapshot().into_values().collect())
     }
 
-    async fn fetch_tickers(
-        &self,
-        _symbols: Option<&[&str]>,
-        _params: Params,
-    ) -> Result<Tickers> {
+    async fn fetch_tickers(&self, _symbols: Option<&[&str]>, _params: Params) -> Result<Tickers> {
         self.load_markets().await?;
         let mut map = Tickers::new();
         for m in self.core.markets_snapshot().values() {
@@ -271,7 +282,9 @@ impl Exchange for Hyperliquid {
             "startTime": since,
             "endTime": until,
         });
-        let resp = self.info(json!({"type": "candleSnapshot", "req": req})).await?;
+        let resp = self
+            .info(json!({"type": "candleSnapshot", "req": req}))
+            .await?;
         let arr = resp.as_array().cloned().unwrap_or_default();
         let mut out: Vec<OHLCV> = arr
             .iter()
@@ -310,9 +323,21 @@ impl Exchange for Hyperliquid {
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "unknown symbol"))?;
         let coin = self.coin_of(&market);
         let resp = self.info(json!({"type": "l2Book", "coin": coin})).await?;
-        let levels = resp.get("levels").and_then(|l| l.as_array()).cloned().unwrap_or_default();
-        let bids_raw = levels.first().and_then(|v| v.as_array()).cloned().unwrap_or_default();
-        let asks_raw = levels.get(1).and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        let levels = resp
+            .get("levels")
+            .and_then(|l| l.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let bids_raw = levels
+            .first()
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let asks_raw = levels
+            .get(1)
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
         let to_level = |v: &Value| crate::types::Level {
             price: v["px"].as_str().and_then(|s| s.parse().ok()),
             amount: v["sz"].as_str().and_then(|s| s.parse().ok()),

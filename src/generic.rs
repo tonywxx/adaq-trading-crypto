@@ -24,10 +24,9 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
 use crate::httpcore::{HttpCore, iso8601, query_string, value_decimal};
 use crate::types::{
-    Balance, Balances, Currency, Currencies, Level, Limit, Limits, Market, MarketType, Markets,
+    Balance, Balances, Currencies, Currency, Level, Limit, Limits, Market, MarketType, Markets,
     OHLCV, Order, OrderBook, Precision, Ticker, Tickers, Trade,
 };
-
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -99,11 +98,7 @@ impl GenericExchange {
             .map(|e| e.base)
             .unwrap_or("https://api.example.com");
         let core = HttpCore::new(&config, primary, spec.rate_limit_ms)?;
-        Ok(Self {
-            config,
-            spec,
-            core,
-        })
+        Ok(Self { config, spec, core })
     }
 
     fn id(&self) -> &'static str {
@@ -121,7 +116,12 @@ impl GenericExchange {
     /// `auth` 过滤公私端点;`prefer_verb` 在动词冲突时优先(如 `order` 的
     /// GET/POST/DELETE 同键)。匹配要求候选键作为“词”出现(前后非字母数字),
     /// 避免 `orders` 误匹配 `openOrders`。
-    fn find_first(&self, candidates: &[&str], auth: bool, prefer_verb: Option<&str>) -> Option<&Endpoint> {
+    fn find_first(
+        &self,
+        candidates: &[&str],
+        auth: bool,
+        prefer_verb: Option<&str>,
+    ) -> Option<&Endpoint> {
         let mut fallback: Option<&Endpoint> = None;
         for c in candidates {
             for ep in self.spec.endpoints {
@@ -158,13 +158,19 @@ impl GenericExchange {
             let qs = query_string(params);
             (ep.verb.to_string(), format!("{base_url}{qs}"), None)
         } else {
-            (ep.verb.to_string(), base_url, Some(Value::Object(params.clone())))
+            (
+                ep.verb.to_string(),
+                base_url,
+                Some(Value::Object(params.clone())),
+            )
         };
         let mut headers = HeaderMap::new();
         if ep.auth {
             headers = self.sign_headers(&method, &target, body.as_ref())?;
         }
-        self.core.request_url(&method, &target, &headers, body).await
+        self.core
+            .request_url(&method, &target, &headers, body)
+            .await
     }
 
     /// ccxt 基类默认签名:HMAC-SHA256(method+url+body),`apiKey`/`sign`/`timestamp` 头。
@@ -200,7 +206,11 @@ impl GenericExchange {
 
     async fn fetch_markets_raw(&self) -> Result<Markets> {
         let ep = self
-            .find_first(&["markets", "exchangeinfo", "instruments", "pairs", "symbols"], false, None)
+            .find_first(
+                &["markets", "exchangeinfo", "instruments", "pairs", "symbols"],
+                false,
+                None,
+            )
             .ok_or_else(|| Error::not_supported("fetch_markets"))?;
         let resp = self.request_ep(ep, &Params::new()).await?;
         Ok(parse_markets(&resp))
@@ -250,7 +260,11 @@ impl Exchange for GenericExchange {
 
     async fn fetch_status(&self) -> Result<Value> {
         let ep = self
-            .find_first(&["status", "systemstatus", "system_status", "ping"], false, None)
+            .find_first(
+                &["status", "systemstatus", "system_status", "ping"],
+                false,
+                None,
+            )
             .ok_or_else(|| Error::not_supported("fetch_status"))?;
         self.request_ep(ep, &Params::new()).await
     }
@@ -303,7 +317,11 @@ impl Exchange for GenericExchange {
         params: Params,
     ) -> Result<Vec<OHLCV>> {
         let ep = self
-            .find_first(&["ohlcv", "kline", "klines", "candle", "candles", "ohlc"], false, None)
+            .find_first(
+                &["ohlcv", "kline", "klines", "candle", "candles", "ohlc"],
+                false,
+                None,
+            )
             .ok_or_else(|| Error::not_supported("fetch_ohlcv"))?;
         let mut p = params;
         if !symbol.is_empty() {
@@ -329,9 +347,18 @@ impl Exchange for GenericExchange {
         Ok(parse_ohlcv(&resp))
     }
 
-    async fn fetch_order_book(&self, symbol: &str, limit: Option<i64>, params: Params) -> Result<OrderBook> {
+    async fn fetch_order_book(
+        &self,
+        symbol: &str,
+        limit: Option<i64>,
+        params: Params,
+    ) -> Result<OrderBook> {
         let ep = self
-            .find_first(&["orderbook", "order_book", "orderBook", "depth", "book"], false, None)
+            .find_first(
+                &["orderbook", "order_book", "orderBook", "depth", "book"],
+                false,
+                None,
+            )
             .ok_or_else(|| Error::not_supported("fetch_order_book"))?;
         let mut p = params;
         if !symbol.is_empty() {
@@ -371,7 +398,11 @@ impl Exchange for GenericExchange {
 
     async fn fetch_balance(&self, params: Params) -> Result<Balances> {
         let ep = self
-            .find_first(&["balance", "account", "wallet", "balances"], true, Some("GET"))
+            .find_first(
+                &["balance", "account", "wallet", "balances"],
+                true,
+                Some("GET"),
+            )
             .ok_or_else(|| Error::not_supported("fetch_balance"))?;
         let resp = self.request_ep(ep, &params).await?;
         Ok(parse_balance(&resp))
@@ -485,7 +516,11 @@ impl Exchange for GenericExchange {
         params: Params,
     ) -> Result<Vec<Trade>> {
         let ep = self
-            .find_first(&["mytrades", "mytrade", "myTrades", "trades"], true, Some("GET"))
+            .find_first(
+                &["mytrades", "mytrade", "myTrades", "trades"],
+                true,
+                Some("GET"),
+            )
             .ok_or_else(|| Error::not_supported("fetch_my_trades"))?;
         let mut p = params;
         if let Some(s) = symbol {
@@ -664,7 +699,10 @@ fn resolve_one<'a>(raw: &'a Value, symbol: &str) -> &'a Value {
 }
 
 fn parse_ticker(raw: &Value, symbol: &str) -> Ticker {
-    let ts = pick_i64(raw, &["timestamp", "ts", "time", "t", "updated", "updatedAt"]);
+    let ts = pick_i64(
+        raw,
+        &["timestamp", "ts", "time", "t", "updated", "updatedAt"],
+    );
     Ticker {
         symbol: if symbol.is_empty() {
             pick_str(raw, &["symbol"]).unwrap_or("").to_string()
@@ -770,15 +808,13 @@ fn parse_trade(raw: &Value, symbol: &str) -> Trade {
         id: pick_str(raw, &["id", "tradeId", "tid"]).map(str::to_string),
         timestamp: ts,
         datetime: ts.and_then(iso8601),
-        symbol: pick_str(raw, &["symbol"])
-            .map(str::to_string)
-            .or_else(|| {
-                if symbol.is_empty() {
-                    None
-                } else {
-                    Some(symbol.to_string())
-                }
-            }),
+        symbol: pick_str(raw, &["symbol"]).map(str::to_string).or_else(|| {
+            if symbol.is_empty() {
+                None
+            } else {
+                Some(symbol.to_string())
+            }
+        }),
         side: pick_str(raw, &["side"]).map(|s| s.to_lowercase()),
         price: pick_decimal(raw, &["price", "p", "avgPrice"]),
         amount: pick_decimal(raw, &["amount", "qty", "quantity", "a", "size", "vol"]),
@@ -842,7 +878,15 @@ fn parse_orders(raw: &Value, symbol: Option<&str>) -> Vec<Order> {
 fn parse_order(raw: &Value, symbol: &str) -> Order {
     let ts = pick_i64(
         raw,
-        &["timestamp", "createdAt", "created", "time", "datetime", "transactTime", "updateTime"],
+        &[
+            "timestamp",
+            "createdAt",
+            "created",
+            "time",
+            "datetime",
+            "transactTime",
+            "updateTime",
+        ],
     );
     Order {
         id: pick_str(raw, &["id", "orderId", "order_id"]).map(str::to_string),
@@ -851,15 +895,13 @@ fn parse_order(raw: &Value, symbol: &str) -> Order {
         timestamp: ts,
         datetime: ts.and_then(iso8601),
         status: pick_str(raw, &["status"]).map(str::to_string),
-        symbol: pick_str(raw, &["symbol"])
-            .map(str::to_string)
-            .or_else(|| {
-                if symbol.is_empty() {
-                    None
-                } else {
-                    Some(symbol.to_string())
-                }
-            }),
+        symbol: pick_str(raw, &["symbol"]).map(str::to_string).or_else(|| {
+            if symbol.is_empty() {
+                None
+            } else {
+                Some(symbol.to_string())
+            }
+        }),
         order_type: pick_str(raw, &["type"]).map(str::to_string),
         side: pick_str(raw, &["side"]).map(|s| s.to_lowercase()),
         price: pick_decimal(raw, &["price", "priceAvg", "avgPrice"]),
@@ -967,7 +1009,9 @@ fn parse_currencies(raw: &Value) -> Currencies {
         }
         Value::Array(a) => {
             for v in a {
-                let code = pick_str(v, &["code", "currency", "id"]).unwrap_or("").to_string();
+                let code = pick_str(v, &["code", "currency", "id"])
+                    .unwrap_or("")
+                    .to_string();
                 map.insert(code.clone(), parse_currency(v, &code));
             }
         }
@@ -978,8 +1022,12 @@ fn parse_currencies(raw: &Value) -> Currencies {
 
 fn parse_currency(raw: &Value, code: &str) -> Currency {
     Currency {
-        id: pick_str(raw, &["id", "currency"]).map(str::to_string).unwrap_or_else(|| code.to_string()),
-        code: pick_str(raw, &["code", "currency"]).map(str::to_string).unwrap_or_else(|| code.to_string()),
+        id: pick_str(raw, &["id", "currency"])
+            .map(str::to_string)
+            .unwrap_or_else(|| code.to_string()),
+        code: pick_str(raw, &["code", "currency"])
+            .map(str::to_string)
+            .unwrap_or_else(|| code.to_string()),
         name: pick_str(raw, &["name"]).map(str::to_string),
         active: raw.get("active").and_then(|x| x.as_bool()),
         precision: raw.get("precision").and_then(|x| x.as_i64()),
@@ -1001,7 +1049,11 @@ fn parse_markets(raw: &Value) -> Markets {
             if !obj_vals.is_empty() {
                 obj_vals
             } else {
-                o.values().find(|v| v.is_array()).and_then(|v| v.as_array()).map(|a| a.iter().collect()).unwrap_or_default()
+                o.values()
+                    .find(|v| v.is_array())
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.iter().collect())
+                    .unwrap_or_default()
             }
         }
         _ => vec![],
@@ -1047,25 +1099,40 @@ fn parse_market(raw: &Value) -> Market {
         base_id,
         quote_id,
         active: raw.get("active").and_then(|x| x.as_bool()).or(Some(true)),
-        market_type: raw.get("type").and_then(|x| x.as_str()).map(parse_market_type),
+        market_type: raw
+            .get("type")
+            .and_then(|x| x.as_str())
+            .map(parse_market_type),
         spot: raw.get("spot").and_then(|x| x.as_bool()),
         swap: raw.get("swap").and_then(|x| x.as_bool()),
         future: raw.get("future").and_then(|x| x.as_bool()),
         option: raw.get("option").and_then(|x| x.as_bool()),
         precision: Precision {
-            amount: raw.get("precision").and_then(|p| p.get("amount")).and_then(to_dec),
-            price: raw.get("precision").and_then(|p| p.get("price")).and_then(to_dec),
+            amount: raw
+                .get("precision")
+                .and_then(|p| p.get("amount"))
+                .and_then(to_dec),
+            price: raw
+                .get("precision")
+                .and_then(|p| p.get("price"))
+                .and_then(to_dec),
             ..Default::default()
         },
         limits: Limits {
-            amount: raw.get("limits").and_then(|l| l.get("amount")).map(|a| Limit {
-                min: a.get("min").and_then(to_dec),
-                max: a.get("max").and_then(to_dec),
-            }),
-            price: raw.get("limits").and_then(|l| l.get("price")).map(|a| Limit {
-                min: a.get("min").and_then(to_dec),
-                max: a.get("max").and_then(to_dec),
-            }),
+            amount: raw
+                .get("limits")
+                .and_then(|l| l.get("amount"))
+                .map(|a| Limit {
+                    min: a.get("min").and_then(to_dec),
+                    max: a.get("max").and_then(to_dec),
+                }),
+            price: raw
+                .get("limits")
+                .and_then(|l| l.get("price"))
+                .map(|a| Limit {
+                    min: a.get("min").and_then(to_dec),
+                    max: a.get("max").and_then(to_dec),
+                }),
             ..Default::default()
         },
         info: raw.clone(),
@@ -1144,7 +1211,9 @@ macro_rules! impl_generated_adapter {
                 limit: Option<i64>,
                 params: $crate::exchange::Params,
             ) -> $crate::error::Result<Vec<$crate::types::OHLCV>> {
-                self.inner.fetch_ohlcv(symbol, timeframe, since, limit, params).await
+                self.inner
+                    .fetch_ohlcv(symbol, timeframe, since, limit, params)
+                    .await
             }
             async fn fetch_order_book(
                 &self,
@@ -1214,7 +1283,9 @@ macro_rules! impl_generated_adapter {
                 limit: Option<i64>,
                 params: $crate::exchange::Params,
             ) -> $crate::error::Result<Vec<$crate::types::Order>> {
-                self.inner.fetch_open_orders(symbol, since, limit, params).await
+                self.inner
+                    .fetch_open_orders(symbol, since, limit, params)
+                    .await
             }
             async fn fetch_my_trades(
                 &self,
@@ -1223,7 +1294,9 @@ macro_rules! impl_generated_adapter {
                 limit: Option<i64>,
                 params: $crate::exchange::Params,
             ) -> $crate::error::Result<Vec<$crate::types::Trade>> {
-                self.inner.fetch_my_trades(symbol, since, limit, params).await
+                self.inner
+                    .fetch_my_trades(symbol, since, limit, params)
+                    .await
             }
         }
 
