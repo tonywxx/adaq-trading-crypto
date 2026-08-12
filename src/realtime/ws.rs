@@ -47,7 +47,7 @@ pub async fn connect(url: &str, headers: &HeaderMap) -> Result<WsStream> {
 /// - `dispatch`:收到的 JSON 消息分发回调;
 /// - 返回连接就绪信号(watch)。
 #[cfg(feature = "realtime")]
-impl<'a> WsSession<'a> {
+impl WsSession<'_> {
     pub fn spawn<F>(
         url: String,
         headers: HeaderMap,
@@ -98,7 +98,7 @@ pub(crate) struct WsSession<'a> {
 }
 
 #[cfg(feature = "realtime")]
-impl<'a> WsSession<'a> {
+impl WsSession<'_> {
     async fn run(&mut self) -> Result<()> {
         loop {
             tokio::select! {
