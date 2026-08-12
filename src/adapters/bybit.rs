@@ -602,7 +602,8 @@ fn ts_value(v: &Value) -> Option<i64> {
     }
 }
 
-fn hmac_sha256_hex(secret: &str, data: &str) -> String {
+/// HMAC-SHA256 → hex(ADR-0013 sign 接缝)。REST 签名与 realtime WS auth 帧共用。
+pub fn hmac_sha256_hex(secret: &str, data: &str) -> String {
     use hmac::{Hmac, KeyInit, Mac};
     type HmacSha256 = Hmac<sha2::Sha256>;
     let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");

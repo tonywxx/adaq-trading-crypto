@@ -1,5 +1,9 @@
 //! 交易所适配器(ADR-0005):每个交易所一个模块,按 feature 编译。
 
+/// 预测市场 outcome 索引(kalshi/polymarket 共用,ADR-0013 适配器侧共享)。
+#[cfg(any(feature = "kalshi", feature = "polymarket"))]
+mod outcome;
+
 #[cfg(feature = "binance")]
 pub mod binance;
 

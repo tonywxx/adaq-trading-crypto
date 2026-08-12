@@ -13,11 +13,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use base64::Engine;
-use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use sha2::Sha256;
 use tokio::sync::watch;
 
 use crate::error::{Error, ErrorKind, Result};
@@ -162,22 +159,14 @@ impl OkxWs {
             .api_key
             .as_deref()
             .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx secret required"))?;
         let passphrase = self
             .config
             .password
             .as_deref()
             .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx password required"))?;
         let ts = now_ms().to_string();
-        let auth = format!("{ts}GET/users/self/verify");
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(auth.as_bytes());
-        let sign = base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+        // 复用 REST 适配器 sign_str(签名合一,ADR-0013 sign 接缝;登录帧 = ts+GET+/users/self/verify+空 body)
+        let sign = self.rest.sign_str(&ts, "GET", "/users/self/verify", "")?;
         let login_frame = json!({
             "op": "login",
             "args": [{"apiKey": api_key, "passphrase": passphrase, "timestamp": ts, "sign": sign}]

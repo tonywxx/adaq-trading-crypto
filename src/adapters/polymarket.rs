@@ -11,7 +11,6 @@
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 
 use base64::Engine;
 use hmac::{Hmac, KeyInit, Mac};
@@ -48,7 +47,7 @@ pub struct OutcomeCtx {
 pub struct Polymarket {
     config: Config,
     core: HttpCore,
-    outcomes: Mutex<Option<HashMap<String, OutcomeCtx>>>,
+    outcomes: crate::adapters::outcome::OutcomeIndex<OutcomeCtx>,
 }
 
 impl Polymarket {
@@ -74,7 +73,7 @@ impl Polymarket {
         Ok(Self {
             config,
             core,
-            outcomes: Mutex::new(None),
+            outcomes: crate::adapters::outcome::OutcomeIndex::new(),
         })
     }
 
@@ -246,22 +245,13 @@ impl Polymarket {
                 break;
             }
         }
-        *self.outcomes.lock().unwrap() = Some(outcomes);
+        self.outcomes.store(outcomes);
         Ok(market_map)
     }
 
     /// 解析统一 symbol → outcome 上下文(outcome symbol 或裸 token_id)。
     pub(crate) fn resolve_outcome(&self, symbol: &str) -> Result<OutcomeCtx> {
-        let outcomes = self.outcomes.lock().unwrap();
-        let map = outcomes
-            .as_ref()
-            .ok_or_else(|| Error::new(ErrorKind::NotSupported, "outcomes not loaded"))?;
-        map.get(symbol).cloned().ok_or_else(|| {
-            Error::new(
-                ErrorKind::BadSymbol,
-                format!("unknown polymarket outcome: {symbol}"),
-            )
-        })
+        self.outcomes.resolve(symbol, "polymarket")
     }
 
     // ================= parse(公开,供差分测试) =================

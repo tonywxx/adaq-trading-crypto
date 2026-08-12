@@ -10,7 +10,6 @@
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 
 use base64::Engine;
 use openssl::pkey::PKey;
@@ -45,7 +44,7 @@ pub struct OutcomeCtx {
 pub struct Kalshi {
     config: Config,
     core: HttpCore,
-    outcomes: Mutex<Option<HashMap<String, OutcomeCtx>>>,
+    outcomes: crate::adapters::outcome::OutcomeIndex<OutcomeCtx>,
 }
 
 impl Kalshi {
@@ -71,7 +70,7 @@ impl Kalshi {
         Ok(Self {
             config,
             core,
-            outcomes: Mutex::new(None),
+            outcomes: crate::adapters::outcome::OutcomeIndex::new(),
         })
     }
 
@@ -202,30 +201,17 @@ impl Kalshi {
             }
             market_map.insert(market.symbol.clone(), market);
         }
-        *self.outcomes.lock().unwrap() = Some(outcomes);
+        self.outcomes.store(outcomes);
         Ok(market_map)
     }
 
     /// 解析统一 symbol → outcome 上下文。支持:
     /// - outcome symbol(`MARKET:YES` / `MARKET:NO`)
     /// - outcomeId(裸 market ticker,默认 YES)
-    /// - market symbol(默认 YES)
+    /// - market symbol(默认 YES,经 `resolve_or` 的 `{symbol}:YES` 兜底)
     pub(crate) fn resolve_outcome(&self, symbol: &str) -> Result<OutcomeCtx> {
-        let outcomes = self.outcomes.lock().unwrap();
-        let map = outcomes
-            .as_ref()
-            .ok_or_else(|| Error::new(ErrorKind::NotSupported, "outcomes not loaded"))?;
-        if let Some(ctx) = map.get(symbol) {
-            return Ok(ctx.clone());
-        }
-        // market symbol 不带 outcome → 尝试首条(通常为 YES)
-        if let Some(ctx) = map.get(&format!("{symbol}:YES")) {
-            return Ok(ctx.clone());
-        }
-        Err(Error::new(
-            ErrorKind::BadSymbol,
-            format!("unknown kalshi outcome: {symbol}"),
-        ))
+        self.outcomes
+            .resolve_or(symbol, |s| format!("{s}:YES"), "kalshi")
     }
 
     // ================= parse(公开,供差分测试) =================

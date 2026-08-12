@@ -8,8 +8,7 @@
 面向 **加密货币与预测市场** 的统一交易接口，使用 Rust 编写，服务于
 [AdaQ](https://github.com/tonywxx/adaq) 量化交易平台。
 
-本库的 API 面与统一数据结构与
-[ccxt](https://github.com/ccxt/ccxt) 对齐：相同的 `snake_case` 方法名
+本库的 API 面与统一数据结构 **兼容 ccxt**：相同的 `snake_case` 方法名
 （`fetch_ohlcv`、`create_order` …）、相同的字段命名，并以类型化结构体承载原始交易所响应（保存于
 `info` 字段，作为兜底通道）。
 
@@ -17,14 +16,14 @@
 
 ## 特性
 
-- **ccxt 对齐的统一 REST API**：通过 `Exchange` trait 提供，`snake_case` 方法名与字段名，代码可近乎逐行地从 ccxt 移植。
-- **109 个适配器**：14 个手写（10 个精选加密货币交易所 + Hyperliquid + 3 个预测市场），以及 95 个由 ccxt `describe()` 经 `scripts/gen_adapters.py` 与描述驱动的通用引擎（`generic.rs`）批量生成的适配器。
+- **`Exchange` trait 提供的统一 REST API**：`snake_case` 方法名与字段名，代码可近乎逐行地从其他兼容 ccxt 的客户端移植。
+- **109 个交易所适配器**：14 个精选（手写）覆盖完整接口面，以及 95 个共享统一 REST 面的其他交易所。
 - **类型化、serde 容错的数据结构**：`Market`、`Ticker`、`OrderBook`、`OHLCV`、`Order`、`Trade`、`Position`、`Balance` …，并通过 `info` 保留原始响应以保证完整性。
-- **精确十进制运算**：默认使用 `rust_decimal`，另提供 `Precise` 模块复刻 ccxt 的 `Precise` 语义，以及 `decimal_to_precision`（ccxt `decimalToPrecision` 的移植）。
+- **精确十进制运算**：默认使用 `rust_decimal`，另提供 `Precise` 模块与 `decimal_to_precision` 辅助函数，语义对齐 ccxt 的 `Precise` / `decimalToPrecision`。
 - **可选的同步封装**（`sync` feature）：无需自行管理异步运行时。
 - **可选的实时 WebSocket 层**（`realtime` feature）：8 个 `watch_*` 通道。
-- **预测市场支持**：Kalshi、Polymarket（EIP-712 订单签名）、Manifold（原生），以及通过生成集提供的 Limitless / Myriad / Opinion。
-- **Apache-2.0** 许可；源自 ccxt 的解析逻辑保留其 MIT 声明（见 `NOTICE`）。
+- **预测市场支持**：Kalshi、Polymarket（EIP-712 订单签名）、Manifold（原生），以及 Limitless / Myriad / Opinion。
+- **Apache-2.0** 许可；源自上游的解析逻辑保留其 MIT 声明（见 `NOTICE`）。
 
 ## 安装
 
@@ -81,7 +80,12 @@ let markets = ex.fetch_markets(Default::default()).await?;
 
 ## 支持的交易所
 
-### 手写适配器（14 个）
+本库共提供 **109 个交易所** —— 14 个精选适配器提供完整覆盖，以及 95 个共享统一 REST 面的其他
+交易所。每个交易所通过各自的 Cargo feature 启用（feature 名称即下表中所示的交易所 id）。
+
+### 精选适配器（14 个）
+
+这些为手写实现，覆盖完整方法面，包含签名与交易所特定的解析。
 
 | Feature       | 交易所          | 范围                                                                 |
 | ------------- | --------------- | -------------------------------------------------------------------- |
@@ -98,17 +102,52 @@ let markets = ex.fetch_markets(Default::default()).await?;
 | `hyperliquid` | Hyperliquid     | DEX：公开行情数据（markets / tickers / ohlcv / order_book）          |
 | `kalshi`      | Kalshi          | REST 完整（含下单），WS 私有通道                                     |
 | `polymarket`  | Polymarket      | REST + EIP-712 订单签名，WS 5 通道                                   |
-| `manifold`    | Manifold        | 原生适配器（无 ccxt 参考）：markets / ticker / trades                |
+| `manifold`    | Manifold        | 原生适配器：markets / ticker / trades                                |
 
-### 生成适配器（95 个）
+### 扩展交易所覆盖（95 个）
 
-其余交易所位于 `generated` feature 分组下，每个由各自的 Cargo feature 控制（如 `alpaca`、
-`apex`、`deribit`、`krakenfutures` …）。它们由 `scripts/gen_adapters.py` 基于 ccxt `describe()`
-生成，并共享同一个描述驱动的引擎（`generic.rs`）。它们以尽力而为的方式覆盖常用 REST 面
-（markets / tickers / ohlcv / order_book / trades / balance / orders / create_order /
-cancel_order / …），采用尽力而为的字段解析。需要交易所特定签名的方法保持 `NotSupported`，并交由精选集处理。
-这也包含来自 `ccxt.prediction` 命名空间的三个长尾预测市场——**Limitless / Myriad / Opinion**——
-走同一套流水线，而 Kalshi / Polymarket / Manifold 仍保持手写。
+其余交易所共享同一统一 REST 面，通过各自的 Cargo feature 启用。它们以共用引擎覆盖常用 REST 方法
+—— `fetch_markets`、`fetch_ticker`、`fetch_ohlcv`、`fetch_order_book`、`fetch_trades`、
+`fetch_balance`、`fetch_orders`、`create_order`、`cancel_order` ……。需要交易所特定签名的方法保持
+`NotSupported`。
+
+| Feature             | Feature                 | Feature             |
+| ------------------- | ----------------------- | ------------------- |
+| `alpaca`            | `apex`                  | `aster`             |
+| `backpack`          | `bequant`               | `bigone`            |
+| `binancecoinm`      | `binanceus`             | `binanceusdm`       |
+| `bingx`             | `bit2c`                 | `bitbank`           |
+| `bitbns`            | `bitfinex`              | `bitflyer`          |
+| `bithumb`           | `bitmex`                | `bitopro`           |
+| `bitrue`            | `bitso`                 | `bitstamp`          |
+| `bitteam`           | `bittrade`              | `bitvavo`           |
+| `blockchaincom`     | `blofin`                | `btcbox`            |
+| `btcmarkets`        | `btcturk`               | `bullish`           |
+| `bybiteu`           | `bydfi`                 | `cex`               |
+| `coinbaseexchange`  | `coinbaseinternational`| `coincheck`         |
+| `coinex`            | `coinmate`              | `coinone`           |
+| `coinsph`           | `coinspot`              | `cryptocom`         |
+| `cryptomus`         | `deepcoin`              | `delta`             |
+| `deribit`           | `derive`                | `digifinex`         |
+| `dydx`              | `exmo`                  | `extended`          |
+| `fmfwio`            | `foxbit`                | `gateeu`            |
+| `gemini`            | `grvt`                  | `hashkey`           |
+| `hibachi`           | `hitbtc`                | `hollaex`           |
+| `independentreserve`| `indodax`               | `krakenfutures`     |
+| `kucoinfutures`     | `latoken`               | `lbank`             |
+| `lighter`           | `luno`                  | `mercado`           |
+| `modetrade`         | `mudrex`                | `myokx`             |
+| `nado`              | `ndax`                  | `okxus`             |
+| `onetrading`        | `p2b`                   | `pacifica`          |
+| `paradex`           | `paymium`               | `phemex`            |
+| `poloniex`          | `tokocrypto`            | `toobit`            |
+| `upbit`             | `weex`                  | `whitebit`          |
+| `woo`               | `woofipro`              | `xt`                |
+| `zaif`              | `zebpay`                | `limitless`         |
+| `myriad`            | `opinion`               |                     |
+
+三个长尾预测市场——**Limitless / Myriad / Opinion**——属于此扩展集合，而 Kalshi / Polymarket /
+Manifold 仍是上方的精选适配器。
 
 ## Feature 开关
 
@@ -117,8 +156,8 @@ cancel_order / …），采用尽力而为的字段解析。需要交易所特�
 | 按交易所          | 编译进对应适配器（如 `binance`、`kraken`、`polymarket` …）           |
 | `realtime`        | 启用 WebSocket `watch_*` 方法（见下方 8 个通道）                      |
 | `sync`            | 异步 API 的阻塞封装（`sync::BlockingExchange`）                      |
-| `prediction`      | `kalshi` + `polymarket` + `manifold`（手写预测市场）                 |
-| `full`            | 全部交易所（精选 + 生成）+ `realtime`                                |
+| `prediction`      | `kalshi` + `polymarket` + `manifold`（精选预测市场）                 |
+| `full`            | 全部交易所（精选 + 扩展）+ `realtime`                                |
 | _默认_            | `binance`、`okx`、`kalshi`、`polymarket`                            |
 
 ## 架构
@@ -126,11 +165,11 @@ cancel_order / …），采用尽力而为的字段解析。需要交易所特�
 适配器遵循 **HttpCore + 四接缝** 模型（ADR-0013）：
 
 - **`HttpCore`** —— 一个与交易所无关的深层模块，负责 HTTP 请求骨架、市集缓存、客户端分页/过滤、安全字段提取，以及 `Precise` 运算。
-- **四接缝** —— 每个适配器只需填写：`describe`（端点路径/参数）、`sign`（签名算法）、`handle_errors`（错误码映射），以及字段映射（`parse` 覆写）。生成适配器只填 `describe` 接缝，零改动复用 `HttpCore`。
+- **四接缝** —— 每个适配器只需填写：`describe`（端点路径/参数）、`sign`（签名算法）、`handle_errors`（错误码映射），以及字段映射（`parse` 覆写）。其余交易所适配器只填 `describe` 接缝，零改动复用 `HttpCore`。
 
 预测市场的特有逻辑（结果上下文、合成 ticker、RSA-PSS / EIP-712 / ECDSA 签名）保留在适配器侧，不进入核心。
 
-`types` 中的统一数据结构使用与 ccxt 对齐的 `snake_case` 字段名，并通过 `info` 保留原始响应以保证完整性。
+`types` 中的统一数据结构使用兼容 ccxt 的 `snake_case` 字段名，并通过 `info` 保留原始响应以保证完整性。
 
 ## 实时（WebSocket）
 
@@ -157,18 +196,17 @@ cancel_order / …），采用尽力而为的字段解析。需要交易所特�
 
 ## 开发
 
-从本地 ccxt 检出重新生成 95 个转译适配器：
+从本地上游交易所规格检出重新生成其余交易所适配器：
 
 ```bash
 python3 scripts/gen_adapters.py --ccxt /path/to/ccxt
 ```
 
-生成器基于 ccxt `describe()` 在 `src/adapters/generated/` 下产出按交易所划分的模块；运行时位于
-`src/generic.rs`。
+生成器在 `src/adapters/generated/` 下产出按交易所划分的模块；共用运行时位于 `src/generic.rs`。
 
 ## 许可证
 
-Apache-2.0。源自 ccxt 的解析逻辑保留其 MIT 声明 —— 见 `NOTICE`。
+Apache-2.0。源自上游库的解析逻辑保留其 MIT 声明 —— 见 `NOTICE`。
 
 ---
 

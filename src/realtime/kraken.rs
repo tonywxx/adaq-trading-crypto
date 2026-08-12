@@ -14,14 +14,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use base64::Engine;
-use hmac::{Hmac, KeyInit, Mac};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256, Sha512};
 use tokio::sync::watch;
 
-use crate::client::Client;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
 use crate::httpcore::{collect_levels, iso8601, now_ms};
@@ -31,7 +27,6 @@ use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://ws.kraken.com";
 const WS_PRIVATE: &str = "wss://ws-auth.kraken.com";
-const REST_BASE: &str = "https://api.kraken.com";
 
 type TickerChannel = ChannelMap<String, Ticker>;
 type BookChannel = ChannelMap<String, OrderBook>;
@@ -41,9 +36,8 @@ type OhlcvChannel = ChannelMap<(String, String), Vec<OHLCV>>;
 
 /// kraken WS 适配器。
 pub struct KrakenWs {
-    config: Config,
-    client: Client,
-    /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0015)。
+    /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0015),
+    /// WS token 获取复用其 private_post(签名合一,ADR-0013 sign 接缝)。
     rest: std::sync::Arc<crate::adapters::Kraken>,
     pub_connected: Conn,
     priv_connected: Conn,
@@ -62,17 +56,8 @@ pub struct KrakenWs {
 
 impl KrakenWs {
     pub fn new(config: Config) -> Result<Self> {
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            config.rate_limit_ms.max(1000),
-            config.enable_rate_limit,
-        )?;
-        let rest = std::sync::Arc::new(crate::adapters::Kraken::new(config.clone())?);
+        let rest = std::sync::Arc::new(crate::adapters::Kraken::new(config)?);
         Ok(Self {
-            config,
-            client,
             rest,
             pub_connected: Conn::new(),
             priv_connected: Conn::new(),
@@ -166,43 +151,10 @@ impl KrakenWs {
     }
 
     async fn fetch_ws_token(&self) -> Result<String> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "kraken api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "kraken secret required"))?;
-        let nonce = now_ms().to_string();
-        let body = format!("nonce={nonce}");
-        // 签名:base64(HMAC-SHA512(b64dec(secret), path + sha256(nonce+body)))
-        let mut hasher = Sha256::new();
-        hasher.update(format!("{nonce}{body}").as_bytes());
-        let sha = hasher.finalize();
-        let mut mac = Hmac::<Sha512>::new_from_slice(
-            &base64::engine::general_purpose::STANDARD
-                .decode(secret)
-                .map_err(|e| Error::new(ErrorKind::Authentication, format!("bad secret: {e}")))?,
-        )
-        .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(b"/0/private/GetWebSocketsToken");
-        mac.update(&sha);
-        let signature =
-            base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
-        let mut headers = HeaderMap::new();
-        headers.insert("API-Key", HeaderValue::from_str(api_key).unwrap());
-        headers.insert("API-Sign", HeaderValue::from_str(&signature).unwrap());
+        // 复用 REST 适配器 private_post(签名+请求路径同构,sign 接缝),不再内联 SHA512。
         let resp = self
-            .client
-            .request(
-                "POST",
-                &format!("{REST_BASE}/0/private/GetWebSocketsToken"),
-                &headers,
-                Some(Value::String(body)),
-            )
+            .rest
+            .private_post("/GetWebSocketsToken", &Params::new())
             .await?;
         resp["result"]["token"]
             .as_str()

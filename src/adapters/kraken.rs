@@ -76,7 +76,9 @@ impl Kraken {
     }
 
     /// 私密请求(kraken 全部 POST,urlencoded body + HMAC-SHA512 签名)。
-    async fn private_post(&self, path: &str, params: &Params) -> Result<Value> {
+    ///
+    /// `pub`:realtime WS token 获取等场景复用同一签名+请求路径(sign 接缝)。
+    pub async fn private_post(&self, path: &str, params: &Params) -> Result<Value> {
         let api_key = self
             .config
             .api_key

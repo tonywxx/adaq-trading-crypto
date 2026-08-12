@@ -8,30 +8,28 @@
 A unified trading interface for **crypto and prediction markets**, written in Rust for the
 [AdaQ](https://github.com/tonywxx/adaq) quantitative-trading platform.
 
-The API surface and the unified data structures are aligned with
-[ccxt](https://github.com/ccxt/ccxt): the same `snake_case` method names
-(`fetch_ohlcv`, `create_order`, …), the same field names, and typed structs that keep the raw
-exchange response under an `info` field as an escape hatch.
+The API surface and unified data structures are **ccxt-compatible**: the same `snake_case`
+method names (`fetch_ohlcv`, `create_order`, …), the same field names, and typed structs that keep
+the raw exchange response under an `info` field as an escape hatch.
 
 > 📘 简体中文文档见 [README.zh-CN.md](./README.zh-CN.md).
 
 ## Features
 
-- **ccxt-aligned unified REST API** via the `Exchange` trait — `snake_case` method names and
-  field names, so code ports almost line-for-line from ccxt.
-- **109 adapters**: 14 hand-written (10 curated crypto exchanges + Hyperliquid + 3 prediction
-  markets) and 95 generated from ccxt `describe()` by `scripts/gen_adapters.py` and a
-  describe-driven generic engine (`generic.rs`).
+- **Unified REST API via the `Exchange` trait** — `snake_case` method and field names, so code
+  ports almost line-for-line from other ccxt-compatible clients.
+- **109 exchange adapters** — 14 curated (hand-authored) covering the full surface, plus 95
+  additional exchanges on the shared unified REST surface.
 - **Typed, serde-tolerant data structures** — `Market`, `Ticker`, `OrderBook`, `OHLCV`, `Order`,
   `Trade`, `Position`, `Balance`, … — with `info` carrying the raw response for full fidelity.
-- **Exact decimal arithmetic** — `rust_decimal` by default, plus a `Precise` module that mirrors
-  ccxt's `Precise` semantics and a `decimal_to_precision` port of `decimalToPrecision`.
+- **Exact decimal arithmetic** — `rust_decimal` by default, plus a `Precise` module and a
+  `decimal_to_precision` helper matching ccxt's `Precise` / `decimalToPrecision` semantics.
 - **Optional synchronous wrapper** (`sync` feature) — use the API without managing an async
   runtime.
 - **Optional real-time WebSocket layer** (`realtime` feature) — 8 `watch_*` channels.
 - **Prediction-market support** — Kalshi, Polymarket (EIP-712 order signing), Manifold (native),
-  plus Limitless / Myriad / Opinion through the generated set.
-- **Apache-2.0** licensed; ccxt-derived parsing logic retains its MIT notice (see `NOTICE`).
+  plus Limitless / Myriad / Opinion.
+- **Apache-2.0** licensed; upstream-derived parsing logic retains its MIT notice (see `NOTICE`).
 
 ## Installation
 
@@ -89,7 +87,14 @@ let markets = ex.fetch_markets(Default::default()).await?;
 
 ## Supported Exchanges
 
-### Hand-written adapters (14)
+The crate ships **109 exchanges** — 14 curated adapters with full coverage, and 95 additional
+exchanges on the shared unified REST surface. Each exchange is enabled by its own Cargo feature
+(the feature name matches the exchange id shown below).
+
+### Curated adapters (14)
+
+These are hand-authored and cover the complete method surface, including signing and
+exchange-specific parsing.
 
 | Feature       | Exchange        | Scope                                                                |
 | ------------- | --------------- | -------------------------------------------------------------------- |
@@ -106,19 +111,53 @@ let markets = ex.fetch_markets(Default::default()).await?;
 | `hyperliquid` | Hyperliquid     | DEX: public market data (markets / tickers / ohlcv / order_book)     |
 | `kalshi`      | Kalshi          | REST full (incl. order placement), WS private channels               |
 | `polymarket`  | Polymarket      | REST + EIP-712 order signing, WS 5 channels                          |
-| `manifold`    | Manifold        | Native adapter (no ccxt reference): markets / ticker / trades        |
+| `manifold`    | Manifold        | Native adapter: markets / ticker / trades                           |
 
-### Generated adapters (95)
+### Extended exchange coverage (95)
 
-The remaining exchanges live under the `generated` feature group; each is gated by its own Cargo
-feature (e.g. `alpaca`, `apex`, `deribit`, `krakenfutures`, …). They are produced by
-`scripts/gen_adapters.py` from ccxt `describe()` and share a single describe-driven engine
-(`generic.rs`). They cover the best-effort common REST surface
-(markets / tickers / ohlcv / order_book / trades / balance / orders / create_order /
-cancel_order / …) via best-effort field parsing. Methods that need exchange-specific signing stay
-`NotSupported` and defer to the curated set. This includes the three long-tail prediction markets
-from the `ccxt.prediction` namespace — **Limitless / Myriad / Opinion** — through the same
-pipeline, while Kalshi / Polymarket / Manifold remain hand-written.
+The remaining exchanges share the same unified REST surface and are enabled by their individual
+Cargo feature. They cover the common REST methods — `fetch_markets`, `fetch_ticker`,
+`fetch_ohlcv`, `fetch_order_book`, `fetch_trades`, `fetch_balance`, `fetch_orders`,
+`create_order`, `cancel_order`, … — through the shared engine. Methods that need
+exchange-specific signing stay `NotSupported`.
+
+| Feature             | Feature               | Feature             |
+| ------------------- | --------------------- | ------------------- |
+| `alpaca`            | `apex`                | `aster`             |
+| `backpack`          | `bequant`             | `bigone`            |
+| `binancecoinm`      | `binanceus`           | `binanceusdm`       |
+| `bingx`             | `bit2c`               | `bitbank`           |
+| `bitbns`            | `bitfinex`            | `bitflyer`          |
+| `bithumb`           | `bitmex`              | `bitopro`           |
+| `bitrue`            | `bitso`               | `bitstamp`          |
+| `bitteam`           | `bittrade`            | `bitvavo`           |
+| `blockchaincom`     | `blofin`              | `btcbox`            |
+| `btcmarkets`        | `btcturk`             | `bullish`           |
+| `bybiteu`           | `bydfi`               | `cex`               |
+| `coinbaseexchange`  | `coinbaseinternational` | `coincheck`      |
+| `coinex`            | `coinmate`            | `coinone`           |
+| `coinsph`           | `coinspot`            | `cryptocom`         |
+| `cryptomus`         | `deepcoin`            | `delta`             |
+| `deribit`           | `derive`              | `digifinex`         |
+| `dydx`              | `exmo`                | `extended`          |
+| `fmfwio`            | `foxbit`              | `gateeu`            |
+| `gemini`            | `grvt`                | `hashkey`           |
+| `hibachi`           | `hitbtc`              | `hollaex`           |
+| `independentreserve`| `indodax`             | `krakenfutures`     |
+| `kucoinfutures`     | `latoken`             | `lbank`             |
+| `lighter`           | `luno`                | `mercado`           |
+| `modetrade`         | `mudrex`              | `myokx`             |
+| `nado`              | `ndax`                | `okxus`             |
+| `onetrading`        | `p2b`                 | `pacifica`          |
+| `paradex`           | `paymium`             | `phemex`            |
+| `poloniex`          | `tokocrypto`          | `toobit`            |
+| `upbit`             | `weex`                | `whitebit`          |
+| `woo`               | `woofipro`            | `xt`                |
+| `zaif`              | `zebpay`              | `limitless`         |
+| `myriad`            | `opinion`             |                     |
+
+The three long-tail prediction markets — **Limitless / Myriad / Opinion** — are part of this
+extended set, while Kalshi / Polymarket / Manifold remain among the curated adapters above.
 
 ## Feature Flags
 
@@ -127,9 +166,9 @@ pipeline, while Kalshi / Polymarket / Manifold remain hand-written.
 | per-exchange      | Compile in that adapter (e.g. `binance`, `kraken`, `polymarket`, …)    |
 | `realtime`        | WebSocket `watch_*` methods (the 8 channels below)                     |
 | `sync`            | Blocking wrapper over the async API (`sync::BlockingExchange`)         |
-| `prediction`      | `kalshi` + `polymarket` + `manifold` (hand-written prediction markets) |
-| `full`            | All exchanges (curated + generated) + `realtime`                       |
-| _default_         | `binance`, `okx`, `kalshi`, `polymarket`                              |
+| `prediction`      | `kalshi` + `polymarket` + `manifold` (curated prediction markets)      |
+| `full`            | All exchanges (curated + extended) + `realtime`                        |
+| _default_         | `binance`, `okx`, `kalshi`, `polymarket`                               |
 
 ## Architecture
 
@@ -139,13 +178,14 @@ Adapters follow the **HttpCore + four-seam** model (ADR-0013):
   caching, client-side pagination/filtering, safe field extraction, and `Precise` arithmetic.
 - **Four seams** — each adapter only fills: `describe` (endpoint paths/parameters), `sign`
   (signing algorithm), `handle_errors` (error-code mapping), and field mapping (`parse`
-  overrides). Generated adapters fill only the `describe` seam and reuse `HttpCore` unchanged.
+  overrides). The additional exchange adapters fill only the `describe` seam and reuse `HttpCore`
+  unchanged.
 
 Prediction-market specifics (outcome context, synthetic tickers, RSA-PSS / EIP-712 / ECDSA
 signing) live in the adapters, never in the core.
 
-The unified data structures in `types` use `snake_case` field names aligned with ccxt and keep the
-raw response under `info` for full fidelity.
+The unified data structures in `types` use `snake_case` field names compatible with ccxt and keep
+the raw response under `info` for full fidelity.
 
 ## Real-time (WebSocket)
 
@@ -177,19 +217,19 @@ retryability, and `From` conversions for ergonomic `?` propagation.
 
 ## Development
 
-Regenerate the 95 transpiled adapters from a local ccxt checkout:
+Regenerate the additional exchange adapters from a local upstream exchange-spec checkout:
 
 ```bash
 python3 scripts/gen_adapters.py --ccxt /path/to/ccxt
 ```
 
-The generator emits per-exchange modules under `src/adapters/generated/` from ccxt `describe()`;
-the runtime lives in `src/generic.rs`.
+The generator emits per-exchange modules under `src/adapters/generated/`; the shared runtime lives
+in `src/generic.rs`.
 
 ## License
 
-Apache-2.0. Adapter parsing logic ported from ccxt retains its MIT notice — see `NOTICE`.
+Apache-2.0. Parsing logic derived from the upstream library retains its MIT notice — see `NOTICE`.
 
 ---
 
-📘 简体中文文档见 [README.zh-CN.md](./README.zh-CN.md)。
+📘 简体中文文档见 [README.zh-CN.md](./README.zh-CN.md).

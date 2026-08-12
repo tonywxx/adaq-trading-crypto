@@ -61,6 +61,24 @@ impl Okx {
 
     // ================= 内部 HTTP =================
 
+    /// 签名原语(ADR-0013 sign 接缝):`timestamp+method+path+body` → base64 HMAC-SHA256。
+    ///
+    /// REST 私密请求与 realtime WS 登录帧共用(登录帧 = `ts+GET+/users/self/verify+""`)。
+    pub fn sign_str(&self, timestamp: &str, method: &str, path: &str, body: &str) -> Result<String> {
+        let secret = self
+            .config
+            .secret
+            .as_deref()
+            .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx secret required"))?;
+        let auth = format!("{timestamp}{method}{path}{body}");
+        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
+        mac.update(auth.as_bytes());
+        Ok(base64::engine::general_purpose::STANDARD.encode(
+            mac.finalize().into_bytes(),
+        ))
+    }
+
     /// 私密请求(OKX v5 签名)。
     async fn private_request(
         &self,
@@ -74,11 +92,6 @@ impl Okx {
             .api_key
             .as_deref()
             .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx secret required"))?;
         let passphrase = self
             .config
             .password
@@ -99,15 +112,8 @@ impl Okx {
             });
             (path.to_string(), body_json)
         };
-        let auth = format!(
-            "{timestamp}{method}{request_path}{}",
-            body_json.clone().map(|v| v.to_string()).unwrap_or_default()
-        );
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(auth.as_bytes());
-        let signature =
-            base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+        let body_str = body_json.as_ref().map(|v| v.to_string()).unwrap_or_default();
+        let signature = self.sign_str(&timestamp, method, &request_path, &body_str)?;
         let mut headers = HeaderMap::new();
         headers.insert("OK-ACCESS-KEY", HeaderValue::from_str(api_key).unwrap());
         headers.insert("OK-ACCESS-SIGN", HeaderValue::from_str(&signature).unwrap());
