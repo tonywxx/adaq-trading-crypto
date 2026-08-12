@@ -74,6 +74,7 @@ fn adapter_implemented_subset_of_manifest() {
         ("mexc", Mexc::IMPLEMENTED),
         ("htx", Htx::IMPLEMENTED),
         ("kucoin", Kucoin::IMPLEMENTED),
+        ("manifold", Manifold::IMPLEMENTED),
         ("kalshi", Kalshi::IMPLEMENTED),
         ("polymarket", Polymarket::IMPLEMENTED),
         ("okx", Okx::IMPLEMENTED),

@@ -71,3 +71,9 @@ pub mod kucoin;
 
 #[cfg(feature = "kucoin")]
 pub use kucoin::{ID as KUCOIN_ID, Kucoin};
+
+#[cfg(feature = "manifold")]
+pub mod manifold;
+
+#[cfg(feature = "manifold")]
+pub use manifold::{ID as MANIFOLD_ID, Manifold};
