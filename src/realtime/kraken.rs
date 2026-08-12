@@ -42,6 +42,8 @@ type OhlcvChannel = ChannelMap<(String, String), Vec<OHLCV>>;
 pub struct KrakenWs {
     config: Config,
     client: Client,
+    /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0015)。
+    rest: std::sync::Arc<crate::adapters::Kraken>,
     pub_connected: Conn,
     priv_connected: Conn,
     tickers: TickerChannel,
@@ -66,9 +68,11 @@ impl KrakenWs {
             config.rate_limit_ms.max(1000),
             config.enable_rate_limit,
         )?;
+        let rest = std::sync::Arc::new(crate::adapters::Kraken::new(config.clone())?);
         Ok(Self {
             config,
             client,
+            rest,
             pub_connected: Conn::new(),
             priv_connected: Conn::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
@@ -97,6 +101,7 @@ impl KrakenWs {
             let book_stores = self.book_stores.clone();
             let trades = self.trades.clone();
             let ohlcvs = self.ohlcvs.clone();
+            let rest = self.rest.clone();
             let headers = HeaderMap::new();
             let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
             *self.sub_tx.lock().unwrap() = Some(sub_tx);
@@ -104,7 +109,9 @@ impl KrakenWs {
                 WS_PUBLIC.to_string(),
                 headers,
                 sub_rx,
-                move |msg| dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs),
+                move |msg| {
+                    dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs, &rest)
+                },
                 None,
             )
         })
@@ -230,6 +237,7 @@ fn dispatch_public(
     book_stores: &BookStoreMap,
     trades: &TradeChannel,
     ohlcvs: &OhlcvChannel,
+    rest: &std::sync::Arc<crate::adapters::Kraken>,
 ) {
     // kraken 公开消息为数组:[channelId, data, channelName, pair]
     let arr = match msg.as_array() {
@@ -265,7 +273,7 @@ fn dispatch_public(
         "trade" => {
             if let (Some(d), Some(tx)) = (data, trades.lock().unwrap().get(pair).cloned()) {
                 let rows = d.as_array().cloned().unwrap_or_default();
-                let parsed: Vec<Trade> = rows.iter().map(parse_trade).collect();
+                let parsed: Vec<Trade> = rows.iter().map(|r| rest.parse_trade(r, pair)).collect();
                 let _ = tx.send(parsed);
             }
         }
@@ -276,7 +284,7 @@ fn dispatch_public(
                 data,
                 ohlcvs.lock().unwrap().get(&(pair.to_string(), tf)).cloned(),
             ) {
-                let _ = tx.send(vec![parse_ohlcv(d)]);
+                let _ = tx.send(vec![rest.parse_ohlcv(d)]);
             }
         }
         _ => {}
@@ -395,55 +403,6 @@ fn parse_ticker(raw: &Value, pair: &str) -> Ticker {
             .and_then(crate::realtime::ws::value_decimal),
         info: raw.clone(),
         ..Ticker::default()
-    }
-}
-
-fn parse_trade(raw: &Value) -> Trade {
-    let arr = raw.as_array();
-    let ts = arr
-        .and_then(|a| a.get(2))
-        .and_then(|v| v.as_f64())
-        .map(|f| f as i64 * 1000);
-    Trade {
-        timestamp: ts,
-        datetime: ts.and_then(iso8601),
-        side: arr
-            .and_then(|a| a.get(3))
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        price: arr
-            .and_then(|a| a.first())
-            .and_then(crate::realtime::ws::value_decimal),
-        amount: arr
-            .and_then(|a| a.get(1))
-            .and_then(crate::realtime::ws::value_decimal),
-        info: raw.clone(),
-        ..Trade::default()
-    }
-}
-
-fn parse_ohlcv(raw: &Value) -> OHLCV {
-    let arr = raw.as_array();
-    OHLCV {
-        timestamp: arr
-            .and_then(|a| a.first())
-            .and_then(|v| v.as_f64())
-            .map(|f| f as i64 * 1000),
-        open: arr
-            .and_then(|a| a.get(1))
-            .and_then(crate::realtime::ws::value_decimal),
-        high: arr
-            .and_then(|a| a.get(2))
-            .and_then(crate::realtime::ws::value_decimal),
-        low: arr
-            .and_then(|a| a.get(3))
-            .and_then(crate::realtime::ws::value_decimal),
-        close: arr
-            .and_then(|a| a.get(4))
-            .and_then(crate::realtime::ws::value_decimal),
-        volume: arr
-            .and_then(|a| a.get(6))
-            .and_then(crate::realtime::ws::value_decimal),
     }
 }
 
@@ -714,5 +673,88 @@ impl Realtime for KrakenWs {
     ) -> Result<Vec<Position>> {
         // kraken 无持仓 WS 频道(与 ccxt 一致)
         Err(Error::not_supported("watch_positions(kraken)"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn channels() -> (
+        TickerChannel,
+        BookChannel,
+        BookStoreMap,
+        TradeChannel,
+        OhlcvChannel,
+    ) {
+        (
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Mutex::new(HashMap::new())),
+        )
+    }
+
+    fn rest() -> std::sync::Arc<crate::adapters::Kraken> {
+        std::sync::Arc::new(crate::adapters::Kraken::new(Config::new()).unwrap())
+    }
+
+    #[test]
+    fn replay_public_ticker_routes_to_channel() {
+        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let (tx, rx) = watch::channel(Ticker::default());
+        tickers.lock().unwrap().insert("XBT/USDT".into(), tx);
+        // kraken WS ticker 内嵌数据对象(与 REST 同形):a/b/c/h/l/o/p/v 为数组
+        let msg = json!([
+            42,
+            {
+                "a": ["100.5"], "b": ["100.0"], "c": ["100.2"],
+                "h": ["101.0", "101.0"], "l": ["99.0", "99.0"],
+                "o": ["98.0"], "p": ["100.1", "100.1"], "v": ["10.0", "200.0"]
+            },
+            "ticker",
+            "XBT/USDT"
+        ]);
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs, &rest());
+        let t = rx.borrow().clone();
+        assert_eq!(t.symbol, "XBT/USDT");
+        assert_eq!(t.last, Some("100.2".parse().unwrap()));
+        assert_eq!(t.ask, Some("100.5".parse().unwrap()));
+        assert_eq!(t.bid, Some("100.0".parse().unwrap()));
+        assert_eq!(t.high, Some("101.0".parse().unwrap()));
+        assert_eq!(t.open, Some("98.0".parse().unwrap()));
+    }
+
+    #[test]
+    fn replay_public_trade_routes_to_channel() {
+        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let (tx, rx) = watch::channel(vec![]);
+        trades.lock().unwrap().insert("XBT/USDT".into(), tx);
+        // kraken WS trade 行:[price, vol, ts(秒), side]
+        let msg = json!([
+            42,
+            [["100.0", "2.0", 1.0, "b"], ["101.0", "1.0", 2.0, "s"]],
+            "trade",
+            "XBT/USDT"
+        ]);
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs, &rest());
+        let ts = rx.borrow().clone();
+        assert_eq!(ts.len(), 2);
+        assert_eq!(ts[0].side.as_deref(), Some("buy")); // b → buy
+        assert_eq!(ts[0].price, Some("100.0".parse().unwrap()));
+        assert!(ts[0].symbol.is_some()); // rest.parse_trade 补 symbol
+        assert_eq!(ts[1].side.as_deref(), Some("sell")); // s → sell
+    }
+
+    #[test]
+    fn replay_public_ohlcv_parse_unifies_with_rest() {
+        // ADR-0015:WS ohlc 行复用 REST parse_ohlcv(数组形 [ts（秒）,o,h,l,c,vwap,vol,count])。
+        // 直接验证统一解析;dispatch 的 interval 派生为既有逻辑(本次未改动),故不复测路由。
+        let candle = json!([1.0, "100.0", "101.0", "99.0", "100.5", "100.2", "3.0", 10]);
+        let o = rest().parse_ohlcv(&candle);
+        assert_eq!(o.close, Some("100.5".parse().unwrap()));
+        assert_eq!(o.volume, Some("3.0".parse().unwrap()));
+        assert_eq!(o.timestamp, Some(1000)); // 秒 → 毫秒
     }
 }
