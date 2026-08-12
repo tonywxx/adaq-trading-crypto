@@ -70,3 +70,145 @@ async fn binance_unsupported_positions_is_not_supported() {
         .unwrap_err();
     assert_eq!(err.kind(), ErrorKind::NotSupported);
 }
+
+// ================= Phase C:okx / bybit / kraken 冒烟 =================
+
+use adaq_trading_crypto::realtime::{BybitWs, KrakenWs, OkxWs};
+
+#[tokio::test]
+#[ignore = "needs network"]
+async fn okx_watch_ticker_smoke() {
+    let ws = OkxWs::new(Config::new()).expect("adapter");
+    let t = ws
+        .watch_ticker("BTC/USDT", adaq_trading_crypto::Params::new())
+        .await
+        .expect("watch_ticker");
+    assert!(t.last.is_some(), "ticker 应有 last 价格");
+    println!("okx ticker: {:?}", t.last);
+}
+
+#[tokio::test]
+#[ignore = "needs network"]
+async fn okx_watch_order_book_smoke() {
+    let ws = OkxWs::new(Config::new()).expect("adapter");
+    let book = ws
+        .watch_order_book("BTC/USDT", None, adaq_trading_crypto::Params::new())
+        .await
+        .expect("watch_order_book");
+    assert!(!book.bids.is_empty(), "bids 非空");
+    assert!(
+        book.bids.windows(2).all(|w| w[0].price >= w[1].price),
+        "bids 降序"
+    );
+    println!(
+        "okx book: bids={} asks={}",
+        book.bids.len(),
+        book.asks.len()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs network"]
+async fn okx_watch_trades_smoke() {
+    let ws = OkxWs::new(Config::new()).expect("adapter");
+    let trades = ws
+        .watch_trades("BTC/USDT", None, None, adaq_trading_crypto::Params::new())
+        .await
+        .expect("watch_trades");
+    assert!(!trades.is_empty(), "有成交");
+    println!("okx trade: {:?} @ {:?}", trades[0].amount, trades[0].price);
+}
+
+#[tokio::test]
+#[ignore = "needs network"]
+async fn bybit_watch_ticker_smoke() {
+    let ws = BybitWs::new(Config::new()).expect("adapter");
+    let t = ws
+        .watch_ticker("BTC/USDT", adaq_trading_crypto::Params::new())
+        .await
+        .expect("watch_ticker");
+    assert!(t.last.is_some(), "ticker 应有 last 价格");
+    println!("bybit ticker: {:?}", t.last);
+}
+
+#[tokio::test]
+#[ignore = "needs network"]
+async fn bybit_watch_order_book_smoke() {
+    let ws = BybitWs::new(Config::new()).expect("adapter");
+    let book = ws
+        .watch_order_book("BTC/USDT", None, adaq_trading_crypto::Params::new())
+        .await
+        .expect("watch_order_book");
+    assert!(!book.bids.is_empty(), "bids 非空");
+    assert!(
+        book.bids.windows(2).all(|w| w[0].price >= w[1].price),
+        "bids 降序"
+    );
+    println!(
+        "bybit book: bids={} asks={}",
+        book.bids.len(),
+        book.asks.len()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs network"]
+async fn bybit_watch_trades_smoke() {
+    let ws = BybitWs::new(Config::new()).expect("adapter");
+    let trades = ws
+        .watch_trades("BTC/USDT", None, None, adaq_trading_crypto::Params::new())
+        .await
+        .expect("watch_trades");
+    assert!(!trades.is_empty(), "有成交");
+    println!(
+        "bybit trade: {:?} @ {:?}",
+        trades[0].amount, trades[0].price
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs network"]
+async fn kraken_watch_ticker_smoke() {
+    let ws = KrakenWs::new(Config::new()).expect("adapter");
+    let t = ws
+        .watch_ticker("BTC/USDT", adaq_trading_crypto::Params::new())
+        .await
+        .expect("watch_ticker");
+    assert!(t.last.is_some(), "ticker 应有 last 价格");
+    println!("kraken ticker: {:?}", t.last);
+}
+
+#[tokio::test]
+#[ignore = "needs network"]
+async fn kraken_watch_order_book_smoke() {
+    let ws = KrakenWs::new(Config::new()).expect("adapter");
+    let book = ws
+        .watch_order_book("BTC/USDT", None, adaq_trading_crypto::Params::new())
+        .await
+        .expect("watch_order_book");
+    assert!(!book.bids.is_empty(), "bids 非空");
+    assert!(
+        book.bids.windows(2).all(|w| w[0].price >= w[1].price),
+        "bids 降序"
+    );
+    println!(
+        "kraken book: bids={} asks={}",
+        book.bids.len(),
+        book.asks.len()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs network"]
+async fn kraken_watch_trades_smoke() {
+    let ws = KrakenWs::new(Config::new()).expect("adapter");
+    let trades = ws
+        .watch_trades("BTC/USDT", None, None, adaq_trading_crypto::Params::new())
+        .await
+        .expect("watch_trades");
+    assert!(!trades.is_empty(), "有成交");
+    println!(
+        "kraken trade: {:?} @ {:?}",
+        trades[0].amount, trades[0].price
+    );
+}

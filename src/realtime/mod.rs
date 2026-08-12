@@ -10,13 +10,25 @@ pub mod ws;
 #[cfg(feature = "realtime")]
 pub mod binance;
 #[cfg(feature = "realtime")]
+pub mod bybit;
+#[cfg(feature = "realtime")]
 pub mod kalshi;
+#[cfg(feature = "realtime")]
+pub mod kraken;
+#[cfg(feature = "realtime")]
+pub mod okx;
 #[cfg(feature = "realtime")]
 pub mod polymarket;
 
 #[cfg(feature = "realtime")]
 pub use binance::BinanceWs;
 #[cfg(feature = "realtime")]
+pub use bybit::BybitWs;
+#[cfg(feature = "realtime")]
 pub use kalshi::KalshiWs;
+#[cfg(feature = "realtime")]
+pub use kraken::KrakenWs;
+#[cfg(feature = "realtime")]
+pub use okx::OkxWs;
 #[cfg(feature = "realtime")]
 pub use polymarket::PolymarketWs;
