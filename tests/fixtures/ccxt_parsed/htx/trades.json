@@ -1,0 +1,32 @@
+{
+  "method": "fetch_trades",
+  "parsed": [
+    {
+      "id": "103627269732",
+      "info": {
+        "id": 1925696732161664602229966567,
+        "ts": 1786522606405,
+        "trade_id": 103627269732,
+        "amount": 0.015034,
+        "price": 63802.09,
+        "direction": "sell",
+        "is_rpi_trade": false
+      },
+      "order": null,
+      "timestamp": 1786522606405,
+      "datetime": "2026-08-12T08:16:46.405Z",
+      "symbol": "BTC/USDT",
+      "type": null,
+      "side": "sell",
+      "taker_or_maker": null,
+      "price": 63802.09,
+      "amount": 0.015034,
+      "cost": 959.20062106,
+      "fee": {
+        "cost": null,
+        "currency": null
+      },
+      "fees": []
+    }
+  ]
+}

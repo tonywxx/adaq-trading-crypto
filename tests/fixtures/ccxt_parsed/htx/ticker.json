@@ -1,0 +1,45 @@
+{
+  "method": "fetch_ticker",
+  "parsed": {
+    "symbol": "BTC/USDT",
+    "timestamp": null,
+    "datetime": null,
+    "high": 64473.14,
+    "low": 63266.78,
+    "bid": 63799.51,
+    "bid_volume": 2.601639,
+    "ask": 63799.52,
+    "ask_volume": 1.198965,
+    "vwap": 63828.73235355525,
+    "open": 64070.37,
+    "close": 63802.09,
+    "last": 63802.09,
+    "previous_close": null,
+    "change": -268.28,
+    "percentage": -0.418727096472207,
+    "average": 63936.23,
+    "base_volume": 1744.9168013881301,
+    "quote_volume": 111375827.49502468,
+    "info": {
+      "id": 385112049770,
+      "version": 385112049770,
+      "open": 64070.37,
+      "close": 63802.09,
+      "low": 63266.78,
+      "high": 64473.14,
+      "amount": 1744.9168013881301,
+      "vol": 111375827.49502468,
+      "count": 16623,
+      "bid": [
+        63799.51,
+        2.601639
+      ],
+      "ask": [
+        63799.52,
+        1.198965
+      ]
+    },
+    "index_price": null,
+    "mark_price": null
+  }
+}

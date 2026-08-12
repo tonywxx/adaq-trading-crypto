@@ -11,7 +11,8 @@
     feature = "coinbase",
     feature = "bitget",
     feature = "gate",
-    feature = "mexc"
+    feature = "mexc",
+    feature = "htx"
 ))]
 
 mod common;
@@ -2253,6 +2254,247 @@ mod mexc_diff {
         let raw_fixture = load_raw("mexc", "ohlcv");
         let raw_arr = raw_fixture["raw"].as_array().unwrap().clone();
         let ccxt = parsed(&load_ccxt_parsed("mexc", "ohlcv"))
+            .as_array()
+            .unwrap()
+            .clone();
+        assert_eq!(raw_arr.len(), ccxt.len(), "行数一致");
+        for (i, (r, c)) in raw_arr.iter().zip(ccxt.iter()).enumerate() {
+            let o = ex.parse_ohlcv(r);
+            assert_eq!(o.timestamp, c[0].as_i64(), "ohlcv[{i}].ts");
+            for (idx, key) in ["open", "high", "low", "close", "volume"]
+                .iter()
+                .enumerate()
+            {
+                let our = match *key {
+                    "open" => o.open,
+                    "high" => o.high,
+                    "low" => o.low,
+                    "close" => o.close,
+                    _ => o.volume,
+                };
+                assert_dec_rel(
+                    &format!("ohlcv[{i}].{key}"),
+                    our,
+                    common::value_decimal(&c[idx + 1]),
+                );
+            }
+        }
+    }
+}
+
+// ================= htx 差分 =================
+
+#[cfg(feature = "htx")]
+mod htx_diff {
+    use super::*;
+    use adaq_trading_crypto::adapters::Htx;
+
+    fn setup() -> Htx {
+        let mut config = Config::new();
+        config.enable_rate_limit = false;
+        Htx::new(config).expect("htx adapter")
+    }
+
+    fn obj_str(v: &Value, key: &str) -> Option<String> {
+        v.get(key).and_then(Value::as_str).map(str::to_string)
+    }
+
+    fn obj_dec(v: &Value, key: &str) -> Option<Decimal> {
+        v.get(key).and_then(super::dec)
+    }
+
+    fn assert_dec(label: &str, ours: Option<Decimal>, theirs: Option<Decimal>) {
+        match (ours, theirs) {
+            (Some(a), Some(b)) => {
+                assert_eq!(a.normalize(), b.normalize(), "{label}: ours={a} ccxt={b}")
+            }
+            (None, None) => {}
+            (a, b) => panic!("{label}: ours={a:?} ccxt={b:?}"),
+        }
+    }
+
+    fn assert_dec_rel(label: &str, ours: Option<Decimal>, theirs: Option<Decimal>) {
+        match (ours, theirs) {
+            (Some(a), Some(b)) => {
+                let diff = (a - b).abs();
+                let scale = a.abs().max(b.abs());
+                let within = diff.is_zero()
+                    || (scale > Decimal::ZERO && diff / scale <= Decimal::new(1, 12));
+                assert!(within, "{label}: ours={a} ccxt={b}");
+            }
+            (None, None) => {}
+            (a, b) => panic!("{label}: ours={a:?} ccxt={b:?}"),
+        }
+    }
+
+    #[test]
+    fn markets_match_ccxt() {
+        let ex = setup();
+        let raw = load_raw("htx", "markets");
+        let ccxt_fixture = load_ccxt_parsed("htx", "markets");
+        let ccxt = parsed(&ccxt_fixture);
+        let raw_arr = raw["raw"].as_array().unwrap();
+        let ccxt_arr = ccxt.as_array().unwrap();
+        assert_eq!(raw_arr.len(), ccxt_arr.len());
+        for (i, (r, c)) in raw_arr.iter().zip(ccxt_arr.iter()).enumerate() {
+            let m = ex.parse_market(r);
+            assert_eq!(m.id, c["id"].as_str().unwrap_or_default(), "market[{i}].id");
+            assert_eq!(
+                m.symbol,
+                c["symbol"].as_str().unwrap_or_default(),
+                "market[{i}].symbol"
+            );
+            assert_eq!(
+                m.base.as_deref(),
+                obj_str(c, "base").as_deref(),
+                "market[{i}].base"
+            );
+            assert_eq!(
+                m.quote.as_deref(),
+                obj_str(c, "quote").as_deref(),
+                "market[{i}].quote"
+            );
+            assert_eq!(m.active, c["active"].as_bool(), "market[{i}].active");
+            assert_dec(
+                &format!("market[{i}].precision.price"),
+                m.precision.price,
+                obj_dec(c.get("precision").unwrap(), "price"),
+            );
+            assert_dec(
+                &format!("market[{i}].precision.amount"),
+                m.precision.amount,
+                obj_dec(c.get("precision").unwrap(), "amount"),
+            );
+        }
+    }
+
+    #[test]
+    fn ticker_matches_ccxt() {
+        let ex = setup();
+        let raw_fixture = load_raw("htx", "ticker");
+        let raw = raw_fixture["raw"].clone();
+        let ccxt_fixture = load_ccxt_parsed("htx", "ticker");
+        let ccxt = parsed(&ccxt_fixture);
+        let mut t = ex.parse_ticker(&raw);
+        // merged tick 无 symbol 字段(由请求推导)→ 用 id 回退解析(与 kraken 同法)
+        t.symbol = ex.market_symbol("btcusdt");
+        assert_eq!(
+            t.symbol,
+            obj_str(ccxt, "symbol").unwrap_or_default(),
+            "ticker.symbol"
+        );
+        for key in [
+            "last",
+            "bid",
+            "ask",
+            "open",
+            "high",
+            "low",
+            "base_volume",
+            "quote_volume",
+        ] {
+            let our = match key {
+                "last" => t.last,
+                "bid" => t.bid,
+                "ask" => t.ask,
+                "open" => t.open,
+                "high" => t.high,
+                "low" => t.low,
+                "base_volume" => t.base_volume,
+                _ => t.quote_volume,
+            };
+            assert_dec_rel(&format!("ticker.{key}"), our, obj_dec(ccxt, key));
+        }
+    }
+
+    #[test]
+    fn order_book_matches_ccxt() {
+        let ex = setup();
+        let raw_fixture = load_raw("htx", "order_book");
+        let raw = raw_fixture["raw"].clone();
+        let ccxt_fixture = load_ccxt_parsed("htx", "order_book");
+        let ccxt = parsed(&ccxt_fixture);
+        let book = ex.parse_order_book(&raw, "BTC/USDT");
+        assert_eq!(
+            book.bids.len(),
+            ccxt["bids"].as_array().unwrap().len(),
+            "bids 数量"
+        );
+        assert_eq!(
+            book.asks.len(),
+            ccxt["asks"].as_array().unwrap().len(),
+            "asks 数量"
+        );
+        for (i, (o, c)) in book
+            .bids
+            .iter()
+            .zip(ccxt["bids"].as_array().unwrap().iter())
+            .enumerate()
+        {
+            assert_dec_rel(
+                &format!("bids[{i}].price"),
+                o.price,
+                common::value_decimal(&c[0]),
+            );
+            assert_dec_rel(
+                &format!("bids[{i}].amount"),
+                o.amount,
+                common::value_decimal(&c[1]),
+            );
+        }
+        for (i, (o, c)) in book
+            .asks
+            .iter()
+            .zip(ccxt["asks"].as_array().unwrap().iter())
+            .enumerate()
+        {
+            assert_dec_rel(
+                &format!("asks[{i}].price"),
+                o.price,
+                common::value_decimal(&c[0]),
+            );
+            assert_dec_rel(
+                &format!("asks[{i}].amount"),
+                o.amount,
+                common::value_decimal(&c[1]),
+            );
+        }
+    }
+
+    #[test]
+    fn trades_match_ccxt() {
+        let ex = setup();
+        let raw_fixture = load_raw("htx", "trades");
+        let raw_arr = raw_fixture["raw"].as_array().unwrap().clone();
+        let ccxt = parsed(&load_ccxt_parsed("htx", "trades"))
+            .as_array()
+            .unwrap()
+            .clone();
+        assert_eq!(raw_arr.len(), ccxt.len(), "行数一致");
+        for (i, (r, c)) in raw_arr.iter().zip(ccxt.iter()).enumerate() {
+            let t = ex.parse_trade(r);
+            assert_eq!(t.id.as_deref(), c["id"].as_str(), "trade[{i}].id");
+            assert_eq!(t.timestamp, c["timestamp"].as_i64(), "trade[{i}].timestamp");
+            assert_eq!(
+                t.side.as_deref(),
+                obj_str(c, "side").as_deref(),
+                "trade[{i}].side"
+            );
+            assert_dec_rel(&format!("trade[{i}].price"), t.price, obj_dec(c, "price"));
+            assert_dec_rel(
+                &format!("trade[{i}].amount"),
+                t.amount,
+                obj_dec(c, "amount"),
+            );
+        }
+    }
+
+    #[test]
+    fn ohlcv_matches_ccxt() {
+        let ex = setup();
+        let raw_fixture = load_raw("htx", "ohlcv");
+        let raw_arr = raw_fixture["raw"].as_array().unwrap().clone();
+        let ccxt = parsed(&load_ccxt_parsed("htx", "ohlcv"))
             .as_array()
             .unwrap()
             .clone();

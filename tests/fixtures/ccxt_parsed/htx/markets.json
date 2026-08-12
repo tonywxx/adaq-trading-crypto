@@ -1,0 +1,125 @@
+{
+  "method": "fetch_markets",
+  "parsed": [
+    {
+      "id": "balusdt",
+      "symbol": "BAL/USDT",
+      "base": "BAL",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.01,
+        "price": 0.0001,
+        "cost": 1e-08
+      }
+    },
+    {
+      "id": "virtualusdt",
+      "symbol": "VIRTUAL/USDT",
+      "base": "VIRTUAL",
+      "quote": "USDT",
+      "active": true,
+      "precision": {
+        "amount": 0.0001,
+        "price": 0.0001,
+        "cost": 1e-08
+      }
+    },
+    {
+      "id": "lesterusdt",
+      "symbol": "LESTER/USDT",
+      "base": "LESTER",
+      "quote": "USDT",
+      "active": false,
+      "precision": {
+        "amount": 0.0001,
+        "price": 1e-05,
+        "cost": 1e-08
+      }
+    },
+    {
+      "id": "griftusdt",
+      "symbol": "GRIFT/USDT",
+      "base": "GRIFT",
+      "quote": "USDT",
+      "active": false,
+      "precision": {
+        "amount": 0.0001,
+        "price": 1e-05,
+        "cost": 1e-08
+      }
+    },
+    {
+      "id": "nvdausdt",
+      "symbol": "NVDA/USDT",
+      "base": "NVDA",
+      "quote": "USDT",
+      "active": false,
+      "precision": {
+        "amount": 1e-06,
+        "price": 0.01,
+        "cost": 1e-08
+      }
+    },
+    {
+      "id": "bftoldbtc",
+      "symbol": "BFTOLD/BTC",
+      "base": "BFTOLD",
+      "quote": "BTC",
+      "active": false,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-10,
+        "cost": 1e-08
+      }
+    },
+    {
+      "id": "bbcusdt",
+      "symbol": "BBC/USDT",
+      "base": "BBC",
+      "quote": "USDT",
+      "active": false,
+      "precision": {
+        "amount": 0.0001,
+        "price": 1e-07,
+        "cost": 1e-08
+      }
+    },
+    {
+      "id": "wmtusdt",
+      "symbol": "WMT/USDT",
+      "base": "WMT",
+      "quote": "USDT",
+      "active": false,
+      "precision": {
+        "amount": 0.0001,
+        "price": 0.0001,
+        "cost": 1e-08
+      }
+    },
+    {
+      "id": "wnxmbtc",
+      "symbol": "WNXM/BTC",
+      "base": "WNXM",
+      "quote": "BTC",
+      "active": false,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-06,
+        "cost": 1e-08
+      }
+    },
+    {
+      "id": "wanbtc",
+      "symbol": "WAN/BTC",
+      "base": "WAN",
+      "quote": "BTC",
+      "active": false,
+      "precision": {
+        "amount": 0.01,
+        "price": 1e-08,
+        "cost": 1e-08
+      }
+    }
+  ]
+}

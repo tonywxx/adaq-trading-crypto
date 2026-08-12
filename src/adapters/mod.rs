@@ -59,3 +59,9 @@ pub mod mexc;
 
 #[cfg(feature = "mexc")]
 pub use mexc::{ID as MEXC_ID, Mexc};
+
+#[cfg(feature = "htx")]
+pub mod htx;
+
+#[cfg(feature = "htx")]
+pub use htx::{Htx, ID as HTX_ID};

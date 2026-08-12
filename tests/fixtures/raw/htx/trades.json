@@ -1,0 +1,14 @@
+{
+  "method": "fetch_trades",
+  "raw": [
+    {
+      "id": 1925696732161664602229966567,
+      "ts": 1786522606405,
+      "trade-id": 103627269732,
+      "amount": 0.015034,
+      "price": 63802.09,
+      "direction": "sell",
+      "is-rpi-trade": false
+    }
+  ]
+}
