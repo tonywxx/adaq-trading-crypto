@@ -63,6 +63,12 @@ fn ws_names_are_watch_methods() {
 fn adapter_implemented_subset_of_manifest() {
     // M2d/M3d:适配器声明的已实现方法必须是统一方法面的子集(防止实现未枚举的方法)
     // 仅校验当前 feature 组合下已编译的适配器(其余交易所按 feature 门控,见 ADR)。
+    #[cfg(feature = "alpaca")]
+    use adaq_trading_crypto::adapters::Alpaca;
+    #[cfg(feature = "aster")]
+    use adaq_trading_crypto::adapters::Aster;
+    #[cfg(feature = "binanceus")]
+    use adaq_trading_crypto::adapters::BinanceUs;
     #[cfg(feature = "bitget")]
     use adaq_trading_crypto::adapters::Bitget;
     #[cfg(feature = "bybit")]
@@ -71,16 +77,26 @@ fn adapter_implemented_subset_of_manifest() {
     use adaq_trading_crypto::adapters::Coinbase;
     #[cfg(feature = "gate")]
     use adaq_trading_crypto::adapters::Gate;
+    #[cfg(feature = "gemini")]
+    use adaq_trading_crypto::adapters::Gemini;
+    #[cfg(feature = "hashkey")]
+    use adaq_trading_crypto::adapters::Hashkey;
     #[cfg(feature = "htx")]
     use adaq_trading_crypto::adapters::Htx;
     #[cfg(feature = "kraken")]
     use adaq_trading_crypto::adapters::Kraken;
     #[cfg(feature = "kucoin")]
     use adaq_trading_crypto::adapters::Kucoin;
+    #[cfg(feature = "lighter")]
+    use adaq_trading_crypto::adapters::Lighter;
     #[cfg(feature = "manifold")]
     use adaq_trading_crypto::adapters::Manifold;
     #[cfg(feature = "mexc")]
     use adaq_trading_crypto::adapters::Mexc;
+    #[cfg(feature = "myokx")]
+    use adaq_trading_crypto::adapters::MyOkx;
+    #[cfg(feature = "okxus")]
+    use adaq_trading_crypto::adapters::OkxUs;
     use adaq_trading_crypto::adapters::{Binance, Kalshi, Okx, Polymarket};
 
     let manifest: HashSet<&str> = all_methods().iter().copied().collect();
@@ -103,6 +119,22 @@ fn adapter_implemented_subset_of_manifest() {
         ("kucoin", Kucoin::IMPLEMENTED),
         #[cfg(feature = "manifold")]
         ("manifold", Manifold::IMPLEMENTED),
+        #[cfg(feature = "alpaca")]
+        ("alpaca", Alpaca::IMPLEMENTED),
+        #[cfg(feature = "aster")]
+        ("aster", Aster::IMPLEMENTED),
+        #[cfg(feature = "binanceus")]
+        ("binanceus", BinanceUs::IMPLEMENTED),
+        #[cfg(feature = "gemini")]
+        ("gemini", Gemini::IMPLEMENTED),
+        #[cfg(feature = "hashkey")]
+        ("hashkey", Hashkey::IMPLEMENTED),
+        #[cfg(feature = "lighter")]
+        ("lighter", Lighter::IMPLEMENTED),
+        #[cfg(feature = "myokx")]
+        ("myokx", MyOkx::IMPLEMENTED),
+        #[cfg(feature = "okxus")]
+        ("okxus", OkxUs::IMPLEMENTED),
         #[cfg(feature = "bybit")]
         ("bybit", Bybit::IMPLEMENTED),
         #[cfg(feature = "kraken")]

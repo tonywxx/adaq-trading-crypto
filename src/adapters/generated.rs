@@ -3,12 +3,8 @@
 //! 不要手改 —— 重新运行脚本即可重建。
 #![allow(clippy::too_many_arguments)]
 
-#[cfg(feature = "alpaca")]
-pub mod alpaca;
 #[cfg(feature = "apex")]
 pub mod apex;
-#[cfg(feature = "aster")]
-pub mod aster;
 #[cfg(feature = "backpack")]
 pub mod backpack;
 #[cfg(feature = "bequant")]
@@ -17,8 +13,6 @@ pub mod bequant;
 pub mod bigone;
 #[cfg(feature = "binancecoinm")]
 pub mod binancecoinm;
-#[cfg(feature = "binanceus")]
-pub mod binanceus;
 #[cfg(feature = "binanceusdm")]
 pub mod binanceusdm;
 #[cfg(feature = "bingx")]
@@ -111,12 +105,8 @@ pub mod fmfwio;
 pub mod foxbit;
 #[cfg(feature = "gateeu")]
 pub mod gateeu;
-#[cfg(feature = "gemini")]
-pub mod gemini;
 #[cfg(feature = "grvt")]
 pub mod grvt;
-#[cfg(feature = "hashkey")]
-pub mod hashkey;
 #[cfg(feature = "hibachi")]
 pub mod hibachi;
 #[cfg(feature = "hitbtc")]
@@ -135,8 +125,6 @@ pub mod kucoinfutures;
 pub mod latoken;
 #[cfg(feature = "lbank")]
 pub mod lbank;
-#[cfg(feature = "lighter")]
-pub mod lighter;
 #[cfg(feature = "limitless")]
 pub mod limitless;
 #[cfg(feature = "luno")]
@@ -147,16 +135,12 @@ pub mod mercado;
 pub mod modetrade;
 #[cfg(feature = "mudrex")]
 pub mod mudrex;
-#[cfg(feature = "myokx")]
-pub mod myokx;
 #[cfg(feature = "myriad")]
 pub mod myriad;
 #[cfg(feature = "nado")]
 pub mod nado;
 #[cfg(feature = "ndax")]
 pub mod ndax;
-#[cfg(feature = "okxus")]
-pub mod okxus;
 #[cfg(feature = "onetrading")]
 pub mod onetrading;
 #[cfg(feature = "opinion")]

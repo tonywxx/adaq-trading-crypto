@@ -12,6 +12,17 @@ _Avoid_: 交易库、SDK
 实现统一接口、对接单一交易所的具体实现组件,可独立声明 REST 与实时能力。
 _Avoid_: 交易所封装、connector
 
+**curated 适配器 (Curated Adapter)**:
+团队手写、覆盖完整 `Exchange` trait 全量交易 API(行情 + 私有/交易/账户)的精品适配器;按 ADR-0013 四接缝编写,维护责任在团队,可最大化优化。当前 22 个(14 原有 + 8 提升)。
+_Avoid_: 手写适配器(过于泛)
+
+**generated 适配器 (Generated Adapter)**:
+由 `scripts/gen_adapters.py` 从 ccxt `describe()` 转译生成、仅覆盖公开行情面的长尾适配器;维护责任在 ccxt 上游,团队近乎零成本。
+_Avoid_: 转译适配器(与"转译"动作混淆)
+
+**提升 / Promote (Generated → Curated)**:
+把某 generated 长尾交易所升级为 curated 的标准操作:加入 `gen_adapters.py` 的 `HANDWRITTEN` 跳过集 → 重跑生成器 → 删 generated 文件 → 在 `adapters/mod.rs` 注册 → 手写 curated。一旦 AdaQ 需在核心所上完整交易即用此路径。
+
 **统一市场数据结构 (Unified Market Data Structure)**:
 跨交易所一致的行情与交易数据结构(Market / Ticker / OrderBook / OHLCV / Order / Trade / Position / Balance 等),字段与 ccxt 对齐。
 
@@ -67,3 +78,4 @@ _Avoid_: 浮点、decimal 混称
 | 0014 | accepted | 实时层收口:最小收口 + 测试先行(离线重放)+ 心跳/重连进共享层;不做完整 WsHub 框架;先收口后解析合一 |
 | 0015 | accepted | 解析合一:watch_* 复用 REST parse_*(realtime 持有 REST 适配器实例);形状兼容则加纯加法 fallback,不兼容则保持独立 |
 | 0016 | accepted | 转译补齐落地:describe 驱动通用引擎(generic.rs)+ 代码生成器(scripts/gen_adapters.py),实现 ADR-0005 后补路径与 ADR-0013 四接缝批量填 describe;覆盖全部 108 个 ccxt 唯一交易所/预测市场(103 sync 含 89 CEX + 14 DEX,及 7 prediction 命名空间,binance/hyperliquid 双列)+ 1 原生 Manifold,合计 109 适配器,transpiler 现额外覆盖 ccxt.prediction 命名空间(limitless/myriad/opinion) |
+| 0017 | accepted | 混合进化模型:curated(22 手写精品,团队维护,完整交易 API)与 generated(95 ccxt 转译长尾,上游维护,仅公开面)双轨;Python 仅 regen/CI,本地 Rust 开发零 Python;8 个(alpaca/aster/binanceus/gemini/hashkey/lighter/myokx/okxus)由 generated promote 为 curated |

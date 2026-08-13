@@ -34,6 +34,9 @@ AGG_FILE = os.path.join(ROOT, "src", "adapters", "generated.rs")
 HANDWRITTEN = {
     "binance", "okx", "bybit", "kraken", "coinbase", "bitget",
     "gate", "mexc", "htx", "kucoin",
+    # 由 generated promote 为 curated(ADR-0017):手写完整交易 API,不再转译。
+    "alpaca", "aster", "binanceus", "gemini", "hashkey", "lighter",
+    "myokx", "okxus",
 }
 # 预测市场(若出现在 ccxt 集中,归类为 Prediction)。
 PREDICTION = {

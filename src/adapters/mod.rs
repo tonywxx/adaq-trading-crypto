@@ -88,6 +88,56 @@ pub mod hyperliquid;
 #[cfg(feature = "hyperliquid")]
 pub use hyperliquid::{Hyperliquid, ID as HYPERLIQUID_ID};
 
+// ===== 由 generated promote 为 curated(ADR-0017):手写完整交易 API =====
+
+#[cfg(feature = "alpaca")]
+pub mod alpaca;
+
+#[cfg(feature = "alpaca")]
+pub use alpaca::{Alpaca, ID as ALPACA_ID};
+
+#[cfg(feature = "aster")]
+pub mod aster;
+
+#[cfg(feature = "aster")]
+pub use aster::{Aster, ID as ASTER_ID};
+
+#[cfg(feature = "binanceus")]
+pub mod binanceus;
+
+#[cfg(feature = "binanceus")]
+pub use binanceus::{BinanceUs, ID as BINANCEUS_ID};
+
+#[cfg(feature = "gemini")]
+pub mod gemini;
+
+#[cfg(feature = "gemini")]
+pub use gemini::{Gemini, ID as GEMINI_ID};
+
+#[cfg(feature = "hashkey")]
+pub mod hashkey;
+
+#[cfg(feature = "hashkey")]
+pub use hashkey::{Hashkey, ID as HASHKEY_ID};
+
+#[cfg(feature = "lighter")]
+pub mod lighter;
+
+#[cfg(feature = "lighter")]
+pub use lighter::{ID as LIGHTER_ID, Lighter};
+
+#[cfg(feature = "myokx")]
+pub mod myokx;
+
+#[cfg(feature = "myokx")]
+pub use myokx::{ID as MYOKX_ID, MyOkx};
+
+#[cfg(feature = "okxus")]
+pub mod okxus;
+
+#[cfg(feature = "okxus")]
+pub use okxus::{ID as OKXUS_ID, OkxUs};
+
 /// 转译生成的交易所适配器(由 `scripts/gen_adapters.py` 从 ccxt `describe()` 生成)。
 /// 子模块各自按交易所 feature 门控;本模块本身常驻。
 pub mod generated;

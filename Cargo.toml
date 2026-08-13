@@ -29,14 +29,11 @@ kucoin = []
 kalshi = []
 polymarket = []
 manifold = []
-alpaca = []
 apex = []
-aster = []
 backpack = []
 bequant = []
 bigone = []
 binancecoinm = []
-binanceus = []
 binanceusdm = []
 bingx = []
 bit2c = []
@@ -83,9 +80,7 @@ extended = []
 fmfwio = []
 foxbit = []
 gateeu = []
-gemini = []
 grvt = []
-hashkey = []
 hibachi = []
 hitbtc = []
 hollaex = []
@@ -95,15 +90,12 @@ krakenfutures = []
 kucoinfutures = []
 latoken = []
 lbank = []
-lighter = []
 luno = []
 mercado = []
 modetrade = []
 mudrex = []
-myokx = []
 nado = []
 ndax = []
-okxus = []
 onetrading = []
 p2b = []
 pacifica = []
@@ -125,14 +117,11 @@ limitless = []
 myriad = []
 opinion = []
 generated = [
-    "alpaca",
     "apex",
-    "aster",
     "backpack",
     "bequant",
     "bigone",
     "binancecoinm",
-    "binanceus",
     "binanceusdm",
     "bingx",
     "bit2c",
@@ -179,9 +168,7 @@ generated = [
     "fmfwio",
     "foxbit",
     "gateeu",
-    "gemini",
     "grvt",
-    "hashkey",
     "hibachi",
     "hitbtc",
     "hollaex",
@@ -191,15 +178,12 @@ generated = [
     "kucoinfutures",
     "latoken",
     "lbank",
-    "lighter",
     "luno",
     "mercado",
     "modetrade",
     "mudrex",
-    "myokx",
     "nado",
     "ndax",
-    "okxus",
     "onetrading",
     "p2b",
     "pacifica",
@@ -221,6 +205,14 @@ generated = [
     "myriad",
     "opinion",
 ]
+alpaca = []
+aster = []
+binanceus = []
+gemini = []
+hashkey = []
+lighter = []
+myokx = []
+okxus = []
 hyperliquid = []
 prediction = ["kalshi", "polymarket", "manifold"]
 futures = []
