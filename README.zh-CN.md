@@ -17,7 +17,7 @@
 ## 特性
 
 - **`Exchange` trait 提供的统一 REST API**：`snake_case` 方法名与字段名，代码可近乎逐行地从其他兼容 ccxt 的客户端移植。
-- **109 个交易所适配器**：14 个精选（手写）覆盖完整接口面，以及 95 个共享统一 REST 面的其他交易所。
+- **109 个交易所适配器**：22 个精选（手写）覆盖完整接口面，以及 87 个由 ccxt 转译生成的交易所。
 - **类型化、serde 容错的数据结构**：`Market`、`Ticker`、`OrderBook`、`OHLCV`、`Order`、`Trade`、`Position`、`Balance` …，并通过 `info` 保留原始响应以保证完整性。
 - **精确十进制运算**：默认使用 `rust_decimal`，另提供 `Precise` 模块与 `decimal_to_precision` 辅助函数，语义对齐 ccxt 的 `Precise` / `decimalToPrecision`。
 - **可选的同步封装**（`sync` feature）：无需自行管理异步运行时。
@@ -80,10 +80,10 @@ let markets = ex.fetch_markets(Default::default()).await?;
 
 ## 支持的交易所
 
-本库共提供 **109 个交易所** —— 14 个精选适配器提供完整覆盖，以及 95 个共享统一 REST 面的其他
+本库共提供 **109 个交易所** —— 22 个精选适配器提供完整覆盖，以及 87 个由 ccxt 转译生成的
 交易所。每个交易所通过各自的 Cargo feature 启用（feature 名称即下表中所示的交易所 id）。
 
-### 精选适配器（14 个）
+### 精选适配器（22 个）
 
 这些为手写实现，覆盖完整方法面，包含签名与交易所特定的解析。
 
@@ -104,49 +104,59 @@ let markets = ex.fetch_markets(Default::default()).await?;
 | `polymarket`  | Polymarket      | REST + EIP-712 订单签名，WS 5 通道                                   |
 | `manifold`    | Manifold        | 原生适配器：markets / ticker / trades                                |
 
-### 扩展交易所覆盖（95 个）
+> **v1.0.3 新增（[ADR-0017](docs/adr/0017-hybrid-evolution-curated-generated-boundary.md)）**：
+> 8 个适配器 —— `alpaca`、`aster`、`binanceus`、`gemini`、`hashkey`、`lighter`、`myokx`、`okxus` ——
+> 由 generated 提升（promote）为 curated，获得完整 REST 覆盖（公开 + 私有/交易）。精选集现为 **22** 个。
+
+| `alpaca`      | Alpaca          | REST 公开 + 私有（crypto 市场）                                     |
+| `aster`       | Aster           | REST 公开 + 私有（DEX）                                             |
+| `binanceus`   | Binance US      | REST 公开 + 私有                                                     |
+| `gemini`      | Gemini          | REST 公开 + 私有                                                     |
+| `hashkey`     | HashKey         | REST 公开 + 私有                                                     |
+| `lighter`     | Lighter         | DEX：REST 公开 + 私有（EIP-712 链上订单）                           |
+| `myokx`       | OKX             | REST 公开 + 私有                                                     |
+| `okxus`       | OKX US          | REST 公开 + 私有                                                     |
+
+### 由 ccxt 转译生成的交易所（87 个）
 
 其余交易所共享同一统一 REST 面，通过各自的 Cargo feature 启用。它们以共用引擎覆盖常用 REST 方法
 —— `fetch_markets`、`fetch_ticker`、`fetch_ohlcv`、`fetch_order_book`、`fetch_trades`、
 `fetch_balance`、`fetch_orders`、`create_order`、`cancel_order` ……。需要交易所特定签名的方法保持
 `NotSupported`。
 
-| Feature             | Feature                 | Feature             |
-| ------------------- | ----------------------- | ------------------- |
-| `alpaca`            | `apex`                  | `aster`             |
-| `backpack`          | `bequant`               | `bigone`            |
-| `binancecoinm`      | `binanceus`             | `binanceusdm`       |
-| `bingx`             | `bit2c`                 | `bitbank`           |
-| `bitbns`            | `bitfinex`              | `bitflyer`          |
-| `bithumb`           | `bitmex`                | `bitopro`           |
-| `bitrue`            | `bitso`                 | `bitstamp`          |
-| `bitteam`           | `bittrade`              | `bitvavo`           |
-| `blockchaincom`     | `blofin`                | `btcbox`            |
-| `btcmarkets`        | `btcturk`               | `bullish`           |
-| `bybiteu`           | `bydfi`                 | `cex`               |
-| `coinbaseexchange`  | `coinbaseinternational`| `coincheck`         |
-| `coinex`            | `coinmate`              | `coinone`           |
-| `coinsph`           | `coinspot`              | `cryptocom`         |
-| `cryptomus`         | `deepcoin`              | `delta`             |
-| `deribit`           | `derive`                | `digifinex`         |
-| `dydx`              | `exmo`                  | `extended`          |
-| `fmfwio`            | `foxbit`                | `gateeu`            |
-| `gemini`            | `grvt`                  | `hashkey`           |
-| `hibachi`           | `hitbtc`                | `hollaex`           |
-| `independentreserve`| `indodax`               | `krakenfutures`     |
-| `kucoinfutures`     | `latoken`               | `lbank`             |
-| `lighter`           | `luno`                  | `mercado`           |
-| `modetrade`         | `mudrex`                | `myokx`             |
-| `nado`              | `ndax`                  | `okxus`             |
-| `onetrading`        | `p2b`                   | `pacifica`          |
-| `paradex`           | `paymium`               | `phemex`            |
-| `poloniex`          | `tokocrypto`            | `toobit`            |
-| `upbit`             | `weex`                  | `whitebit`          |
-| `woo`               | `woofipro`              | `xt`                |
-| `zaif`              | `zebpay`                | `limitless`         |
-| `myriad`            | `opinion`               |                     |
+| Feature            | Feature               | Feature             |
+| ------------------ | --------------------- | ------------------- |
+| `apex`             | `backpack`            | `bequant`           |
+| `bigone`           | `binancecoinm`        | `binanceusdm`       |
+| `bingx`            | `bit2c`               | `bitbank`           |
+| `bitbns`           | `bitfinex`            | `bitflyer`          |
+| `bithumb`          | `bitmex`              | `bitopro`           |
+| `bitrue`           | `bitso`               | `bitstamp`          |
+| `bitteam`          | `bittrade`            | `bitvavo`           |
+| `blockchaincom`    | `blofin`              | `btcbox`            |
+| `btcmarkets`       | `btcturk`             | `bullish`           |
+| `bybiteu`          | `bydfi`               | `cex`               |
+| `coinbaseexchange` | `coinbaseinternational` | `coincheck`         |
+| `coinex`           | `coinmate`            | `coinone`           |
+| `coinsph`          | `coinspot`            | `cryptocom`         |
+| `cryptomus`        | `deepcoin`            | `delta`             |
+| `deribit`          | `derive`              | `digifinex`         |
+| `dydx`             | `exmo`                | `extended`          |
+| `fmfwio`           | `foxbit`              | `gateeu`            |
+| `grvt`             | `hibachi`             | `hitbtc`            |
+| `hollaex`          | `independentreserve`  | `indodax`           |
+| `krakenfutures`    | `kucoinfutures`       | `latoken`           |
+| `lbank`            | `luno`                | `mercado`           |
+| `modetrade`        | `mudrex`              | `nado`              |
+| `ndax`             | `onetrading`          | `p2b`               |
+| `pacifica`         | `paradex`             | `paymium`           |
+| `phemex`           | `poloniex`            | `tokocrypto`        |
+| `toobit`           | `upbit`               | `weex`              |
+| `whitebit`         | `woo`                 | `woofipro`          |
+| `xt`               | `zaif`                | `zebpay`            |
+| `limitless`        | `myriad`              | `opinion`           |
 
-三个长尾预测市场——**Limitless / Myriad / Opinion**——属于此扩展集合，而 Kalshi / Polymarket /
+三个长尾预测市场——**Limitless / Myriad / Opinion**——属于此生成集合，而 Kalshi / Polymarket /
 Manifold 仍是上方的精选适配器。
 
 ## Feature 开关
@@ -157,7 +167,7 @@ Manifold 仍是上方的精选适配器。
 | `realtime`        | 启用 WebSocket `watch_*` 方法（见下方 8 个通道）                      |
 | `sync`            | 异步 API 的阻塞封装（`sync::BlockingExchange`）                      |
 | `prediction`      | `kalshi` + `polymarket` + `manifold`（精选预测市场）                 |
-| `full`            | 全部交易所（精选 + 扩展）+ `realtime`                                |
+| `full`            | 全部交易所（精选 + 生成式）+ `realtime`                                |
 | _默认_            | `binance`、`okx`、`kalshi`、`polymarket`                            |
 
 ## 架构
@@ -165,7 +175,9 @@ Manifold 仍是上方的精选适配器。
 适配器遵循 **HttpCore + 四接缝** 模型（ADR-0013）：
 
 - **`HttpCore`** —— 一个与交易所无关的深层模块，负责 HTTP 请求骨架、市集缓存、客户端分页/过滤、安全字段提取，以及 `Precise` 运算。
-- **四接缝** —— 每个适配器只需填写：`describe`（端点路径/参数）、`sign`（签名算法）、`handle_errors`（错误码映射），以及字段映射（`parse` 覆写）。其余交易所适配器只填 `describe` 接缝，零改动复用 `HttpCore`。
+- **四接缝** —— 每个适配器只需填写：`describe`（端点路径/参数）、`sign`（签名算法）、`handle_errors`（错误码映射），以及字段映射（`parse` 覆写）。其余（生成式）交易所适配器只填 `describe` 接缝，零改动复用 `HttpCore`。
+
+109 个交易所采用**混合进化模型**（[ADR-0017](docs/adr/0017-hybrid-evolution-curated-generated-boundary.md)）：**22 个精选（curated）**适配器为手写、覆盖完整交易面（团队维护、可最大化优化），**87 个生成式（generated）**适配器由 ccxt `describe()` 转译生成、仅覆盖公开面（由 ccxt 上游维护）。`提升（Promote）`是把任意长尾交易所从 generated 升级为 curated 的可复用操作，一旦需要完整交易即可采用。
 
 预测市场的特有逻辑（结果上下文、合成 ticker、RSA-PSS / EIP-712 / ECDSA 签名）保留在适配器侧，不进入核心。
 
@@ -196,13 +208,25 @@ Manifold 仍是上方的精选适配器。
 
 ## 开发
 
-从本地上游交易所规格检出重新生成其余交易所适配器：
+从 ccxt 的 `describe()` 重新生成其余（生成式）交易所适配器。生成器读取各交易所的 `describe()`，
+在 `src/adapters/generated/` 下产出按交易所划分的模块；共用运行时位于 `src/generic.rs`。
+
+`gen_adapters.py` **不接受 `--ccxt` 参数**。它优先使用 pip 安装的 ccxt（固定 `ccxt==4.5.73`），
+仅在没有 pip 包时回退到仓库本地的 `ccxt/python` 检出（离线方式）：
 
 ```bash
-python3 scripts/gen_adapters.py --ccxt /path/to/ccxt
+pip install "ccxt==4.5.73"
+
+# 全量重新生成（全部约 87 个转译交易所）：
+python3 scripts/gen_adapters.py
+
+# 仅重新生成单个交易所：
+python3 scripts/gen_adapters.py --only=<id>     # 例如 --only=binance
 ```
 
-生成器在 `src/adapters/generated/` 下产出按交易所划分的模块；共用运行时位于 `src/generic.rs`。
+重新生成后请运行 `cargo fmt --all` 并提交生成层（`src/adapters/generated/`、`src/adapters/generated.rs`、
+`Cargo.toml`）—— 否则 CI 的 `transpiler-fresh` 任务会失败。转译器与 Rust 引擎（`src/generic.rs`）的契约由
+`python3 scripts/test_sync.py` 守护。
 
 ## 许可证
 

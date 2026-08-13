@@ -18,8 +18,8 @@ the raw exchange response under an `info` field as an escape hatch.
 
 - **Unified REST API via the `Exchange` trait** — `snake_case` method and field names, so code
   ports almost line-for-line from other ccxt-compatible clients.
-- **109 exchange adapters** — 14 curated (hand-authored) covering the full surface, plus 95
-  additional exchanges on the shared unified REST surface.
+- **109 exchange adapters** — 22 curated (hand-authored) covering the full surface, plus 87
+  generated exchanges on the shared unified REST surface.
 - **Typed, serde-tolerant data structures** — `Market`, `Ticker`, `OrderBook`, `OHLCV`, `Order`,
   `Trade`, `Position`, `Balance`, … — with `info` carrying the raw response for full fidelity.
 - **Exact decimal arithmetic** — `rust_decimal` by default, plus a `Precise` module and a
@@ -87,11 +87,11 @@ let markets = ex.fetch_markets(Default::default()).await?;
 
 ## Supported Exchanges
 
-The crate ships **109 exchanges** — 14 curated adapters with full coverage, and 95 additional
+The crate ships **109 exchanges** — 22 curated adapters with full coverage, and 87 generated
 exchanges on the shared unified REST surface. Each exchange is enabled by its own Cargo feature
 (the feature name matches the exchange id shown below).
 
-### Curated adapters (14)
+### Curated adapters (22)
 
 These are hand-authored and cover the complete method surface, including signing and
 exchange-specific parsing.
@@ -111,9 +111,23 @@ exchange-specific parsing.
 | `hyperliquid` | Hyperliquid     | DEX: public market data (markets / tickers / ohlcv / order_book)     |
 | `kalshi`      | Kalshi          | REST full (incl. order placement), WS private channels               |
 | `polymarket`  | Polymarket      | REST + EIP-712 order signing, WS 5 channels                          |
-| `manifold`    | Manifold        | Native adapter: markets / ticker / trades                           |
+| `manifold`    | Manifold        | Native adapter: markets / ticker / trades                          |
 
-### Extended exchange coverage (95)
+> **New in v1.0.3 ([ADR-0017](docs/adr/0017-hybrid-evolution-curated-generated-boundary.md)):**
+> 8 adapters — `alpaca`, `aster`, `binanceus`, `gemini`, `hashkey`, `lighter`, `myokx`, `okxus` —
+> were promoted from generated to curated, giving them full REST coverage (public + private/trading).
+> The curated set is now **22**.
+
+| `alpaca`      | Alpaca          | REST public + private (crypto markets)                             |
+| `aster`       | Aster           | REST public + private (DEX)                                        |
+| `binanceus`   | Binance US      | REST public + private                                              |
+| `gemini`      | Gemini          | REST public + private                                              |
+| `hashkey`     | HashKey         | REST public + private                                              |
+| `lighter`     | Lighter         | DEX: REST public + private (EIP-712 on-chain orders)               |
+| `myokx`       | OKX             | REST public + private                                              |
+| `okxus`       | OKX US          | REST public + private                                              |
+
+### Generated exchange coverage (87)
 
 The remaining exchanges share the same unified REST surface and are enabled by their individual
 Cargo feature. They cover the common REST methods — `fetch_markets`, `fetch_ticker`,
@@ -121,43 +135,40 @@ Cargo feature. They cover the common REST methods — `fetch_markets`, `fetch_ti
 `create_order`, `cancel_order`, … — through the shared engine. Methods that need
 exchange-specific signing stay `NotSupported`.
 
-| Feature             | Feature               | Feature             |
-| ------------------- | --------------------- | ------------------- |
-| `alpaca`            | `apex`                | `aster`             |
-| `backpack`          | `bequant`             | `bigone`            |
-| `binancecoinm`      | `binanceus`           | `binanceusdm`       |
-| `bingx`             | `bit2c`               | `bitbank`           |
-| `bitbns`            | `bitfinex`            | `bitflyer`          |
-| `bithumb`           | `bitmex`              | `bitopro`           |
-| `bitrue`            | `bitso`               | `bitstamp`          |
-| `bitteam`           | `bittrade`            | `bitvavo`           |
-| `blockchaincom`     | `blofin`              | `btcbox`            |
-| `btcmarkets`        | `btcturk`             | `bullish`           |
-| `bybiteu`           | `bydfi`               | `cex`               |
-| `coinbaseexchange`  | `coinbaseinternational` | `coincheck`      |
-| `coinex`            | `coinmate`            | `coinone`           |
-| `coinsph`           | `coinspot`            | `cryptocom`         |
-| `cryptomus`         | `deepcoin`            | `delta`             |
-| `deribit`           | `derive`              | `digifinex`         |
-| `dydx`              | `exmo`                | `extended`          |
-| `fmfwio`            | `foxbit`              | `gateeu`            |
-| `gemini`            | `grvt`                | `hashkey`           |
-| `hibachi`           | `hitbtc`              | `hollaex`           |
-| `independentreserve`| `indodax`             | `krakenfutures`     |
-| `kucoinfutures`     | `latoken`             | `lbank`             |
-| `lighter`           | `luno`                | `mercado`           |
-| `modetrade`         | `mudrex`              | `myokx`             |
-| `nado`              | `ndax`                | `okxus`             |
-| `onetrading`        | `p2b`                 | `pacifica`          |
-| `paradex`           | `paymium`             | `phemex`            |
-| `poloniex`          | `tokocrypto`          | `toobit`            |
-| `upbit`             | `weex`                | `whitebit`          |
-| `woo`               | `woofipro`            | `xt`                |
-| `zaif`              | `zebpay`              | `limitless`         |
-| `myriad`            | `opinion`             |                     |
+| Feature            | Feature               | Feature             |
+| ------------------ | --------------------- | ------------------- |
+| `apex`             | `backpack`            | `bequant`           |
+| `bigone`           | `binancecoinm`        | `binanceusdm`       |
+| `bingx`            | `bit2c`               | `bitbank`           |
+| `bitbns`           | `bitfinex`            | `bitflyer`          |
+| `bithumb`          | `bitmex`              | `bitopro`           |
+| `bitrue`           | `bitso`               | `bitstamp`          |
+| `bitteam`          | `bittrade`            | `bitvavo`           |
+| `blockchaincom`    | `blofin`              | `btcbox`            |
+| `btcmarkets`       | `btcturk`             | `bullish`           |
+| `bybiteu`          | `bydfi`               | `cex`               |
+| `coinbaseexchange` | `coinbaseinternational` | `coincheck`         |
+| `coinex`           | `coinmate`            | `coinone`           |
+| `coinsph`          | `coinspot`            | `cryptocom`         |
+| `cryptomus`        | `deepcoin`            | `delta`             |
+| `deribit`          | `derive`              | `digifinex`         |
+| `dydx`             | `exmo`                | `extended`          |
+| `fmfwio`           | `foxbit`              | `gateeu`            |
+| `grvt`             | `hibachi`             | `hitbtc`            |
+| `hollaex`          | `independentreserve`  | `indodax`           |
+| `krakenfutures`    | `kucoinfutures`       | `latoken`           |
+| `lbank`            | `luno`                | `mercado`           |
+| `modetrade`        | `mudrex`              | `nado`              |
+| `ndax`             | `onetrading`          | `p2b`               |
+| `pacifica`         | `paradex`             | `paymium`           |
+| `phemex`           | `poloniex`            | `tokocrypto`        |
+| `toobit`           | `upbit`               | `weex`              |
+| `whitebit`         | `woo`                 | `woofipro`          |
+| `xt`               | `zaif`                | `zebpay`            |
+| `limitless`        | `myriad`              | `opinion`           |
 
 The three long-tail prediction markets — **Limitless / Myriad / Opinion** — are part of this
-extended set, while Kalshi / Polymarket / Manifold remain among the curated adapters above.
+generated set, while Kalshi / Polymarket / Manifold remain among the curated adapters above.
 
 ## Feature Flags
 
@@ -167,7 +178,7 @@ extended set, while Kalshi / Polymarket / Manifold remain among the curated adap
 | `realtime`        | WebSocket `watch_*` methods (the 8 channels below)                     |
 | `sync`            | Blocking wrapper over the async API (`sync::BlockingExchange`)         |
 | `prediction`      | `kalshi` + `polymarket` + `manifold` (curated prediction markets)      |
-| `full`            | All exchanges (curated + extended) + `realtime`                        |
+| `full`            | All exchanges (curated + generated) + `realtime`                        |
 | _default_         | `binance`, `okx`, `kalshi`, `polymarket`                               |
 
 ## Architecture
@@ -178,8 +189,14 @@ Adapters follow the **HttpCore + four-seam** model (ADR-0013):
   caching, client-side pagination/filtering, safe field extraction, and `Precise` arithmetic.
 - **Four seams** — each adapter only fills: `describe` (endpoint paths/parameters), `sign`
   (signing algorithm), `handle_errors` (error-code mapping), and field mapping (`parse`
-  overrides). The additional exchange adapters fill only the `describe` seam and reuse `HttpCore`
+  overrides). The generated exchange adapters fill only the `describe` seam and reuse `HttpCore`
   unchanged.
+
+The 109 exchanges follow a **hybrid evolution model** ([ADR-0017](docs/adr/0017-hybrid-evolution-curated-generated-boundary.md)):
+the **22 curated** adapters are hand-authored with the full trading surface (team-maintained,
+optimizable), while the **87 generated** adapters are transpiled from ccxt `describe()` and cover
+the public surface only (maintained upstream by ccxt). `Promote` is a repeatable operation to move
+any long-tail exchange from generated to curated when full trading is needed.
 
 Prediction-market specifics (outcome context, synthetic tickers, RSA-PSS / EIP-712 / ECDSA
 signing) live in the adapters, never in the core.
@@ -227,7 +244,7 @@ runtime lives in `src/generic.rs`.
 ```bash
 pip install "ccxt==4.5.73"
 
-# Full regen (all ~95 transpiled exchanges):
+# Full regen (all ~87 transpiled exchanges):
 python3 scripts/gen_adapters.py
 
 # Regenerate a single exchange:
