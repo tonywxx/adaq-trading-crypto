@@ -91,6 +91,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://api.lbank.info",
             verb: "GET",
+            key: "supplement/system_ping",
+            path: "supplement/system_ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://api.lbank.info",
+            verb: "GET",
             key: "supplement/trades",
             path: "supplement/trades",
             auth: false,
@@ -170,6 +177,13 @@ pub static SPEC: ApiSpec = ApiSpec {
             verb: "POST",
             key: "supplement/customer_trade_fee",
             path: "supplement/customer_trade_fee",
+            auth: true,
+        },
+        Endpoint {
+            base: "https://api.lbank.info",
+            verb: "POST",
+            key: "supplement/system_ping",
+            path: "supplement/system_ping",
             auth: true,
         },
         Endpoint {

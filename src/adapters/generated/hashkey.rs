@@ -134,6 +134,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://api-glb.hashkey.com",
             verb: "GET",
+            key: "api/v1/ping",
+            path: "api/v1/ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://api-glb.hashkey.com",
+            verb: "GET",
             key: "api/v1/time",
             path: "api/v1/time",
             auth: false,

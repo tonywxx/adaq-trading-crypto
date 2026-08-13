@@ -118,6 +118,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://openapi.digifinex.com",
             verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://openapi.digifinex.com",
+            verb: "GET",
             key: "spot/symbols",
             path: "spot/symbols",
             auth: false,

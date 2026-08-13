@@ -58,7 +58,7 @@ impl Htx {
     ];
 
     pub fn new(config: Config) -> Result<Self> {
-        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS, "htx")?;
         Ok(Self { config, core })
     }
 

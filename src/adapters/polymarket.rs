@@ -69,7 +69,7 @@ impl Polymarket {
     pub fn new(config: Config) -> Result<Self> {
         // 多 base(data-api/gamma-api/clob)都经 core.request_url 全 URL 直发,
         // 此 base_url 仅作 HttpCore 占位。
-        let core = HttpCore::new(&config, GAMMA_URL, RATE_LIMIT_MS)?;
+        let core = HttpCore::new(&config, GAMMA_URL, RATE_LIMIT_MS, "polymarket")?;
         Ok(Self {
             config,
             core,

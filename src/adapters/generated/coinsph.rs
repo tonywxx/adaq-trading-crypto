@@ -56,6 +56,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://api.pro.coins.ph",
             verb: "GET",
+            key: "openapi/v1/ping",
+            path: "openapi/v1/ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://api.pro.coins.ph",
+            verb: "GET",
             key: "openapi/v1/time",
             path: "openapi/v1/time",
             auth: false,

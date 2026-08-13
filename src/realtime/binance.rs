@@ -184,7 +184,9 @@ fn dispatch_public(
             if let (Some(store), Some(tx)) = (stores.get_mut(&sym), books.get(&sym).cloned()) {
                 let bids = collect_levels(msg.get("b"));
                 let asks = collect_levels(msg.get("a"));
-                if store.apply_binance_delta(u, &bids, &asks) {
+                // binance `@depth` 增量用中性序列对账(复用共享 OrderBookStore::apply_sequenced_delta)
+                // binance `@depth` deltas use the neutral sequence reconciliation (reusing shared OrderBookStore::apply_sequenced_delta)
+                if store.apply_sequenced_delta(u, &bids, &asks) {
                     let _ = tx.send(store.snapshot(
                         &sym,
                         msg["E"].as_i64(),

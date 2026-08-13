@@ -267,6 +267,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://whitebit.com/api/v4/public",
             verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://whitebit.com/api/v4/public",
+            verb: "GET",
             key: "markets",
             path: "markets",
             auth: false,

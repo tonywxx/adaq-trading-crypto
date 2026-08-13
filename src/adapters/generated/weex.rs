@@ -102,6 +102,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://api-spot.weex.com",
             verb: "GET",
+            key: "api/v3/ping",
+            path: "api/v3/ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://api-spot.weex.com",
+            verb: "GET",
             key: "api/v3/market/ticker/price",
             path: "api/v3/market/ticker/price",
             auth: false,

@@ -64,6 +64,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://api.ndax.io:8443/AP",
             verb: "GET",
+            key: "Ping",
+            path: "Ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://api.ndax.io:8443/AP",
+            verb: "GET",
             key: "assets",
             path: "assets",
             auth: false,

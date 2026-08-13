@@ -66,7 +66,7 @@ impl Kalshi {
 
     /// 构造适配器(限速 200ms/次,对齐 kalshi rateLimit)。
     pub fn new(config: Config) -> Result<Self> {
-        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS, "kalshi")?;
         Ok(Self {
             config,
             core,

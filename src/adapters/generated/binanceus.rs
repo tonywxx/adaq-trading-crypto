@@ -839,6 +839,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://dapi.binance.com/dapi/v1",
             verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://dapi.binance.com/dapi/v1",
+            verb: "GET",
             key: "time",
             path: "time",
             auth: false,
@@ -968,6 +975,13 @@ pub static SPEC: ApiSpec = ApiSpec {
             key: "order",
             path: "order",
             auth: true,
+        },
+        Endpoint {
+            base: "https://fapi.binance.com/fapi/v1",
+            verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
         },
         Endpoint {
             base: "https://fapi.binance.com/fapi/v1",
@@ -1161,6 +1175,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://eapi.binance.com/eapi/v1",
             verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://eapi.binance.com/eapi/v1",
+            verb: "GET",
             key: "time",
             path: "time",
             auth: false,
@@ -1283,6 +1304,13 @@ pub static SPEC: ApiSpec = ApiSpec {
             key: "block/order/create",
             path: "block/order/create",
             auth: true,
+        },
+        Endpoint {
+            base: "https://api.binance.us/api/v3",
+            verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
         },
         Endpoint {
             base: "https://api.binance.us/api/v3",
@@ -1450,6 +1478,13 @@ pub static SPEC: ApiSpec = ApiSpec {
             verb: "DELETE",
             key: "order",
             path: "order",
+            auth: true,
+        },
+        Endpoint {
+            base: "https://papi.binance.com/papi/v1",
+            verb: "GET",
+            key: "ping",
+            path: "ping",
             auth: true,
         },
         Endpoint {

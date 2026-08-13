@@ -7,7 +7,8 @@
 //!   account / orders / positions / fills 为私密频道(先 login);
 //! - 私密登录:`sign = base64(HMAC-SHA256(secret, ts + "GET" + "/users/self/verify"))`;
 //! - books:`action=snapshot` 初始化(记录 seqId),`action=update` 校验
-//!   seqId 连续后合并增量(复用 OrderBookStore::apply_binance_delta 的序列对账)。
+//!   seqId 连续后合并增量(复用 OrderBookStore::apply_sequenced_delta 的序列对账)。
+//!   Merges deltas after seqId is contiguous (reusing OrderBookStore::apply_sequenced_delta sequence reconciliation).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -235,7 +236,9 @@ fn dispatch_public(
                             data[0].clone(),
                         ));
                     }
-                    Some("update") if store.apply_binance_delta(seq, &bids, &asks) => {
+                    // okx `books` 增量用中性序列对账(复用共享 OrderBookStore::apply_sequenced_delta)
+                    // okx `books` deltas use the neutral sequence reconciliation (reusing shared OrderBookStore::apply_sequenced_delta)
+                    Some("update") if store.apply_sequenced_delta(seq, &bids, &asks) => {
                         let _ = tx.send(store.snapshot(
                             &inst.replace('-', "/"),
                             data[0]["ts"].as_str().and_then(|s| s.parse::<i64>().ok()),

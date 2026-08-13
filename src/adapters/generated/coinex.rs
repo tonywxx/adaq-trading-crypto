@@ -487,6 +487,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://api.coinex.com",
             verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://api.coinex.com",
+            verb: "GET",
             key: "time",
             path: "time",
             auth: false,
@@ -665,6 +672,13 @@ pub static SPEC: ApiSpec = ApiSpec {
             key: "order/cancel_stop/by_client_id",
             path: "order/cancel_stop/by_client_id",
             auth: true,
+        },
+        Endpoint {
+            base: "https://api.coinex.com",
+            verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
         },
         Endpoint {
             base: "https://api.coinex.com",

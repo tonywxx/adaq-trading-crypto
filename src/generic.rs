@@ -83,23 +83,50 @@ pub struct ApiSpec {
     pub kind: MarketKind,
 }
 
+/// 签名方案(ADR-0013 第四缝 `sign` 的结构化表达)。
+///
+/// 转译生成的适配器默认使用 ccxt 基类方案 `HmacSha256Default`
+/// (`HMAC-SHA256(method+url+body)`,`apiKey`/`sign`/`timestamp` 头)。
+/// 需要非默认签名的交易所(如 OKX/Binance/Bybit 的定制 HMAC 或 RSA-PSS)
+/// 应写为手写适配器并覆写 `sign_headers`,或未来扩展此枚举按 `ApiSpec` 选择。
+/// 生成层只 emit `HmacSha256Default`,故默认即“恰好能用”的显式化,而非隐式硬编码。
+///
+/// Signature scheme — the structured expression of ADR-0013's 4th seam `sign`.
+/// Generated adapters default to the ccxt base `HmacSha256Default`. Exchanges
+/// needing a custom scheme should be hand-written (overriding `sign_headers`)
+/// or extend this enum selected per `ApiSpec` in the future. The transpiler
+/// only emits `HmacSha256Default`, so the default is an explicit choice rather
+/// than an implicit hard-code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SignScheme {
+    /// ccxt 基类默认:`HMAC-SHA256(method + url + body)`,`apiKey`/`sign`/`timestamp` 头。
+    /// ccxt base default: HMAC-SHA256(method + url + body) with apiKey/sign/timestamp headers.
+    HmacSha256Default,
+}
+
 /// 描述驱动的通用交易所适配器。
 pub struct GenericExchange {
     config: Config,
     spec: &'static ApiSpec,
     core: HttpCore,
+    sign_scheme: SignScheme,
 }
 
 impl GenericExchange {
-    pub fn new(config: Config, spec: &'static ApiSpec) -> Result<Self> {
+    pub fn new(config: Config, spec: &'static ApiSpec, sign_scheme: SignScheme) -> Result<Self> {
         // 取任一端点基址作为 HttpCore 主基址(仅用于限速/缓存语境)。
         let primary = spec
             .endpoints
             .first()
             .map(|e| e.base)
             .unwrap_or("https://api.example.com");
-        let core = HttpCore::new(&config, primary, spec.rate_limit_ms)?;
-        Ok(Self { config, spec, core })
+        let core = HttpCore::new(&config, primary, spec.rate_limit_ms, spec.id)?;
+        Ok(Self {
+            config,
+            spec,
+            core,
+            sign_scheme,
+        })
     }
 
     fn id(&self) -> &'static str {
@@ -174,8 +201,28 @@ impl GenericExchange {
             .await
     }
 
-    /// ccxt 基类默认签名:HMAC-SHA256(method+url+body),`apiKey`/`sign`/`timestamp` 头。
+    /// 按 `sign_scheme` 选择签名算法并写入认证头(ADR-0013 第四缝 `sign`)。
+    ///
+    /// Select the signing algorithm per `sign_scheme` and write auth headers
+    /// (ADR-0013 seam #4 `sign`).
     fn sign_headers(&self, method: &str, url: &str, body: Option<&Value>) -> Result<HeaderMap> {
+        match self.sign_scheme {
+            // 当前唯一实现:ccxt 基类默认 HMAC-SHA256 方案。
+            // Only implementation today: the ccxt base default HMAC-SHA256 scheme.
+            SignScheme::HmacSha256Default => self.sign_hmac_sha256_default(method, url, body),
+        }
+    }
+
+    /// ccxt 基类默认签名:HMAC-SHA256(method+url+body),`apiKey`/`sign`/`timestamp` 头。
+    ///
+    /// ccxt base default signature: HMAC-SHA256(method + url + body) with
+    /// apiKey/sign/timestamp headers.
+    fn sign_hmac_sha256_default(
+        &self,
+        method: &str,
+        url: &str,
+        body: Option<&Value>,
+    ) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         let api_key = self.config.api_key.as_deref().unwrap_or("");
         let secret = self.config.secret.as_deref().unwrap_or("");
@@ -1100,7 +1147,18 @@ fn parse_market(raw: &Value) -> Market {
 /// 继承 trait 默认 `NotSupported`(与 ccxt 行为一致)。
 #[macro_export]
 macro_rules! impl_generated_adapter {
+    // 两参形式:默认使用 ccxt 基类签名方案(显式默认,对应 ADR-0013 第四缝)。
+    // Two-arg form: default to the ccxt base sign scheme (explicit default, ADR-0013 seam #4).
     ($name:ident, $spec:expr) => {
+        $crate::impl_generated_adapter!(
+            $name,
+            $spec,
+            $crate::generic::SignScheme::HmacSha256Default
+        );
+    };
+    // 三参形式:显式指定签名方案(转译器可按交易所 emit)。
+    // Three-arg form: explicit sign scheme (the transpiler may emit per exchange).
+    ($name:ident, $spec:expr, $scheme:expr) => {
         /// 转译生成的交易所适配器(由 `scripts/gen_adapters.py` 从 ccxt
         /// `describe()` 生成,best-effort 批量补齐;精确性由精选手写集保证)。
         pub struct $name {
@@ -1111,7 +1169,7 @@ macro_rules! impl_generated_adapter {
             /// 构造转译适配器。
             pub fn new(config: $crate::exchange::Config) -> $crate::error::Result<Self> {
                 Ok(Self {
-                    inner: $crate::generic::GenericExchange::new(config, $spec)?,
+                    inner: $crate::generic::GenericExchange::new(config, $spec, $scheme)?,
                 })
             }
         }

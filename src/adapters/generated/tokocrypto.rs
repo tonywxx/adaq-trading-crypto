@@ -54,6 +54,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://www.tokocrypto.com",
             verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: true,
+        },
+        Endpoint {
+            base: "https://www.tokocrypto.com",
+            verb: "GET",
             key: "time",
             path: "time",
             auth: true,

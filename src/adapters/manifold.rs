@@ -37,7 +37,7 @@ impl Manifold {
         &["fetch_markets", "fetch_ticker", "fetch_trades"];
 
     pub fn new(config: Config) -> Result<Self> {
-        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS)?;
+        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS, "manifold")?;
         Ok(Self { config, core })
     }
 

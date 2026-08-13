@@ -61,6 +61,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://www.bitrue.com/api",
             verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://www.bitrue.com/api",
+            verb: "GET",
             key: "time",
             path: "time",
             auth: false,
@@ -166,6 +173,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://fapi.bitrue.com/fapi",
             verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://fapi.bitrue.com/fapi",
+            verb: "GET",
             key: "time",
             path: "time",
             auth: false,
@@ -225,6 +239,13 @@ pub static SPEC: ApiSpec = ApiSpec {
             key: "order",
             path: "order",
             auth: true,
+        },
+        Endpoint {
+            base: "https://fapi.bitrue.com/dapi",
+            verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
         },
         Endpoint {
             base: "https://fapi.bitrue.com/dapi",

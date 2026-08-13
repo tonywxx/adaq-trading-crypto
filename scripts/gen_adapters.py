@@ -47,23 +47,57 @@ PREDICTION_SKIP = {"binance", "hyperliquid", "kalshi", "polymarket"}
 
 VERBS = {"get", "post", "put", "delete", "patch", "head", "options"}
 
-# 通用引擎路由候选键(须与 src/generic.rs 中 find_first 的候选保持一致)。
-CANDIDATES = [
-    "time", "status", "systemstatus",
-    "markets", "exchangeinfo", "instruments", "pairs", "symbols",
-    "currencies", "assets", "currencys",
-    "ticker", "tickers",
-    "ohlcv", "kline", "klines", "candle", "candles", "ohlc",
-    "orderbook", "order_book", "orderbook", "depth", "book",
-    "trades", "trade",
-    "balance", "account", "wallet", "balances",
-    "order", "orders",
-    "openorders", "open_orders", "openorders", "orders",
-    "mytrades", "mytrade", "mytrades", "trades",
-]
+# 通用引擎路由候选键的唯一来源:解析 src/generic.rs 中所有 `.find_first(&[...])`
+# 的候选数组(小写、去重)。
+# The single source of truth for routing candidate keys: parse every
+# `.find_first(&[...])` candidate array out of src/generic.rs (lowercased, deduped).
+# 此前该列表在 Rust(generic.rs 的 find_first 候选)与 Python(本文件 CANDIDATES)
+# 双份手工同步,存在静默漂移风险(generic.rs 新增候选但 Python 漏改 → 生成器
+# 静默不发出对应端点 → 该方法在生成适配器上永远路由不到)。改为由 generic.rs
+# 直接解析后,漂移在结构上不可能发生。
+# Previously this list was hand-synced between Rust (generic.rs find_first candidates)
+# and Python (this CANDIDATES literal), a silent-drift risk: adding a Rust candidate
+# without updating Python meant the generator silently skipped emitting that endpoint,
+# so the method could never route on generated adapters. Deriving it from generic.rs
+# makes such drift structurally impossible.
+GENERIC_RS = os.path.join(ROOT, "src", "generic.rs")
+
+
+def routing_candidates() -> "set[str]":
+    """解析 src/generic.rs 中全部 find_first 候选数组,作为路由候选键唯一来源。
+
+    Parse every find_first candidate array in src/generic.rs; this is the sole
+    source of routing candidate keys.
+
+    解析守卫:若 find_first 调用形态变更导致解析为空/过少,应立刻失败,而非
+    静默少发端点(那会表现为难以诊断的运行时路由缺失)。
+    Parser guard: a broken parse must fail loudly, never silently under-emit
+    (which would surface as hard-to-diagnose runtime routing gaps).
+    """
+    with open(GENERIC_RS, encoding="utf-8") as fh:
+        src = fh.read()
+    pat = re.compile(r"\.find_first\(\s*&\[([^\]]*)\]")
+    cands: "set[str]" = set()
+    for m in pat.finditer(src):
+        for lit in re.findall(r'"([^"]*)"', m.group(1)):
+            cands.add(lit.lower())
+    assert len(cands) >= 20, f"routing_candidates parsed too few keys: {sorted(cands)}"
+    return cands
+
+
+# 通用引擎路由候选键(单一来源:由 src/generic.rs 的 find_first 候选解析得到)。
+# Routing candidate keys (single source: derived from find_first candidates in src/generic.rs).
+CANDIDATES = routing_candidates()
 
 
 def key_matches(k: str, c: str) -> bool:
+    # 必须与 src/generic.rs 的 key_matches 保持逐字节一致(契约:二者用同一套
+    # 词边界/动词前缀规则决定端点 key 是否命中候选)。跨语言无法单一来源,故由
+    # scripts/test_sync.py 用 Rust 单测同一组 fixtures 做一致性守护。
+    # Must stay byte-for-byte equivalent to key_matches in src/generic.rs (the
+    # contract: both decide endpoint-key hits via the same word-boundary / verb-prefix
+    # rules). Cross-language code cannot share a single source, so scripts/test_sync.py
+    # guards equivalence using the same fixtures as the Rust unit tests.
     # 去掉 {模板} 占位,按非字母数字切分为 token,逐 token 匹配:
     # 1) token==c; 2) c 为干净词边界; 3) token 以已知动词前缀起头其后接 c。
     PREFIXES = ("get", "fetch", "list", "query", "public")

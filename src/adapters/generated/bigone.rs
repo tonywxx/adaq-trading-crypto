@@ -56,6 +56,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://{hostname}/api/v3",
             verb: "GET",
+            key: "ping",
+            path: "ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://{hostname}/api/v3",
+            verb: "GET",
             key: "asset_pairs",
             path: "asset_pairs",
             auth: false,

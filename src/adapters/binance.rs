@@ -52,7 +52,7 @@ impl Binance {
 
     /// 构造适配器(默认启用限速 50ms/次,对齐 binance rateLimit)。
     pub fn new(config: Config) -> Result<Self> {
-        let core = HttpCore::new(&config, BASE_URL, 50)?;
+        let core = HttpCore::new(&config, BASE_URL, 50, "binance")?;
         Ok(Self { config, core })
     }
 

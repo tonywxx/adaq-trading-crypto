@@ -1,9 +1,15 @@
 //! 增量订单簿引擎(ADR-0011):core 共享的快照 + diff 合并、limit 修剪。
+//! Incremental order-book engine (ADR-0011): core-shared snapshot + diff merge and limit trimming.
 //!
-//! 各交易所 WS 适配器只喂增量:[`OrderBookStore::apply_binance_delta`] 处理
-//! binance `@depth` 局部深度(U/u 序列对账),[`OrderBookStore::apply_polymarket`]
-//! 处理 polymarket `price_change`(size 0 删除档位);[`OrderBookStore::snapshot`]
-//! 输出统一 [`OrderBook`](crate::types::OrderBook)(bids 降序 / asks 升序)。
+//! 各交易所 WS 适配器只喂增量:[`OrderBookStore::apply_sequenced_delta`] 处理
+//! binance `@depth`(U/u 序列对账)、okx `books`(`seqId` 对账)、bybit `orderbook`(`seq` 对账)
+//! 等"单调序号 + 元组档位(size=0 删除)"形态的增量;
+//! Each exchange WS adapter only feeds deltas: [`OrderBookStore::apply_sequenced_delta`] handles
+//! the "monotonic sequence id + tuple levels (size=0 deletes)" shape shared by binance/okx/bybit;
+//! [`OrderBookStore::apply_polymarket`] 处理 polymarket `price_change`(size 0 删除档位);
+//! [`OrderBookStore::apply_polymarket`] handles polymarket `price_change` (size=0 deletes a level);
+//! [`OrderBookStore::snapshot`] 输出统一 [`OrderBook`](crate::types::OrderBook)(bids 降序 / asks 升序)。
+//! [`OrderBookStore::snapshot`] emits the unified [`OrderBook`](crate::types::OrderBook) (bids desc / asks asc).
 
 use std::collections::BTreeMap;
 
@@ -27,8 +33,10 @@ pub struct OrderBookStore {
     /// asks 以升序存储。
     asks: BTreeMap<Decimal, Decimal>,
     /// 保留档位数(0 = 不限制)。
+    /// Max retained levels (0 = unlimited).
     limit: usize,
-    /// binance:最后一次应用的末位更新 id。
+    /// 最后一次成功应用的序列 id(binance U/u、okx seqId、bybit seq 对账共用)。
+    /// Last successfully applied sequence id (shared by binance U/u, okx seqId, bybit seq reconciliation).
     pub last_update_id: Option<u64>,
 }
 
@@ -59,19 +67,22 @@ impl OrderBookStore {
         self.trim();
     }
 
-    /// 应用 binance `@depth` diff(`b`/`a` 为 `[price, qty]` 数组,qty=0 删除档位)。
+    /// 应用"单调序号 + 元组档位"的序列增量(binance `@depth`、okx `books`、bybit `orderbook` 共用)。
+    /// Apply a "monotonic sequence id + tuple levels" delta, shared by binance `@depth`, okx `books`, bybit `orderbook`.
     ///
-    /// 返回 `Ok(true)` 表示应用成功;`Ok(false)` 表示该增量应丢弃
-    /// (快照前到达、或重复/乱序,由 U/u 序列对账判定)。
-    pub fn apply_binance_delta(
+    /// `bids`/`asks` 为 `[price, qty]` 元组,qty=0 删除该档位;
+    /// `bids`/`asks` are `[price, qty]` tuples, qty=0 deletes that level;
+    /// `seq` 必须严格大于 `last_update_id`,否则丢弃(快照前到达、或重复/乱序)。
+    /// `seq` must strictly exceed `last_update_id`, otherwise the delta is dropped (pre-snapshot, duplicate, or out-of-order).
+    pub fn apply_sequenced_delta(
         &mut self,
-        u: u64,
+        seq: u64,
         bids: &[(Decimal, Decimal)],
         asks: &[(Decimal, Decimal)],
     ) -> bool {
         match self.last_update_id {
-            None => false, // 快照前到达的增量,丢弃(ccxt 先 reset 再重放缓存)
-            Some(last) if u <= last => false,
+            None => false, // 快照前到达的增量,丢弃(ccxt 先 reset 再重放缓存) / pre-snapshot delta dropped (ccxt resets then replays buffer)
+            Some(last) if seq <= last => false,
             Some(_) => {
                 for (p, s) in bids {
                     OrderBookStore::apply_side(&mut self.bids, *p, *s);
@@ -79,7 +90,7 @@ impl OrderBookStore {
                 for (p, s) in asks {
                     OrderBookStore::apply_side(&mut self.asks, *p, *s);
                 }
-                self.last_update_id = Some(u);
+                self.last_update_id = Some(seq);
                 self.trim();
                 true
             }
@@ -190,15 +201,15 @@ mod tests {
     fn binance_delta_drops_pre_snapshot() {
         let mut store = OrderBookStore::new(0);
         // 快照前到达 → 丢弃
-        assert!(!store.apply_binance_delta(5, &[], &[(d("0.5"), d("10"))]));
+        assert!(!store.apply_sequenced_delta(5, &[], &[(d("0.5"), d("10"))]));
         assert_eq!(store.ask_len(), 0);
         // 快照
         store.reset(&[(d("0.4"), d("20"))], &[(d("0.5"), d("10"))]);
         store.last_update_id = Some(10);
         // u <= last → 丢弃
-        assert!(!store.apply_binance_delta(10, &[], &[]));
+        assert!(!store.apply_sequenced_delta(10, &[], &[]));
         // 正常增量
-        assert!(store.apply_binance_delta(11, &[(d("0.4"), d("25"))], &[(d("0.6"), d("7"))]));
+        assert!(store.apply_sequenced_delta(11, &[(d("0.4"), d("25"))], &[(d("0.6"), d("7"))]));
         let snap = store.snapshot("BTC/USDT", None, None, serde_json::Value::Null);
         assert_eq!(snap.bids[0].price, Some(d("0.4")));
         assert_eq!(snap.bids[0].amount, Some(d("25")));
@@ -210,7 +221,7 @@ mod tests {
         let mut store = OrderBookStore::new(0);
         store.reset(&[(d("0.4"), d("20")), (d("0.3"), d("5"))], &[]);
         store.last_update_id = Some(0);
-        assert!(store.apply_binance_delta(1, &[(d("0.4"), d("0"))], &[]));
+        assert!(store.apply_sequenced_delta(1, &[(d("0.4"), d("0"))], &[]));
         assert_eq!(store.bid_len(), 1);
         assert_eq!(store.bids.get(&d("0.4")), None);
     }

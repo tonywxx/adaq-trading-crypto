@@ -219,7 +219,9 @@ fn dispatch_public(
                         data.clone(),
                     ));
                 }
-                Some("delta") if store.apply_binance_delta(seq, &bids, &asks) => {
+                // bybit `orderbook` 增量用中性序列对账(复用共享 OrderBookStore::apply_sequenced_delta)
+                // bybit `orderbook` deltas use the neutral sequence reconciliation (reusing shared OrderBookStore::apply_sequenced_delta)
+                Some("delta") if store.apply_sequenced_delta(seq, &bids, &asks) => {
                     let _ = tx.send(store.snapshot(
                         &sym,
                         data["cts"].as_i64(),

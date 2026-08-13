@@ -12,7 +12,7 @@ use reqwest::header::HeaderMap;
 use serde_json::Value;
 
 use crate::client::Client;
-use crate::error::Result;
+use crate::error::{Error, ErrorContext, ErrorKind, Result};
 use crate::exchange::{Config, Params};
 use crate::types::{Level, Markets};
 
@@ -21,14 +21,22 @@ pub struct HttpCore {
     client: Client,
     base_url: String,
     markets: Mutex<Option<Markets>>,
+    /// 交易所 id(如 `binance`),供 `handle_errors` 接缝在错误上下文标注来源。
+    exchange: &'static str,
 }
 
 impl HttpCore {
     /// 构造核心。
     ///
     /// `base_url` 为交易所 REST 根地址;`default_rate_limit_ms` 为该交易所
-    /// 默认限速,`config.rate_limit_ms` 显式设置时优先。
-    pub fn new(config: &Config, base_url: &str, default_rate_limit_ms: u64) -> Result<Self> {
+    /// 默认限速,`config.rate_limit_ms` 显式设置时优先;`exchange` 为交易所
+    /// id,供 `handle_errors` 接缝标注错误来源。
+    pub fn new(
+        config: &Config,
+        base_url: &str,
+        default_rate_limit_ms: u64,
+        exchange: &'static str,
+    ) -> Result<Self> {
         let rate_limit_ms = if config.rate_limit_ms > 0 {
             config.rate_limit_ms
         } else {
@@ -45,6 +53,7 @@ impl HttpCore {
             client,
             base_url: base_url.to_string(),
             markets: Mutex::new(None),
+            exchange,
         })
     }
 
@@ -69,7 +78,14 @@ impl HttpCore {
         headers: &HeaderMap,
         body: Option<Value>,
     ) -> Result<Value> {
-        self.client.request(method, url, headers, body).await
+        let value = self.client.request(method, url, headers, body).await?;
+        // handle_errors 接缝(ADR-0013 四缝之一):HTTP 200 + 合法 JSON 仍可能
+        // 是交易所业务错误体(如 OKX `{"code":"51000"}`、Kraken
+        // `{"error":[...]}`),在此统一识别为分类错误,而非交给解析层静默失败。
+        if let Some(err) = extract_exchange_error(&value, self.exchange) {
+            return Err(err);
+        }
+        Ok(value)
     }
 
     /// 公共 GET(自动拼 query)。
@@ -244,10 +260,222 @@ pub fn dec_f64(f: f64) -> Option<rust_decimal::Decimal> {
     rust_decimal::Decimal::from_f64_retain(f)
 }
 
+/// `handle_errors` 接缝的通用实现(ADR-0013 四缝之一)。
+///
+/// 每次成功响应(HTTP 200 + 合法 JSON)后由 [`HttpCore::request_url`] 调用,
+/// 识别 ccxt 基类常见的错误信封形状,映射为统一 [`ErrorKind::Exchange`]
+/// (业务错误码写入 `context.http_error_code` 供适配器做更细分类)。无法识别
+/// (合法成功响应 / 无错误信封 / 非对象体)返回 `None`,交还解析层。
+///
+/// 识别保守:仅对**明确**错误信号判定为错误,绝不误伤成功响应——
+/// 这是与解析层"静默失败"相比的核心改进。覆盖形状:
+/// - Kraken `{"error":["EQuery:..."]}`(非空数组)
+/// - Bybit v5 `{"retCode":<非零>,"retMsg":"..."}`
+/// - HTX/Huobi `{"status":"error","err-code":"...","err-msg":"..."}`
+/// - 通用 `{"success":false,"msg":"..."}`
+/// - 通用 `{"code":<非成功>,"msg":"..."}`(数字 0/200 或字符串
+///   `"0"`/`"200"`/`"200000"`/`"00000"` 视为成功;如 binance 负码、
+///   okx `"51000"`、kucoin `"400001"`、bitget 非 `"00000"`)
+pub fn extract_exchange_error(body: &Value, exchange: &str) -> Option<Error> {
+    let obj = body.as_object()?;
+
+    // Kraken:{ "error": ["EQuery:Unknown asset"] } —— 非空 error 数组即错误
+    if let Some(Value::Array(errs)) = obj.get("error") {
+        if let Some(first) = errs
+            .iter()
+            .filter_map(|v| v.as_str())
+            .find(|s| !s.is_empty())
+        {
+            return Some(error_with(
+                exchange,
+                ErrorKind::Exchange,
+                first,
+                code_str(obj.get("code")),
+            ));
+        }
+    }
+
+    // Bybit v5:{ "retCode": 0, "retMsg": "OK", "result": {...} }
+    if let Some(rc) = obj.get("retCode").and_then(to_i64) {
+        if rc != 0 {
+            let msg = pick_str(body, &["retMsg", "ret_msg"])
+                .filter(|m| !m.is_empty())
+                .unwrap_or("bybit error");
+            return Some(error_with(
+                exchange,
+                ErrorKind::Exchange,
+                &format!("{rc}: {msg}"),
+                Some(rc.to_string()),
+            ));
+        }
+    }
+
+    // HTX/Huobi:{ "status": "error", "err-code": "...", "err-msg": "..." }
+    if let Some(Value::String(st)) = obj.get("status") {
+        if st == "error" {
+            let msg =
+                pick_str(body, &["err-msg", "err_msg", "message", "msg"]).unwrap_or("htx error");
+            return Some(error_with(
+                exchange,
+                ErrorKind::Exchange,
+                msg,
+                obj.get("err-code")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+            ));
+        }
+    }
+
+    // 通用:{ "success": false, ... } 或 { "code": <非成功>, "msg"/"message": "..." }
+    if let Some(Value::Bool(false)) = obj.get("success") {
+        let msg = pick_str(body, &["msg", "message"]).unwrap_or("request failed");
+        return Some(error_with(
+            exchange,
+            ErrorKind::Exchange,
+            msg,
+            code_str(obj.get("code")),
+        ));
+    }
+
+    if let Some(code_val) = obj.get("code") {
+        let is_success = match code_val {
+            Value::Number(n) => n.as_i64().map(|c| c == 0 || c == 200).unwrap_or(false),
+            Value::String(s) => matches!(s.as_str(), "0" | "200" | "200000" | "00000"),
+            _ => false, // 非数字/字符串的 code 视为错误(保守)
+        };
+        if !is_success {
+            let msg = pick_str(body, &["msg", "message"]).unwrap_or("exchange error");
+            return Some(error_with(
+                exchange,
+                ErrorKind::Exchange,
+                msg,
+                code_str(Some(code_val)),
+            ));
+        }
+    }
+
+    None
+}
+
+/// 把业务错误码规整为字符串(供 `context.http_error_code`)。
+fn code_str(v: Option<&Value>) -> Option<String> {
+    match v {
+        Some(Value::String(s)) => Some(s.clone()),
+        Some(Value::Number(n)) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
+/// 构造带交易所来源与错误码的分类错误。
+fn error_with(exchange: &str, kind: ErrorKind, msg: &str, code: Option<String>) -> Error {
+    let mut ctx = ErrorContext::new();
+    if !exchange.is_empty() {
+        ctx = ctx.exchange(exchange.to_string());
+    }
+    if let Some(c) = code {
+        ctx = ctx.http_error_code(c);
+    }
+    Error::with_context(kind, msg.to_string(), ctx)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    // ---- handle_errors 接缝:extract_exchange_error ----
+
+    #[test]
+    fn okx_error_body_maps_to_exchange_error() {
+        let body = json!({"code":"51000","msg":"Order parameter invalid","data":null});
+        let err = extract_exchange_error(&body, "okx").expect("should detect error");
+        assert_eq!(err.kind, ErrorKind::Exchange);
+        assert_eq!(err.context.http_error_code.as_deref(), Some("51000"));
+        assert_eq!(err.context.exchange.as_deref(), Some("okx"));
+    }
+
+    #[test]
+    fn okx_success_body_passes_through() {
+        let body = json!({"code":"0","msg":"","data":[{"instId":"BTC-USDT"}]});
+        assert!(extract_exchange_error(&body, "okx").is_none());
+    }
+
+    #[test]
+    fn binance_negative_code_is_error() {
+        let body = json!({"code":-1000,"msg":"An unknown error occurred"});
+        let err = extract_exchange_error(&body, "binance").expect("should detect error");
+        assert_eq!(err.kind, ErrorKind::Exchange);
+        assert_eq!(err.context.http_error_code.as_deref(), Some("-1000"));
+    }
+
+    #[test]
+    fn binance_success_order_passes_through() {
+        // 成功订单响应通常无 code 字段
+        let body = json!({"symbol":"BTCUSDT","orderId":123,"status":"NEW"});
+        assert!(extract_exchange_error(&body, "binance").is_none());
+    }
+
+    #[test]
+    fn kraken_error_array_is_error() {
+        let body = json!({"error":["EOrder:Insufficient funds"]});
+        let err = extract_exchange_error(&body, "kraken").expect("should detect error");
+        assert_eq!(err.kind, ErrorKind::Exchange);
+        assert!(err.message.contains("Insufficient funds"));
+    }
+
+    #[test]
+    fn kraken_empty_error_array_passes_through() {
+        let body = json!({"error":[],"result":{"last":50000}});
+        assert!(extract_exchange_error(&body, "kraken").is_none());
+    }
+
+    #[test]
+    fn bybit_retcode_nonzero_is_error() {
+        let body = json!({"retCode":10001,"retMsg":"param error","result":null});
+        let err = extract_exchange_error(&body, "bybit").expect("should detect error");
+        assert_eq!(err.context.http_error_code.as_deref(), Some("10001"));
+    }
+
+    #[test]
+    fn bybit_success_passes_through() {
+        let body = json!({"retCode":0,"retMsg":"OK","result":{"price":"1"}});
+        assert!(extract_exchange_error(&body, "bybit").is_none());
+    }
+
+    #[test]
+    fn bitget_success_code_00000_passes_through() {
+        let body = json!({"code":"00000","msg":"success","data":{"price":"1"}});
+        assert!(extract_exchange_error(&body, "bitget").is_none());
+    }
+
+    #[test]
+    fn kucoin_success_code_200000_passes_through() {
+        let body = json!({"code":"200000","data":{"price":"1"}});
+        assert!(extract_exchange_error(&body, "kucoin").is_none());
+    }
+
+    #[test]
+    fn htx_status_error_is_error() {
+        let body = json!({"status":"error","err-code":"invalid-symbol","err-msg":"invalid symbol"});
+        let err = extract_exchange_error(&body, "htx").expect("should detect error");
+        assert_eq!(
+            err.context.http_error_code.as_deref(),
+            Some("invalid-symbol")
+        );
+    }
+
+    #[test]
+    fn htx_status_ok_passes_through() {
+        let body = json!({"status":"ok","data":{"price":"1"}});
+        assert!(extract_exchange_error(&body, "htx").is_none());
+    }
+
+    #[test]
+    fn raw_array_body_passes_through() {
+        // 部分端点直接返回数组(无错误信封)
+        let body = json!([{"symbol":"BTC-USDT"}]);
+        assert!(extract_exchange_error(&body, "okx").is_none());
+    }
 
     #[test]
     fn value_decimal_parses_string_and_number() {

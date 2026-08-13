@@ -72,6 +72,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://api.toobit.com",
             verb: "GET",
+            key: "api/v1/ping",
+            path: "api/v1/ping",
+            auth: true,
+        },
+        Endpoint {
+            base: "https://api.toobit.com",
+            verb: "GET",
             key: "api/v1/exchangeInfo",
             path: "api/v1/exchangeInfo",
             auth: true,

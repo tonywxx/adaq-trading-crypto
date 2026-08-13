@@ -81,6 +81,20 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://fapi.asterdex.com/fapi",
             verb: "GET",
+            key: "v1/ping",
+            path: "v1/ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://fapi.asterdex.com/fapi",
+            verb: "GET",
+            key: "v3/ping",
+            path: "v3/ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://fapi.asterdex.com/fapi",
+            verb: "GET",
             key: "v1/time",
             path: "v1/time",
             auth: false,
@@ -305,6 +319,13 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://sapi.asterdex.com/api",
             verb: "GET",
+            key: "v1/ping",
+            path: "v1/ping",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://sapi.asterdex.com/api",
+            verb: "GET",
             key: "v1/time",
             path: "v1/time",
             auth: false,
@@ -356,6 +377,13 @@ pub static SPEC: ApiSpec = ApiSpec {
             verb: "GET",
             key: "v1/ticker/bookTicker",
             path: "v1/ticker/bookTicker",
+            auth: false,
+        },
+        Endpoint {
+            base: "https://sapi.asterdex.com/api",
+            verb: "GET",
+            key: "v3/ping",
+            path: "v3/ping",
             auth: false,
         },
         Endpoint {
