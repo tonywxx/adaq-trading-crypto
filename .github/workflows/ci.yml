@@ -80,16 +80,23 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt
-      # 重跑转译器(gen_adapters.py,使用仓库内 bundled ccxt 4.5.73)并校验
+      # 重跑转译器(gen_adapters.py,使用 pip 安装的固定版本 ccxt==4.5.73)并校验
       # checked-in 的生成层与当前生成器 + 引擎契约完全一致:任何对 generic.rs /
       # gen_adapters.py 的改动若改变生成输出,必须同步重新生成并提交,否则本
       # job 失败——防生成层静默 bit-rot(候选 6,ADR-0013)。
-      # Re-run the transpiler (gen_adapters.py, using the repo-bundled ccxt
+      # ccxt 不再以 bundled 形式提交(曾被 .gitignore 忽略且从未入库,导致 CI
+      # 干净 checkout 时 ModuleNotFoundError);改为在 CI 中 pip 安装固定版本
+      # 4.5.73,生成层须与该固定版本的输出一致。
+      # Re-run the transpiler (gen_adapters.py, using the pip-pinned ccxt==
       # 4.5.73) and assert the checked-in generated layer is byte-for-byte in
       # sync with the current generator + engine contract. Any change that
       # alters generated output must be re-generated and committed, or this job
       # fails — guarding the generated layer against silent bit-rot
-      # (candidate 6, ADR-0013).
+      # (candidate 6, ADR-0013). ccxt is no longer bundled/committed (it was
+      # gitignored and never tracked, breaking clean checkouts); CI now installs
+      # the pinned PyPI version 4.5.73 and the generated layer must match it.
+      - name: Install pinned ccxt (PyPI 4.5.73)
+        run: pip install --upgrade pip && pip install "ccxt==4.5.73"
       - name: Regenerate adapters from ccxt describe
         run: python3 scripts/gen_adapters.py
       - name: Normalize formatting

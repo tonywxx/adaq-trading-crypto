@@ -524,27 +524,6 @@ pub static SPEC: ApiSpec = ApiSpec {
         Endpoint {
             base: "https://{hostname}",
             verb: "GET",
-            key: "fiat/deposit-order-history",
-            path: "fiat/deposit-order-history",
-            auth: true,
-        },
-        Endpoint {
-            base: "https://{hostname}",
-            verb: "GET",
-            key: "fiat/withdrawal-order-history",
-            path: "fiat/withdrawal-order-history",
-            auth: true,
-        },
-        Endpoint {
-            base: "https://{hostname}",
-            verb: "GET",
-            key: "fiat/buy-sell/currencies",
-            path: "fiat/buy-sell/currencies",
-            auth: true,
-        },
-        Endpoint {
-            base: "https://{hostname}",
-            verb: "GET",
             key: "account/instruments",
             path: "account/instruments",
             auth: true,
@@ -1212,13 +1191,6 @@ pub static SPEC: ApiSpec = ApiSpec {
             verb: "POST",
             key: "asset/convert/trade",
             path: "asset/convert/trade",
-            auth: true,
-        },
-        Endpoint {
-            base: "https://{hostname}",
-            verb: "POST",
-            key: "fiat/buy-sell/trade",
-            path: "fiat/buy-sell/trade",
             auth: true,
         },
         Endpoint {

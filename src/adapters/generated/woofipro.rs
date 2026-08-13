@@ -44,8 +44,6 @@ pub static SPEC: ApiSpec = ApiSpec {
         "fetchMarkets",
         "fetchMyTrades",
         "fetchOHLCV",
-        "fetchOpenInterest",
-        "fetchOpenInterests",
         "fetchOpenOrders",
         "fetchOrder",
         "fetchOrderBook",

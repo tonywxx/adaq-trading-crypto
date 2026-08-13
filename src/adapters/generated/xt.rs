@@ -57,8 +57,6 @@ pub static SPEC: ApiSpec = ApiSpec {
         "fetchTickers",
         "fetchTime",
         "fetchTrades",
-        "fetchTradingFee",
-        "fetchTradingFees",
         "fetchWithdrawals",
         "future",
         "margin",

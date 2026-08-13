@@ -448,7 +448,13 @@ def edit_cargo(generated_ids: list[str], full: bool):
 
 
 def main():
-    sys.path.insert(0, CCXT_PY)
+    # Prefer a pip-installed ccxt as the canonical source (pinned to 4.5.73 in
+    # CI). The repo-local bundled copy at ccxt/python (gitignored) is only a
+    # fallback for offline use. Appending — not inserting at index 0 — keeps the
+    # PyPI package authoritative so generated output stays reproducible across
+    # machines (see .github/workflows/ci.yml). The bundled copy and PyPI 4.5.73
+    # differ in describe() output, so the pinned PyPI version must win.
+    sys.path.append(CCXT_PY)
     import ccxt  # noqa: E402
 
     only = None

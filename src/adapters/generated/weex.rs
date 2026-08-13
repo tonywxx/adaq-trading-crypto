@@ -34,7 +34,6 @@ pub static SPEC: ApiSpec = ApiSpec {
         "createReduceOnlyOrder",
         "createStopLossOrder",
         "createTakeProfitOrder",
-        "createTriggerOrder",
         "fetchBalance",
         "fetchBidsAsks",
         "fetchCanceledAndClosedOrders",
