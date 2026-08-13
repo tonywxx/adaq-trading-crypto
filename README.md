@@ -217,14 +217,27 @@ retryability, and `From` conversions for ergonomic `?` propagation.
 
 ## Development
 
-Regenerate the additional exchange adapters from a local upstream exchange-spec checkout:
+Regenerate the additional exchange adapters. The generator reads each exchange's `describe()` from
+a ccxt Python package and emits per-exchange modules under `src/adapters/generated/`; the shared
+runtime lives in `src/generic.rs`.
+
+`gen_adapters.py` takes **no `--ccxt` flag**. It prefers a pip-installed ccxt (pin
+`ccxt==4.5.73`) and only falls back to a repo-local `ccxt/python` checkout as an offline option:
 
 ```bash
-python3 scripts/gen_adapters.py --ccxt /path/to/ccxt
+pip install "ccxt==4.5.73"
+
+# Full regen (all ~95 transpiled exchanges):
+python3 scripts/gen_adapters.py
+
+# Regenerate a single exchange:
+python3 scripts/gen_adapters.py --only=<id>     # e.g. --only=binance
 ```
 
-The generator emits per-exchange modules under `src/adapters/generated/`; the shared runtime lives
-in `src/generic.rs`.
+After regenerating, run `cargo fmt --all` and commit the generated layer
+(`src/adapters/generated/`, `src/adapters/generated.rs`, `Cargo.toml`) — the CI
+`transpiler-fresh` job fails if it is stale. The transpiler's contract with the Rust engine
+(`src/generic.rs`) is guarded by `python3 scripts/test_sync.py`.
 
 ## License
 
