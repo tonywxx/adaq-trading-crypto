@@ -5,3 +5,4 @@ tony
 .env
 .venv/
 .codegraph/
+scripts/__pycache__/
