@@ -72,11 +72,18 @@ async fn binance_unsupported_positions_is_not_supported() {
 }
 
 // ================= Phase C:okx / bybit / kraken 冒烟 =================
+// 各 realtime 模块须与对应交易所 feature 同开(见 src/realtime/mod.rs)。
 
-use adaq_trading_crypto::realtime::{BybitWs, KrakenWs, OkxWs};
+#[cfg(feature = "bybit")]
+use adaq_trading_crypto::realtime::BybitWs;
+#[cfg(feature = "kraken")]
+use adaq_trading_crypto::realtime::KrakenWs;
+#[cfg(feature = "okx")]
+use adaq_trading_crypto::realtime::OkxWs;
 
 #[tokio::test]
 #[ignore = "needs network"]
+#[cfg(feature = "okx")]
 async fn okx_watch_ticker_smoke() {
     let ws = OkxWs::new(Config::new()).expect("adapter");
     let t = ws
@@ -89,6 +96,7 @@ async fn okx_watch_ticker_smoke() {
 
 #[tokio::test]
 #[ignore = "needs network"]
+#[cfg(feature = "okx")]
 async fn okx_watch_order_book_smoke() {
     let ws = OkxWs::new(Config::new()).expect("adapter");
     let book = ws
@@ -109,6 +117,7 @@ async fn okx_watch_order_book_smoke() {
 
 #[tokio::test]
 #[ignore = "needs network"]
+#[cfg(feature = "okx")]
 async fn okx_watch_trades_smoke() {
     let ws = OkxWs::new(Config::new()).expect("adapter");
     let trades = ws
@@ -121,6 +130,7 @@ async fn okx_watch_trades_smoke() {
 
 #[tokio::test]
 #[ignore = "needs network"]
+#[cfg(feature = "bybit")]
 async fn bybit_watch_ticker_smoke() {
     let ws = BybitWs::new(Config::new()).expect("adapter");
     let t = ws
@@ -133,6 +143,7 @@ async fn bybit_watch_ticker_smoke() {
 
 #[tokio::test]
 #[ignore = "needs network"]
+#[cfg(feature = "bybit")]
 async fn bybit_watch_order_book_smoke() {
     let ws = BybitWs::new(Config::new()).expect("adapter");
     let book = ws
@@ -153,6 +164,7 @@ async fn bybit_watch_order_book_smoke() {
 
 #[tokio::test]
 #[ignore = "needs network"]
+#[cfg(feature = "bybit")]
 async fn bybit_watch_trades_smoke() {
     let ws = BybitWs::new(Config::new()).expect("adapter");
     let trades = ws
@@ -168,6 +180,7 @@ async fn bybit_watch_trades_smoke() {
 
 #[tokio::test]
 #[ignore = "needs network"]
+#[cfg(feature = "kraken")]
 async fn kraken_watch_ticker_smoke() {
     let ws = KrakenWs::new(Config::new()).expect("adapter");
     let t = ws
@@ -180,6 +193,7 @@ async fn kraken_watch_ticker_smoke() {
 
 #[tokio::test]
 #[ignore = "needs network"]
+#[cfg(feature = "kraken")]
 async fn kraken_watch_order_book_smoke() {
     let ws = KrakenWs::new(Config::new()).expect("adapter");
     let book = ws
@@ -200,6 +214,7 @@ async fn kraken_watch_order_book_smoke() {
 
 #[tokio::test]
 #[ignore = "needs network"]
+#[cfg(feature = "kraken")]
 async fn kraken_watch_trades_smoke() {
     let ws = KrakenWs::new(Config::new()).expect("adapter");
     let trades = ws

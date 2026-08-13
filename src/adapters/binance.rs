@@ -255,6 +255,41 @@ impl Binance {
             ..OrderBook::default()
         }
     }
+
+    /// 获取用户数据流 listenKey(私有 WS 认证用),对应 `POST /api/v3/userDataStream`。
+    ///
+    /// 仅需 `X-MBX-APIKEY` 头、无需签名(与 binance 文档一致)。供实时适配器
+    /// 委托认证(ADR-0015)。
+    pub async fn fetch_listen_key(&self) -> Result<String> {
+        let api_key = self
+            .config
+            .api_key
+            .as_deref()
+            .ok_or_else(|| Error::new(ErrorKind::Authentication, "binance api_key required"))?;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "X-MBX-APIKEY",
+            HeaderValue::from_str(api_key).map_err(|e| {
+                Error::new(
+                    ErrorKind::BadRequest,
+                    format!("invalid api key header: {e}"),
+                )
+            })?,
+        );
+        let resp = self
+            .core
+            .request_url(
+                "POST",
+                &format!("{BASE_URL}/userDataStream"),
+                &headers,
+                None,
+            )
+            .await?;
+        resp["listenKey"]
+            .as_str()
+            .map(str::to_string)
+            .ok_or_else(|| Error::new(ErrorKind::BadResponse, "no listenKey in response"))
+    }
 }
 
 impl Exchange for Binance {

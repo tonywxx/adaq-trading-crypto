@@ -13,20 +13,19 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
 use tokio::sync::watch;
 
-use crate::client::Client;
+use crate::adapters::binance::Binance;
 use crate::error::{Error, ErrorKind, Result};
-use crate::exchange::{Config, Params, Realtime};
-use crate::httpcore::{collect_levels, dec, iso8601, query_string};
+use crate::exchange::{Config, Exchange, Params, Realtime};
+use crate::httpcore::{collect_levels, dec, iso8601};
 use crate::realtime::orderbook::OrderBookStore;
 use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_BASE: &str = "wss://stream.binance.com:9443/ws";
-const REST_BASE: &str = "https://api.binance.com/api/v3";
 
 /// symbol + timeframe → OHLCV 频道。
 type OhlcvChannel = ChannelMap<(String, String), Vec<OHLCV>>;
@@ -37,8 +36,8 @@ type TradeChannel = ChannelMap<String, Vec<Trade>>;
 
 /// binance WS 适配器。
 pub struct BinanceWs {
-    config: Config,
-    client: Client,
+    /// REST 适配器实例(ADR-0015:持有 REST 实例,复用其 parse_* 与快照/认证)。
+    rest: Arc<Binance>,
     /// 公开流连接就绪信号(懒启动,ADR-0014 Conn 收口)。
     pub_connected: Conn,
     tickers: TickerChannel,
@@ -58,16 +57,9 @@ pub struct BinanceWs {
 impl BinanceWs {
     /// 构造 WS 适配器(复用 REST 客户端做快照/认证)。
     pub fn new(config: Config) -> Result<Self> {
-        let client = Client::new(
-            config.timeout_ms,
-            config.max_retries,
-            config.proxy.as_deref(),
-            config.rate_limit_ms.max(50),
-            config.enable_rate_limit,
-        )?;
+        let rest = Arc::new(Binance::new(config)?);
         Ok(Self {
-            config,
-            client,
+            rest,
             pub_connected: Conn::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
@@ -93,11 +85,14 @@ impl BinanceWs {
             let book_stores = self.book_stores.clone();
             let trades = self.trades.clone();
             let ohlcvs = self.ohlcvs.clone();
+            let rest = self.rest.clone();
             WsSession::spawn(
                 WS_BASE.to_string(),
                 HeaderMap::new(),
                 sub_rx,
-                move |msg| dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs),
+                move |msg| {
+                    dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs, &rest)
+                },
                 None,
             )
         })
@@ -130,23 +125,27 @@ impl BinanceWs {
         if let Some(tx) = self.books.lock().unwrap().get(symbol).cloned() {
             return Ok(tx.subscribe());
         }
-        // REST 快照
-        let mut p = Params::new();
-        p.insert("symbol".into(), json!(symbol.replace('/', "")));
-        p.insert("limit".into(), json!(limit.unwrap_or(1000).min(1000)));
-        let url = format!("{REST_BASE}/depth{}", query_string(&p));
-        let headers = HeaderMap::new();
-        let resp = self.client.request("GET", &url, &headers, None).await?;
-        let last_update_id = resp["lastUpdateId"].as_u64().unwrap_or(0) as i64;
-        let bids: Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> =
-            collect_levels(Some(&resp["bids"]));
-        let asks: Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> =
-            collect_levels(Some(&resp["asks"]));
+        // REST 快照委托 Binance 适配器(ADR-0015:持有 REST 实例,复用其快照)
+        let ob = self
+            .rest
+            .fetch_order_book(symbol, limit, Params::new())
+            .await?;
+        let last_update_id = ob.nonce.unwrap_or(0);
+        let bids: Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> = ob
+            .bids
+            .iter()
+            .filter_map(|l| Some((l.price?, l.amount?)))
+            .collect();
+        let asks: Vec<(rust_decimal::Decimal, rust_decimal::Decimal)> = ob
+            .asks
+            .iter()
+            .filter_map(|l| Some((l.price?, l.amount?)))
+            .collect();
         let mut store = OrderBookStore::new(limit.unwrap_or(1000) as usize);
         store.reset(&bids, &asks);
         store.last_update_id = Some(last_update_id as u64);
         let (tx, _) =
-            watch::channel(store.snapshot(symbol, None, Some(last_update_id), resp.clone()));
+            watch::channel(store.snapshot(symbol, None, Some(last_update_id), ob.info.clone()));
         self.book_stores
             .lock()
             .unwrap()
@@ -160,6 +159,11 @@ impl BinanceWs {
 }
 
 /// 公开流消息分发(binance 事件格式)。
+///
+/// 公开行情解析委托 Binance REST 适配器的 `parse_*`(ADR-0015):
+/// WS 短键先归一化为 REST 形状,再复用 `Binance::parse_ticker/trade/ohlcv`,
+/// 删除实时侧重复的公开行情 parse。用户数据(executionReport)形状差异大,
+/// 仍由本地 `parse_exec_*` 处理(与 okx/bybit/kraken 等保持一致)。
 fn dispatch_public(
     msg: Value,
     tickers: &TickerChannel,
@@ -167,13 +171,22 @@ fn dispatch_public(
     book_stores: &BookStoreMap,
     trades: &TradeChannel,
     ohlcvs: &OhlcvChannel,
+    rest: &Arc<Binance>,
 ) {
     let event = msg["e"].as_str().unwrap_or_default();
     match event {
         "24hrMiniTicker" | "24hrTicker" => {
             let sym = msg["s"].as_str().unwrap_or_default().to_string();
             if let Some(tx) = tickers.lock().unwrap().get(&sym).cloned() {
-                let _ = tx.send(parse_mini_ticker(&msg, &sym));
+                // WS miniTicker 短键 → REST 24hr 形状
+                let shape = json!({
+                    "symbol": sym,
+                    "openPrice": msg["o"], "lastPrice": msg["c"],
+                    "highPrice": msg["h"], "lowPrice": msg["l"],
+                    "volume": msg["v"], "quoteVolume": msg["q"],
+                    "closeTime": msg["E"],
+                });
+                let _ = tx.send(rest.parse_ticker(&shape));
             }
         }
         "depthUpdate" => {
@@ -185,7 +198,6 @@ fn dispatch_public(
                 let bids = collect_levels(msg.get("b"));
                 let asks = collect_levels(msg.get("a"));
                 // binance `@depth` 增量用中性序列对账(复用共享 OrderBookStore::apply_sequenced_delta)
-                // binance `@depth` deltas use the neutral sequence reconciliation (reusing shared OrderBookStore::apply_sequenced_delta)
                 if store.apply_sequenced_delta(u, &bids, &asks) {
                     let _ = tx.send(store.snapshot(
                         &sym,
@@ -199,7 +211,16 @@ fn dispatch_public(
         "trade" => {
             let sym = msg["s"].as_str().unwrap_or_default().to_string();
             if let Some(tx) = trades.lock().unwrap().get(&sym).cloned() {
-                let _ = tx.send(vec![parse_trade(&msg, &sym)]);
+                // WS trade 短键 → REST trade 形状(id 兼容字符串/数字)
+                let id = msg["t"]
+                    .as_i64()
+                    .or_else(|| msg["t"].as_str().and_then(|s| s.parse::<i64>().ok()));
+                let shape = json!({
+                    "id": id, "time": msg["T"],
+                    "price": msg["p"], "qty": msg["q"],
+                    "isBuyerMaker": msg["m"], "symbol": sym,
+                });
+                let _ = tx.send(vec![rest.parse_trade(&shape)]);
             }
         }
         "kline" => {
@@ -215,57 +236,14 @@ fn dispatch_public(
                 .get(&(sym.clone(), tf.clone()))
                 .cloned()
             {
-                let _ = tx.send(vec![parse_kline(k.unwrap_or(&Value::Null), &sym)]);
+                if let Some(k) = k {
+                    // WS kline 对象 → REST klines 行数组
+                    let row = json!([k["t"], k["o"], k["h"], k["l"], k["c"], k["v"]]);
+                    let _ = tx.send(vec![rest.parse_ohlcv(&row)]);
+                }
             }
         }
         _ => {}
-    }
-}
-
-fn parse_mini_ticker(msg: &Value, sym: &str) -> Ticker {
-    let now = msg["E"].as_i64();
-    Ticker {
-        symbol: sym.to_string(),
-        timestamp: now,
-        datetime: now.and_then(iso8601),
-        open: dec(msg.get("o")),
-        high: dec(msg.get("h")),
-        low: dec(msg.get("l")),
-        close: dec(msg.get("c")),
-        last: dec(msg.get("c")),
-        base_volume: dec(msg.get("v")),
-        quote_volume: dec(msg.get("q")),
-        info: msg.clone(),
-        ..Ticker::default()
-    }
-}
-
-fn parse_trade(msg: &Value, sym: &str) -> Trade {
-    let ts = msg["T"].as_i64();
-    Trade {
-        id: msg["t"].as_str().map(str::to_string),
-        timestamp: ts,
-        datetime: ts.and_then(iso8601),
-        symbol: Some(sym.to_string()),
-        side: msg["m"]
-            .as_bool()
-            .map(|is_buyer_maker| if is_buyer_maker { "sell" } else { "buy" })
-            .map(str::to_string),
-        price: dec(msg.get("p")),
-        amount: dec(msg.get("q")),
-        info: msg.clone(),
-        ..Trade::default()
-    }
-}
-
-fn parse_kline(k: &Value, _sym: &str) -> OHLCV {
-    OHLCV {
-        timestamp: k["t"].as_i64(),
-        open: dec(k.get("o")),
-        high: dec(k.get("h")),
-        low: dec(k.get("l")),
-        close: dec(k.get("c")),
-        volume: dec(k.get("v")),
     }
 }
 
@@ -508,28 +486,11 @@ impl BinanceWs {
             let my_trades = self.my_trades.lock().unwrap().clone().unwrap().subscribe();
             return Ok((balance, orders, my_trades));
         }
-        // 获取 listenKey
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "binance api_key required"))?;
-        let mut headers = HeaderMap::new();
-        headers.insert("X-MBX-APIKEY", HeaderValue::from_str(api_key).unwrap());
-        let resp = self
-            .client
-            .request(
-                "POST",
-                &format!("{REST_BASE}/userDataStream"),
-                &headers,
-                None,
-            )
-            .await?;
-        let listen_key = resp["listenKey"]
-            .as_str()
-            .ok_or_else(|| Error::new(ErrorKind::BadResponse, "no listenKey"))?
-            .to_string();
+        // 获取 listenKey(委托 Binance REST 适配器,ADR-0015)
+        let listen_key = self.rest.fetch_listen_key().await?;
         let url = format!("{WS_BASE}/{listen_key}");
+        // 用户流以 listenKey 作为 URL 路径,无需额外认证头
+        let headers = HeaderMap::new();
         // 初始 channel
         let mut channels = self.balances.lock().unwrap();
         if channels.is_none() {
@@ -576,6 +537,7 @@ mod tests {
         BookStoreMap,
         TradeChannel,
         OhlcvChannel,
+        Arc<Binance>,
     ) {
         (
             Arc::new(Mutex::new(HashMap::new())),
@@ -583,29 +545,30 @@ mod tests {
             Arc::new(Mutex::new(HashMap::new())),
             Arc::new(Mutex::new(HashMap::new())),
             Arc::new(Mutex::new(HashMap::new())),
+            Arc::new(Binance::new(Config::new()).unwrap()),
         )
     }
 
     /// 离线重放(ADR-0014):合成 binance WS 消息喂 dispatch,验证频道输出。
     #[tokio::test]
     async fn replay_mini_ticker_routes_to_channel() {
-        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let (tickers, books, stores, trades, ohlcvs, rest) = channels();
         let (tx, rx) = watch::channel(Ticker::default());
         tickers.lock().unwrap().insert("BTCUSDT".into(), tx);
         let msg = json!({
             "e": "24hrMiniTicker", "s": "BTCUSDT", "E": 123,
             "o": "95", "h": "101", "l": "94", "c": "100", "v": "10", "q": "1000"
         });
-        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs);
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs, &rest);
         let t = rx.borrow().clone();
-        assert_eq!(t.symbol, "BTCUSDT");
+        assert_eq!(t.symbol, "BTC/USDT");
         assert_eq!(t.last, Some("100".parse().unwrap()));
         assert_eq!(t.base_volume, Some("10".parse().unwrap()));
     }
 
     #[tokio::test]
     async fn replay_depth_update_applies_delta() {
-        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let (tickers, books, stores, trades, ohlcvs, rest) = channels();
         let mut store = OrderBookStore::new(0);
         store.reset(&[("100".parse().unwrap(), "1".parse().unwrap())], &[]);
         store.last_update_id = Some(1);
@@ -616,7 +579,7 @@ mod tests {
             "e": "depthUpdate", "s": "BTCUSDT", "u": 2, "E": 123,
             "b": [["100", "2"]], "a": [["101", "3"]]
         });
-        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs);
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs, &rest);
         let book = rx.borrow().clone();
         assert_eq!(book.bids[0].amount, Some("2".parse().unwrap()));
         assert_eq!(book.asks.len(), 1);
@@ -625,11 +588,11 @@ mod tests {
 
     #[tokio::test]
     async fn replay_trade_routes_to_channel() {
-        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let (tickers, books, stores, trades, ohlcvs, rest) = channels();
         let (tx, rx) = watch::channel(vec![]);
         trades.lock().unwrap().insert("BTCUSDT".into(), tx);
         let msg = json!({"e": "trade", "s": "BTCUSDT", "T": 1, "t": "9", "m": true, "p": "100", "q": "2"});
-        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs);
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs, &rest);
         let ts = rx.borrow().clone();
         assert_eq!(ts.len(), 1);
         assert_eq!(ts[0].side.as_deref(), Some("sell")); // m=true → maker sell
@@ -638,7 +601,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_kline_routes_to_channel() {
-        let (tickers, books, stores, trades, ohlcvs) = channels();
+        let (tickers, books, stores, trades, ohlcvs, rest) = channels();
         let (tx, rx) = watch::channel(vec![]);
         ohlcvs
             .lock()
@@ -648,7 +611,7 @@ mod tests {
             "e": "kline", "s": "BTCUSDT",
             "k": {"t": 1, "i": "1m", "o": "100", "h": "101", "l": "99", "c": "100.5", "v": "3"}
         });
-        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs);
+        dispatch_public(msg, &tickers, &books, &stores, &trades, &ohlcvs, &rest);
         let cs = rx.borrow().clone();
         assert_eq!(cs.len(), 1);
         assert_eq!(cs[0].close, Some("100.5".parse().unwrap()));

@@ -7,28 +7,28 @@
 pub mod orderbook;
 pub mod ws;
 
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "binance"))]
 pub mod binance;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "bybit"))]
 pub mod bybit;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "kalshi"))]
 pub mod kalshi;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "kraken"))]
 pub mod kraken;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "okx"))]
 pub mod okx;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "polymarket"))]
 pub mod polymarket;
 
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "binance"))]
 pub use binance::BinanceWs;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "bybit"))]
 pub use bybit::BybitWs;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "kalshi"))]
 pub use kalshi::KalshiWs;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "kraken"))]
 pub use kraken::KrakenWs;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "okx"))]
 pub use okx::OkxWs;
-#[cfg(feature = "realtime")]
+#[cfg(all(feature = "realtime", feature = "polymarket"))]
 pub use polymarket::PolymarketWs;
