@@ -12,10 +12,8 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use hmac::{Hmac, KeyInit, Mac};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use sha2::Sha512;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
@@ -57,16 +55,8 @@ impl Gate {
 
     /// 私密 GET(v4 签名,payload = METHOD\npath\nquery\nbodyHash\ntimestamp)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "gate api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "gate secret required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "gate")?;
+        let secret = crate::signing::require_secret(&self.config, "gate")?;
         let qs = query_string(params);
         let timestamp = now_secs().to_string();
         let signature_path = format!("/api/v4{path}");
@@ -74,15 +64,12 @@ impl Gate {
             "GET\n{signature_path}\n{}\n\n{timestamp}",
             qs.trim_start_matches('?')
         );
-        let mut mac = Hmac::<Sha512>::new_from_slice(secret.as_bytes())
-            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(payload.as_bytes());
-        let signature = hex::encode(mac.finalize().into_bytes());
+        let signature = crate::signing::hmac_sha512_hex(secret, &payload);
         let mut headers = HeaderMap::new();
-        headers.insert("KEY", HeaderValue::from_str(api_key).unwrap());
-        headers.insert("Timestamp", HeaderValue::from_str(&timestamp).unwrap());
-        headers.insert("SIGN", HeaderValue::from_str(&signature).unwrap());
-        headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+        crate::signing::set_header(&mut headers, "KEY", api_key)?;
+        crate::signing::set_header(&mut headers, "Timestamp", &timestamp)?;
+        crate::signing::set_header(&mut headers, "SIGN", &signature)?;
+        crate::signing::set_header(&mut headers, "Content-Type", "application/json")?;
         let url = format!("{path}{qs}");
         self.core.request("GET", &url, &headers, None).await
     }

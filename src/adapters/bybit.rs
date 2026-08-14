@@ -11,7 +11,7 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
@@ -64,16 +64,8 @@ impl Bybit {
         params: &Params,
         body: Option<Value>,
     ) -> Result<Value> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "bybit api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "bybit secret required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "bybit")?;
+        let secret = crate::signing::require_secret(&self.config, "bybit")?;
         let timestamp = now_ms().to_string();
         // payload:GET = query string(不带 ?),POST = JSON body
         let (payload, body_json, req_path) = if method == "GET" {
@@ -91,18 +83,12 @@ impl Bybit {
             (s.clone(), b, path.to_string())
         };
         let auth = format!("{timestamp}{api_key}{RECV_WINDOW}{payload}");
-        let signature = hmac_sha256_hex(secret, &auth);
+        let signature = crate::signing::hmac_sha256_hex(secret, &auth);
         let mut headers = HeaderMap::new();
-        headers.insert("X-BAPI-API-KEY", HeaderValue::from_str(api_key).unwrap());
-        headers.insert(
-            "X-BAPI-TIMESTAMP",
-            HeaderValue::from_str(&timestamp).unwrap(),
-        );
-        headers.insert(
-            "X-BAPI-RECV-WINDOW",
-            HeaderValue::from_str(RECV_WINDOW).unwrap(),
-        );
-        headers.insert("X-BAPI-SIGN", HeaderValue::from_str(&signature).unwrap());
+        crate::signing::set_header(&mut headers, "X-BAPI-API-KEY", api_key)?;
+        crate::signing::set_header(&mut headers, "X-BAPI-TIMESTAMP", &timestamp)?;
+        crate::signing::set_header(&mut headers, "X-BAPI-RECV-WINDOW", RECV_WINDOW)?;
+        crate::signing::set_header(&mut headers, "X-BAPI-SIGN", &signature)?;
         self.core
             .request(method, &req_path, &headers, body_json)
             .await
@@ -600,15 +586,6 @@ fn ts_value(v: &Value) -> Option<i64> {
         Value::Number(n) => n.as_i64(),
         _ => None,
     }
-}
-
-/// HMAC-SHA256 → hex(ADR-0013 sign 接缝)。REST 签名与 realtime WS auth 帧共用。
-pub fn hmac_sha256_hex(secret: &str, data: &str) -> String {
-    use hmac::{Hmac, KeyInit, Mac};
-    type HmacSha256 = Hmac<sha2::Sha256>;
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");
-    mac.update(data.as_bytes());
-    hex::encode(mac.finalize().into_bytes())
 }
 
 #[cfg(test)]

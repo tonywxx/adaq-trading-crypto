@@ -7,14 +7,13 @@
 //! (如 `BTC/USD`)。端点以官方文档为准(此处采用 v2 data / v2 trading,待核对)。
 
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, now_ms, parse_level, query_string};
+use crate::httpcore::{HttpCore, dec, iso8601_ms, now_ms, parse_level, query_string};
 use crate::types::{
     Balance, Balances, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position, Precision,
     Ticker, Tickers, Trade,
@@ -160,23 +159,23 @@ impl Alpaca {
         Ticker {
             symbol: symbol.to_string(),
             timestamp: ts,
-            datetime: ts.and_then(iso8601),
+            datetime: ts.and_then(iso8601_ms),
             high: snap
                 .get("dailyBar")
                 .and_then(|b| b.get("h"))
-                .and_then(|v| num(Some(v))),
+                .and_then(|v| dec(Some(v))),
             low: snap
                 .get("dailyBar")
                 .and_then(|b| b.get("l"))
-                .and_then(|v| num(Some(v))),
-            bid: quote.and_then(|q| q.get("bp")).and_then(|v| num(Some(v))),
-            ask: quote.and_then(|q| q.get("ap")).and_then(|v| num(Some(v))),
-            last: trade.and_then(|t| t.get("p")).and_then(|v| num(Some(v))),
-            close: trade.and_then(|t| t.get("p")).and_then(|v| num(Some(v))),
+                .and_then(|v| dec(Some(v))),
+            bid: quote.and_then(|q| q.get("bp")).and_then(|v| dec(Some(v))),
+            ask: quote.and_then(|q| q.get("ap")).and_then(|v| dec(Some(v))),
+            last: trade.and_then(|t| t.get("p")).and_then(|v| dec(Some(v))),
+            close: trade.and_then(|t| t.get("p")).and_then(|v| dec(Some(v))),
             base_volume: snap
                 .get("dailyBar")
                 .and_then(|b| b.get("v"))
-                .and_then(|v| num(Some(v))),
+                .and_then(|v| dec(Some(v))),
             info: snap.clone(),
             ..Ticker::default()
         }
@@ -191,12 +190,12 @@ impl Alpaca {
             id: raw["i"].as_u64().map(|v| v.to_string()),
             info: raw.clone(),
             timestamp: ts,
-            datetime: ts.and_then(iso8601),
+            datetime: ts.and_then(iso8601_ms),
             symbol: Some(symbol.to_string()),
             side: raw["t"].as_str().map(|s| s.to_lowercase()),
             taker_or_maker: Some("taker".to_string()),
-            price: num(raw.get("p")),
-            amount: num(raw.get("s")),
+            price: dec(raw.get("p")),
+            amount: dec(raw.get("s")),
             ..Trade::default()
         }
     }
@@ -208,11 +207,11 @@ impl Alpaca {
             .and_then(parse_rfc3339_ms);
         OHLCV {
             timestamp: ts,
-            open: num(raw.get("o")),
-            high: num(raw.get("h")),
-            low: num(raw.get("l")),
-            close: num(raw.get("c")),
-            volume: num(raw.get("v")),
+            open: dec(raw.get("o")),
+            high: dec(raw.get("h")),
+            low: dec(raw.get("l")),
+            close: dec(raw.get("c")),
+            volume: dec(raw.get("v")),
         }
     }
 
@@ -234,7 +233,7 @@ impl Alpaca {
             bids,
             asks,
             timestamp: ts,
-            datetime: ts.and_then(iso8601),
+            datetime: ts.and_then(iso8601_ms),
             info: raw.clone(),
             ..OrderBook::default()
         }
@@ -247,8 +246,8 @@ impl Alpaca {
             "canceled" | "cancelled" | "expired" | "rejected" | "done_for_day" => "canceled",
             other => other,
         });
-        let qty = num(raw.get("qty")).or_else(|| num(raw.get("filled_qty")));
-        let filled = num(raw.get("filled_qty"));
+        let qty = dec(raw.get("qty")).or_else(|| dec(raw.get("filled_qty")));
+        let filled = dec(raw.get("filled_qty"));
         let ts = raw
             .get("created_at")
             .and_then(Value::as_str)
@@ -257,13 +256,13 @@ impl Alpaca {
             id: raw["id"].as_str().map(String::from),
             client_order_id: raw["client_order_id"].as_str().map(String::from),
             timestamp: ts,
-            datetime: ts.and_then(iso8601),
+            datetime: ts.and_then(iso8601_ms),
             status: status.map(String::from),
             symbol: raw["symbol"].as_str().map(String::from),
             order_type: raw["type"].as_str().map(|s| s.to_lowercase()),
             side: raw["side"].as_str().map(|s| s.to_lowercase()),
-            price: num(raw.get("limit_price")).or_else(|| num(raw.get("filled_avg_price"))),
-            average: num(raw.get("filled_avg_price")),
+            price: dec(raw.get("limit_price")).or_else(|| dec(raw.get("filled_avg_price"))),
+            average: dec(raw.get("filled_avg_price")),
             amount: qty,
             filled,
             remaining: match (qty, filled) {
@@ -279,10 +278,10 @@ impl Alpaca {
         Position {
             symbol: raw["symbol"].as_str().map(String::from),
             id: raw["symbol"].as_str().map(String::from),
-            contracts: num(raw.get("qty")),
-            entry_price: num(raw.get("avg_entry_price")),
-            notional: num(raw.get("market_value")),
-            unrealized_pnl: num(raw.get("unrealized_pl")),
+            contracts: dec(raw.get("qty")),
+            entry_price: dec(raw.get("avg_entry_price")),
+            notional: dec(raw.get("market_value")),
+            unrealized_pnl: dec(raw.get("unrealized_pl")),
             info: raw.clone(),
             ..Position::default()
         }
@@ -409,8 +408,8 @@ impl Exchange for Alpaca {
         let resp = self.trading_get("/v2/account", &Params::new()).await?;
         let mut accounts = HashMap::new();
         let currency = resp["currency"].as_str().unwrap_or("USD").to_string();
-        let equity = num(resp.get("equity"));
-        let cash = num(resp.get("cash"));
+        let equity = dec(resp.get("equity"));
+        let cash = dec(resp.get("cash"));
         accounts.insert(
             currency,
             Balance {
@@ -529,13 +528,13 @@ impl Exchange for Alpaca {
                 datetime: a
                     .get("transaction_time")
                     .and_then(Value::as_i64)
-                    .and_then(iso8601),
+                    .and_then(iso8601_ms),
                 symbol: a["symbol"].as_str().map(String::from),
                 side: a["side"].as_str().map(|s| s.to_lowercase()),
                 taker_or_maker: Some("taker".to_string()),
-                price: num(a.get("price")),
-                amount: num(a.get("qty")),
-                cost: num(a.get("price")).and_then(|p| num(a.get("qty")).map(|q| p * q)),
+                price: dec(a.get("price")),
+                amount: dec(a.get("qty")),
+                cost: dec(a.get("price")).and_then(|p| dec(a.get("qty")).map(|q| p * q)),
                 ..Trade::default()
             })
             .filter(|t| match symbol {
@@ -548,19 +547,6 @@ impl Exchange for Alpaca {
 
 // ---------- 工具 ----------
 
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(|x| match x {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => rust_decimal::Decimal::from_str(&n.to_string()).ok(),
-        _ => None,
-    })
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
-        .map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
-}
-
 /// 解析 alpaca RFC3339 时间戳(`2021-01-01T00:00:00.000Z`)→毫秒。
 fn parse_rfc3339_ms(s: &str) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(s)
@@ -571,8 +557,8 @@ fn parse_rfc3339_ms(s: &str) -> Option<i64> {
 /// 解析 L2 簿档位(`{p, s, x}` → `Level`)。
 fn parse_book_level(raw: &Value) -> crate::types::Level {
     crate::types::Level {
-        price: num(raw.get("p")),
-        amount: num(raw.get("s")),
+        price: dec(raw.get("p")),
+        amount: dec(raw.get("s")),
     }
 }
 

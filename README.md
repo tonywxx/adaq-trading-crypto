@@ -186,11 +186,24 @@ generated set, while Kalshi / Polymarket / Manifold remain among the curated ada
 Adapters follow the **HttpCore + four-seam** model (ADR-0013):
 
 - **`HttpCore`** — an exchange-agnostic deep module that owns the HTTP request skeleton, market
-  caching, client-side pagination/filtering, safe field extraction, and `Precise` arithmetic.
+  caching, client-side pagination/filtering, safe field extraction, and `Precise` arithmetic. It
+  also hosts normalized helpers — `iso8601_ms`, `parse_ohlcv_standard` — and the shared
+  error-code → `ErrorKind` mapping (`ERROR_CODE_MAP`, the ADR-0013 `handle_errors` seam).
+- **`signing`** — a shared deep module ([`src/signing.rs`](src/signing.rs), the ADR-0013 `sign`
+  seam) that owns every exchange-agnostic HMAC primitive (SHA-256/384/512, hex & base64),
+  credential extraction (`require_api_key` / `require_secret` / `require_passphrase`), and
+  panic-free header assembly (`set_header`). Each adapter's `private_request` keeps only the
+  exchange-specific auth-string concatenation and header-name set.
 - **Four seams** — each adapter only fills: `describe` (endpoint paths/parameters), `sign`
   (signing algorithm), `handle_errors` (error-code mapping), and field mapping (`parse`
   overrides). The generated exchange adapters fill only the `describe` seam and reuse `HttpCore`
   unchanged.
+
+> **New in v1.0.4:** a consolidation release with no API-surface or exchange changes. The `sign`
+> seam moved into a shared `src/signing.rs` deep module, `HttpCore` absorbed normalized time/OHLCV
+> helpers and the shared error-code map, and `generic.rs`'s generated-path `parse_*` consumers were
+> split into `src/generic_parse.rs` to isolate the ADR-0016 contract anchors. ~330 lines were
+> removed across the curated adapters; behavior and fixtures are unchanged.
 
 The 109 exchanges follow a **hybrid evolution model** ([ADR-0017](docs/adr/0017-hybrid-evolution-curated-generated-boundary.md)):
 the **22 curated** adapters are hand-authored with the full trading surface (team-maintained,
@@ -222,7 +235,12 @@ tick size; round / truncate / up / down).
 ## Error Handling
 
 A unified `Error` wraps an `ErrorKind` that mirrors ccxt's exception tree, carrying context,
-retryability, and `From` conversions for ergonomic `?` propagation.
+retryability, and `From` conversions for ergonomic `?` propagation. Exchange error codes are now
+classified into fine-grained `ErrorKind` variants via a shared `ERROR_CODE_MAP` (the ADR-0013
+`handle_errors` seam): for example Binance `-1003` → `RateLimitExceeded` (retryable), `-1121` →
+`BadSymbol`, `-2015` → `Authentication`; Bybit `10001` → `InvalidOrder`, `10003` →
+`Authentication`; HTX `invalid-symbol` → `BadSymbol`. Unmapped codes fall back to
+`ErrorKind::Exchange`, preserving prior behavior.
 
 ## Testing & Quality
 

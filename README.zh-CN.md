@@ -174,8 +174,11 @@ Manifold 仍是上方的精选适配器。
 
 适配器遵循 **HttpCore + 四接缝** 模型（ADR-0013）：
 
-- **`HttpCore`** —— 一个与交易所无关的深层模块，负责 HTTP 请求骨架、市集缓存、客户端分页/过滤、安全字段提取，以及 `Precise` 运算。
+- **`HttpCore`** —— 一个与交易所无关的深层模块，负责 HTTP 请求骨架、市集缓存、客户端分页/过滤、安全字段提取，以及 `Precise` 运算。它还承载规范化的辅助函数 —— `iso8601_ms`、`parse_ohlcv_standard` —— 以及共享的「错误码 → `ErrorKind`」映射（`ERROR_CODE_MAP`，即 ADR-0013 的 `handle_errors` 接缝）。
+- **`signing`** —— 一个共享的深层模块（[`src/signing.rs`](src/signing.rs)，对应 ADR-0013 的 `sign` 接缝），收口所有与交易所无关的 HMAC 原语（SHA-256/384/512，hex 与 base64 两种输出）、凭据抽取（`require_api_key` / `require_secret` / `require_passphrase`），以及无 panic 的请求头装配（`set_header`）。各适配器的 `private_request` 只需保留交易所专属的认证串拼接与请求头名集。
 - **四接缝** —— 每个适配器只需填写：`describe`（端点路径/参数）、`sign`（签名算法）、`handle_errors`（错误码映射），以及字段映射（`parse` 覆写）。其余（生成式）交易所适配器只填 `describe` 接缝，零改动复用 `HttpCore`。
+
+> **v1.0.4 新增**：一次无接口面、无交易所变更的整合发布。`sign` 接缝下沉为共享的 `src/signing.rs` 深层模块；`HttpCore` 吸纳了规范化的时间/OHLCV 辅助函数与共享错误码映射；`generic.rs` 中「生成式路径」的 `parse_*` 消费者被拆分为 `src/generic_parse.rs`，以隔离 ADR-0016 的契约锚点。精选适配器中净删约 330 行，行为与差分 fixture 均保持不变。
 
 109 个交易所采用**混合进化模型**（[ADR-0017](docs/adr/0017-hybrid-evolution-curated-generated-boundary.md)）：**22 个精选（curated）**适配器为手写、覆盖完整交易面（团队维护、可最大化优化），**87 个生成式（generated）**适配器由 ccxt `describe()` 转译生成、仅覆盖公开面（由 ccxt 上游维护）。`提升（Promote）`是把任意长尾交易所从 generated 升级为 curated 的可复用操作，一旦需要完整交易即可采用。
 
@@ -198,7 +201,7 @@ Manifold 仍是上方的精选适配器。
 
 ## 错误处理
 
-统一的 `Error` 封装了镜像 ccxt 异常树的 `ErrorKind`，携带上下文、可重试性，以及 `From` 转换，便于使用 `?` 进行符合人体工学的错误传播。
+统一的 `Error` 封装了镜像 ccxt 异常树的 `ErrorKind`，携带上下文、可重试性，以及 `From` 转换，便于使用 `?` 进行符合人体工学的错误传播。交易所错误码现在通过共享的 `ERROR_CODE_MAP`（ADR-0013 的 `handle_errors` 接缝）被分类为更细粒度的 `ErrorKind`：例如 Binance `-1003` → `RateLimitExceeded`（可重试）、`-1121` → `BadSymbol`、`-2015` → `Authentication`；Bybit `10001` → `InvalidOrder`、`10003` → `Authentication`；HTX `invalid-symbol` → `BadSymbol`。未入表的错误码回退为 `ErrorKind::Exchange`，与原有行为一致。
 
 ## 测试与质量
 

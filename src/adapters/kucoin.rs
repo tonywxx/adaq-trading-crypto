@@ -13,11 +13,8 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use base64::Engine;
-use hmac::{Hmac, KeyInit, Mac};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use sha2::Sha256;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
@@ -59,40 +56,18 @@ impl Kucoin {
 
     /// 私密 GET(v1 签名)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "kucoin api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "kucoin secret required"))?;
-        let passphrase = self
-            .config
-            .password
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "kucoin password required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "kucoin")?;
+        let secret = crate::signing::require_secret(&self.config, "kucoin")?;
+        let passphrase = crate::signing::require_passphrase(&self.config, "kucoin")?;
         let timestamp = now_ms().to_string();
         let qs = query_string(params);
         let auth = format!("{timestamp}GET{path}{qs}");
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(auth.as_bytes());
-        let signature =
-            base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+        let signature = crate::signing::hmac_sha256_b64(secret, &auth);
         let mut headers = HeaderMap::new();
-        headers.insert("KC-API-KEY", HeaderValue::from_str(api_key).unwrap());
-        headers.insert("KC-API-SIGN", HeaderValue::from_str(&signature).unwrap());
-        headers.insert(
-            "KC-API-TIMESTAMP",
-            HeaderValue::from_str(&timestamp).unwrap(),
-        );
-        headers.insert(
-            "KC-API-PASSPHRASE",
-            HeaderValue::from_str(passphrase).unwrap(),
-        );
+        crate::signing::set_header(&mut headers, "KC-API-KEY", api_key)?;
+        crate::signing::set_header(&mut headers, "KC-API-SIGN", &signature)?;
+        crate::signing::set_header(&mut headers, "KC-API-TIMESTAMP", &timestamp)?;
+        crate::signing::set_header(&mut headers, "KC-API-PASSPHRASE", passphrase)?;
         let url = format!("{path}{qs}");
         self.core.request("GET", &url, &headers, None).await
     }

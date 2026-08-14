@@ -14,7 +14,7 @@ use serde_json::Value;
 use crate::client::Client;
 use crate::error::{Error, ErrorContext, ErrorKind, Result};
 use crate::exchange::{Config, Params};
-use crate::types::{Level, Markets};
+use crate::types::{Level, Markets, OHLCV};
 
 /// 交易所无关核心:HTTP 客户端 + 市集缓存。
 pub struct HttpCore {
@@ -141,6 +141,23 @@ pub fn parse_level(raw: &Value) -> Level {
     }
 }
 
+/// 规范 ccxt OHLCV 数组 `[timestamp, open, high, low, close, volume]` → [`OHLCV`]。
+///
+/// 覆盖大多数交易所的数组形 K 线;仅索引顺序或时间戳缩放不同的适配器可继续
+/// 用 `value_decimal` 自行拼装(如 coinbase 秒→毫秒、kraken 量在第 6 位、
+/// bybit 7 元素、htx 对象形),那些属真实交易所差异,不强塞本构造器。
+pub fn parse_ohlcv_standard(row: &Value) -> OHLCV {
+    let a = row.as_array();
+    OHLCV {
+        timestamp: a.and_then(|x| x.first()).and_then(|v| v.as_i64()),
+        open: a.and_then(|x| x.get(1)).and_then(value_decimal),
+        high: a.and_then(|x| x.get(2)).and_then(value_decimal),
+        low: a.and_then(|x| x.get(3)).and_then(value_decimal),
+        close: a.and_then(|x| x.get(4)).and_then(value_decimal),
+        volume: a.and_then(|x| x.get(5)).and_then(value_decimal),
+    }
+}
+
 /// Params → `?k=v&...`(原各适配器 `query_string` 副本)。
 pub fn query_string(params: &Params) -> String {
     if params.is_empty() {
@@ -185,6 +202,16 @@ pub fn iso8601_now() -> String {
 /// 毫秒时间戳 → RFC3339(原 `iso8601` 副本)。
 pub fn iso8601(ms: i64) -> Option<String> {
     chrono::DateTime::from_timestamp_millis(ms).map(|d| d.to_rfc3339())
+}
+
+/// 毫秒时间戳 → RFC3339(毫秒精度,`...Z` 后缀;对齐 ccxt 输出)。
+///
+/// 适配器原本各自定义 `fn iso8601(ms)` 使用 `to_rfc3339_opts(Millis, true)`,
+/// 与 [`iso8601`] 的 `to_rfc3339()`(AutoSi,`+00:00`) 精度不同;此处提供单一
+/// 毫秒精度真源,统一那些副本而不改变任何适配器的输出格式。
+pub fn iso8601_ms(ms: i64) -> Option<String> {
+    chrono::DateTime::from_timestamp_millis(ms)
+        .map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
 }
 
 /// 当前 UTC 毫秒时间戳(签名/认证用;统一为 `i64`,与 [`iso8601`] 对齐)。
@@ -263,9 +290,12 @@ pub fn dec_f64(f: f64) -> Option<rust_decimal::Decimal> {
 /// `handle_errors` 接缝的通用实现(ADR-0013 四缝之一)。
 ///
 /// 每次成功响应(HTTP 200 + 合法 JSON)后由 [`HttpCore::request_url`] 调用,
-/// 识别 ccxt 基类常见的错误信封形状,映射为统一 [`ErrorKind::Exchange`]
-/// (业务错误码写入 `context.http_error_code` 供适配器做更细分类)。无法识别
-/// (合法成功响应 / 无错误信封 / 非对象体)返回 `None`,交还解析层。
+/// 识别 ccxt 基类常见的错误信封形状。识别到的错误经 [`classify_error_code`]
+/// 按 `(exchange, code)` 升级为细粒度 [`ErrorKind`](如 `InsufficientFunds` /
+/// `InvalidOrder` / `BadSymbol` / `RateLimitExceeded`),查表未命中则回退
+/// [`ErrorKind::Exchange`];业务错误码同时写入 `context.http_error_code` 供适配
+/// 器做更细分类。无法识别(合法成功响应 / 无错误信封 / 非对象体)返回 `None`,
+/// 交还解析层。
 ///
 /// 识别保守:仅对**明确**错误信号判定为错误,绝不误伤成功响应——
 /// 这是与解析层"静默失败"相比的核心改进。覆盖形状:
@@ -286,12 +316,7 @@ pub fn extract_exchange_error(body: &Value, exchange: &str) -> Option<Error> {
             .filter_map(|v| v.as_str())
             .find(|s| !s.is_empty())
         {
-            return Some(error_with(
-                exchange,
-                ErrorKind::Exchange,
-                first,
-                code_str(obj.get("code")),
-            ));
+            return Some(error_with(exchange, first, code_str(obj.get("code"))));
         }
     }
 
@@ -303,7 +328,6 @@ pub fn extract_exchange_error(body: &Value, exchange: &str) -> Option<Error> {
                 .unwrap_or("bybit error");
             return Some(error_with(
                 exchange,
-                ErrorKind::Exchange,
                 &format!("{rc}: {msg}"),
                 Some(rc.to_string()),
             ));
@@ -317,7 +341,6 @@ pub fn extract_exchange_error(body: &Value, exchange: &str) -> Option<Error> {
                 pick_str(body, &["err-msg", "err_msg", "message", "msg"]).unwrap_or("htx error");
             return Some(error_with(
                 exchange,
-                ErrorKind::Exchange,
                 msg,
                 obj.get("err-code")
                     .and_then(|v| v.as_str())
@@ -329,12 +352,7 @@ pub fn extract_exchange_error(body: &Value, exchange: &str) -> Option<Error> {
     // 通用:{ "success": false, ... } 或 { "code": <非成功>, "msg"/"message": "..." }
     if let Some(Value::Bool(false)) = obj.get("success") {
         let msg = pick_str(body, &["msg", "message"]).unwrap_or("request failed");
-        return Some(error_with(
-            exchange,
-            ErrorKind::Exchange,
-            msg,
-            code_str(obj.get("code")),
-        ));
+        return Some(error_with(exchange, msg, code_str(obj.get("code"))));
     }
 
     if let Some(code_val) = obj.get("code") {
@@ -345,16 +363,47 @@ pub fn extract_exchange_error(body: &Value, exchange: &str) -> Option<Error> {
         };
         if !is_success {
             let msg = pick_str(body, &["msg", "message"]).unwrap_or("exchange error");
-            return Some(error_with(
-                exchange,
-                ErrorKind::Exchange,
-                msg,
-                code_str(Some(code_val)),
-            ));
+            return Some(error_with(exchange, msg, code_str(Some(code_val))));
         }
     }
 
     None
+}
+
+/// 各交易所「错误码 → 细粒度 `ErrorKind`」映射表(候选 ⑤ / ADR-0013 已知遗留 ①)。
+///
+/// `extract_exchange_error` 识别到错误信封后,用 `(exchange, code)` 查此表:
+/// 命中则升级为对应的细粒度 `ErrorKind`(影响重试性与调用方分支判断),未命中
+/// 回退 [`ErrorKind::Exchange`](保持原有粗粒度行为)。仅收录高置信度、长期稳定
+/// 的业务码;新增交易所/码在此扩展,无需改动识别逻辑。
+static ERROR_CODE_MAP: &[(&str, &str, ErrorKind)] = &[
+    // binance 负码(见 ccxt binance 文档,长期稳定)
+    ("binance", "-1121", ErrorKind::BadSymbol),
+    ("binance", "-2019", ErrorKind::InsufficientFunds),
+    ("binance", "-2015", ErrorKind::Authentication),
+    ("binance", "-1003", ErrorKind::RateLimitExceeded),
+    ("binance", "-2010", ErrorKind::InvalidOrder),
+    // bybit v5 retCode
+    ("bybit", "10001", ErrorKind::InvalidOrder),
+    ("bybit", "10003", ErrorKind::Authentication),
+    ("bybit", "10005", ErrorKind::PermissionDenied),
+    ("bybit", "10006", ErrorKind::RateLimitExceeded),
+    // htx / huobi err-code
+    ("htx", "invalid-symbol", ErrorKind::BadSymbol),
+];
+
+/// 把 `(exchange, code)` 解析为细粒度 `ErrorKind`;查表未命中或 `code` 为空
+/// 回退 [`ErrorKind::Exchange`]。
+fn classify_error_code(exchange: &str, code: &str) -> ErrorKind {
+    if code.is_empty() {
+        return ErrorKind::Exchange;
+    }
+    for (ex, c, kind) in ERROR_CODE_MAP {
+        if *ex == exchange && *c == code {
+            return *kind;
+        }
+    }
+    ErrorKind::Exchange
 }
 
 /// 把业务错误码规整为字符串(供 `context.http_error_code`)。
@@ -366,8 +415,10 @@ fn code_str(v: Option<&Value>) -> Option<String> {
     }
 }
 
-/// 构造带交易所来源与错误码的分类错误。
-fn error_with(exchange: &str, kind: ErrorKind, msg: &str, code: Option<String>) -> Error {
+/// 构造带交易所来源与错误码的分类错误(错误码经 [`classify_error_code`]
+/// 升级为细粒度 [`ErrorKind`])。
+fn error_with(exchange: &str, msg: &str, code: Option<String>) -> Error {
+    let kind = classify_error_code(exchange, code.as_deref().unwrap_or(""));
     let mut ctx = ErrorContext::new();
     if !exchange.is_empty() {
         ctx = ctx.exchange(exchange.to_string());
@@ -434,6 +485,7 @@ mod tests {
         let body = json!({"retCode":10001,"retMsg":"param error","result":null});
         let err = extract_exchange_error(&body, "bybit").expect("should detect error");
         assert_eq!(err.context.http_error_code.as_deref(), Some("10001"));
+        assert_eq!(err.kind, ErrorKind::InvalidOrder);
     }
 
     #[test]
@@ -462,6 +514,7 @@ mod tests {
             err.context.http_error_code.as_deref(),
             Some("invalid-symbol")
         );
+        assert_eq!(err.kind, ErrorKind::BadSymbol);
     }
 
     #[test]
@@ -475,6 +528,36 @@ mod tests {
         // 部分端点直接返回数组(无错误信封)
         let body = json!([{"symbol":"BTC-USDT"}]);
         assert!(extract_exchange_error(&body, "okx").is_none());
+    }
+
+    // ---- handle_errors 接缝:error_code_map 细粒度分类(候选 ⑤) ----
+
+    #[test]
+    fn binance_known_code_maps_to_fine_grained_kind() {
+        // 仅收录高置信度长期稳定码;未命中表则回退 Exchange。
+        let cases = [
+            ("-1121", ErrorKind::BadSymbol),
+            ("-2019", ErrorKind::InsufficientFunds),
+            ("-2015", ErrorKind::Authentication),
+            ("-1003", ErrorKind::RateLimitExceeded),
+            ("-2010", ErrorKind::InvalidOrder),
+        ];
+        for (code, want) in cases {
+            let body = json!({"code": code.parse::<i64>().unwrap(), "msg": "x"});
+            let err = extract_exchange_error(&body, "binance").expect("detected");
+            assert_eq!(err.kind, want, "code {code}");
+            assert_eq!(err.context.http_error_code.as_deref(), Some(code));
+        }
+    }
+
+    #[test]
+    fn unmapped_code_falls_back_to_exchange() {
+        // okx 51000 等业务码未入表,保持原有粗粒度行为。
+        let body = json!({"code":"51000","msg":"param invalid"});
+        let err = extract_exchange_error(&body, "okx").expect("detected");
+        assert_eq!(err.kind, ErrorKind::Exchange);
+        // 业务码仍写入 context 供适配器覆写。
+        assert_eq!(err.context.http_error_code.as_deref(), Some("51000"));
     }
 
     #[test]
@@ -496,6 +579,26 @@ mod tests {
         assert!(qs.starts_with('?'));
         assert!(qs.contains("instType=SPOT"));
         assert!(qs.contains("bar=1H"));
+    }
+
+    #[test]
+    fn parse_ohlcv_standard_reads_canonical_array() {
+        let row = json!([1499040000000i64, "0.1", "0.2", "0.05", "0.15", "10.5"]);
+        let o = parse_ohlcv_standard(&row);
+        assert_eq!(o.timestamp, Some(1499040000000));
+        assert_eq!(o.open, Some("0.1".parse().unwrap()));
+        assert_eq!(o.high, Some("0.2".parse().unwrap()));
+        assert_eq!(o.low, Some("0.05".parse().unwrap()));
+        assert_eq!(o.close, Some("0.15".parse().unwrap()));
+        assert_eq!(o.volume, Some("10.5".parse().unwrap()));
+    }
+
+    #[test]
+    fn iso8601_ms_emits_millisecond_z() {
+        assert_eq!(
+            iso8601_ms(1499040000000),
+            Some("2017-07-03T00:00:00.000Z".to_string())
+        );
     }
 
     #[test]

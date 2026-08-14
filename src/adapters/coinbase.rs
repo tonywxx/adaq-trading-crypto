@@ -11,14 +11,12 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use hmac::{Hmac, KeyInit, Mac};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use sha2::Sha256;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, query_string};
+use crate::httpcore::{HttpCore, dec, query_string};
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -64,30 +62,17 @@ impl Coinbase {
 
     /// 私密 GET(v3 签名)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let api_key =
-            self.config.api_key.as_deref().ok_or_else(|| {
-                Error::new(ErrorKind::Authentication, "coinbase api_key required")
-            })?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "coinbase secret required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "coinbase")?;
+        let secret = crate::signing::require_secret(&self.config, "coinbase")?;
         let timestamp = now_secs().to_string();
         // v3:GET 签名只覆盖 `timestamp + method + path`(不含 query)
         let auth = format!("{timestamp}GET/api/v3{path}");
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(auth.as_bytes());
-        let signature = hex::encode(mac.finalize().into_bytes());
+        let signature = crate::signing::hmac_sha256_hex(secret, &auth);
         let mut headers = HeaderMap::new();
-        headers.insert("CB-ACCESS-KEY", HeaderValue::from_str(api_key).unwrap());
-        headers.insert("CB-ACCESS-SIGN", HeaderValue::from_str(&signature).unwrap());
-        headers.insert(
-            "CB-ACCESS-TIMESTAMP",
-            HeaderValue::from_str(&timestamp).unwrap(),
-        );
-        headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+        crate::signing::set_header(&mut headers, "CB-ACCESS-KEY", api_key)?;
+        crate::signing::set_header(&mut headers, "CB-ACCESS-SIGN", &signature)?;
+        crate::signing::set_header(&mut headers, "CB-ACCESS-TIMESTAMP", &timestamp)?;
+        crate::signing::set_header(&mut headers, "Content-Type", "application/json")?;
         let url = format!("{BASE_URL}/api/v3{path}{}", query_string(params));
         self.core.request_url("GET", &url, &headers, None).await
     }
@@ -140,18 +125,18 @@ impl Coinbase {
             market_type: Some(MarketType::Spot),
             spot: Some(true),
             precision: Precision {
-                price: num(raw.get("price_increment")).or_else(|| num(raw.get("quote_increment"))),
-                amount: num(raw.get("base_increment")),
+                price: dec(raw.get("price_increment")).or_else(|| dec(raw.get("quote_increment"))),
+                amount: dec(raw.get("base_increment")),
                 cost: None,
             },
             limits: crate::types::Limits {
                 amount: Some(crate::types::Limit {
-                    min: num(raw.get("base_min_size")),
-                    max: num(raw.get("base_max_size")),
+                    min: dec(raw.get("base_min_size")),
+                    max: dec(raw.get("base_max_size")),
                 }),
                 cost: Some(crate::types::Limit {
-                    min: num(raw.get("quote_min_size")),
-                    max: num(raw.get("quote_max_size")),
+                    min: dec(raw.get("quote_min_size")),
+                    max: dec(raw.get("quote_max_size")),
                 }),
                 ..crate::types::Limits::default()
             },
@@ -164,18 +149,18 @@ impl Coinbase {
         let product_id = raw["product_id"].as_str().unwrap_or_default();
         let datetime = raw["time"].as_str().map(str::to_string);
         let timestamp = datetime.as_deref().and_then(parse_iso8601);
-        let last = num(raw.get("price"));
-        let bid = num(raw.get("bid")).or_else(|| {
+        let last = dec(raw.get("price"));
+        let bid = dec(raw.get("bid")).or_else(|| {
             raw.get("bids")
                 .and_then(Value::as_array)
                 .and_then(|a| a.first())
-                .and_then(|b| num(b.get("price")))
+                .and_then(|b| dec(b.get("price")))
         });
-        let ask = num(raw.get("ask")).or_else(|| {
+        let ask = dec(raw.get("ask")).or_else(|| {
             raw.get("asks")
                 .and_then(Value::as_array)
                 .and_then(|a| a.first())
-                .and_then(|b| num(b.get("price")))
+                .and_then(|b| dec(b.get("price")))
         });
         Ticker {
             symbol: self.market_symbol(product_id),
@@ -185,9 +170,9 @@ impl Coinbase {
             ask,
             last,
             close: last,
-            percentage: num(raw.get("price_percentage_change_24h")),
-            base_volume: num(raw.get("volume_24h")),
-            quote_volume: num(raw.get("approximate_quote_24h_volume")),
+            percentage: dec(raw.get("price_percentage_change_24h")),
+            base_volume: dec(raw.get("volume_24h")),
+            quote_volume: dec(raw.get("approximate_quote_24h_volume")),
             info: raw.clone(),
             ..Ticker::default()
         }
@@ -200,19 +185,19 @@ impl Coinbase {
                 .as_str()
                 .and_then(|s| s.parse::<i64>().ok())
                 .map(|s| s * 1000),
-            open: num(row.get("open")),
-            high: num(row.get("high")),
-            low: num(row.get("low")),
-            close: num(row.get("close")),
-            volume: num(row.get("volume")),
+            open: dec(row.get("open")),
+            high: dec(row.get("high")),
+            low: dec(row.get("low")),
+            close: dec(row.get("close")),
+            volume: dec(row.get("volume")),
         }
     }
 
     pub fn parse_trade(&self, raw: &Value) -> Trade {
         let datetime = raw["time"].as_str().map(str::to_string);
         let timestamp = datetime.as_deref().and_then(parse_iso8601);
-        let price = num(raw.get("price"));
-        let amount = num(raw.get("size"));
+        let price = dec(raw.get("price"));
+        let amount = dec(raw.get("size"));
         Trade {
             id: raw["trade_id"].as_str().map(str::to_string),
             info: raw.clone(),
@@ -299,8 +284,8 @@ impl Exchange for Coinbase {
             .cloned()
             .unwrap_or_default();
         let mut t = self.parse_ticker(&first);
-        t.bid = num(resp.get("best_bid")).or(t.bid);
-        t.ask = num(resp.get("best_ask")).or(t.ask);
+        t.bid = dec(resp.get("best_bid")).or(t.bid);
+        t.ask = dec(resp.get("best_ask")).or(t.ask);
         Ok(t)
     }
 
@@ -459,8 +444,8 @@ impl Exchange for Coinbase {
                 if code.is_empty() {
                     continue;
                 }
-                let free = num(a.get("available_balance").and_then(|b| b.get("value")));
-                let used = num(a.get("hold").and_then(|b| b.get("value")));
+                let free = dec(a.get("available_balance").and_then(|b| b.get("value")));
+                let used = dec(a.get("hold").and_then(|b| b.get("value")));
                 let total = match (free, used) {
                     (Some(f), Some(u)) => Some(f + u),
                     (Some(f), None) => Some(f),
@@ -484,19 +469,11 @@ impl Exchange for Coinbase {
 
 // ================= 静态助手 =================
 
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    match v {
-        Some(Value::String(s)) => s.parse().ok(),
-        Some(Value::Number(n)) => n.to_string().parse().ok(),
-        _ => None,
-    }
-}
-
 /// `{price, size}` 对象 → Level。
 fn parse_level(raw: &Value) -> Level {
     Level {
-        price: num(raw.get("price")),
-        amount: num(raw.get("size")),
+        price: dec(raw.get("price")),
+        amount: dec(raw.get("size")),
     }
 }
 

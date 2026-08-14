@@ -7,14 +7,15 @@
 //! 参考 binance.rs(curated 模板)。base URL 与端点以官方文档为准。
 
 use std::collections::HashMap;
-use std::str::FromStr;
 
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, now_ms, parse_level, query_string};
+use crate::httpcore::{
+    HttpCore, dec, iso8601_ms, now_ms, parse_level, parse_ohlcv_standard, query_string,
+};
 use crate::types::{
     Balance, Balances, Market, MarketType, Markets, OHLCV, Order, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -91,30 +92,16 @@ impl BinanceUs {
 
     /// 私有签名请求(binanceus:HMAC-SHA256,`X-MBX-APIKEY` 头)。
     async fn private_request(&self, method: &str, path: &str, params: &Params) -> Result<Value> {
-        let api_key =
-            self.config.api_key.as_deref().ok_or_else(|| {
-                Error::new(ErrorKind::Authentication, "binanceus api_key required")
-            })?;
-        let secret =
-            self.config.secret.as_deref().ok_or_else(|| {
-                Error::new(ErrorKind::Authentication, "binanceus secret required")
-            })?;
+        let api_key = crate::signing::require_api_key(&self.config, "binanceus")?;
+        let secret = crate::signing::require_secret(&self.config, "binanceus")?;
         let mut p = params.clone();
         p.insert("timestamp".into(), json!(now_ms()));
         p.insert("recvWindow".into(), json!(5000));
         let qs = query_string(&p);
-        let signature = sign_hmac_sha256(&qs, secret);
+        let signature = crate::signing::hmac_sha256_hex(secret, &qs);
         let url = format!("{BASE_URL}{path}?{qs}&signature={signature}");
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "X-MBX-APIKEY",
-            HeaderValue::from_str(api_key).map_err(|e| {
-                Error::new(
-                    ErrorKind::BadRequest,
-                    format!("invalid api key header: {e}"),
-                )
-            })?,
-        );
+        crate::signing::set_header(&mut headers, "X-MBX-APIKEY", api_key)?;
         self.core.request_url(method, &url, &headers, None).await
     }
 
@@ -138,22 +125,22 @@ impl BinanceUs {
             for f in filters {
                 match f["filterType"].as_str() {
                     Some("PRICE_FILTER") => {
-                        precision.price = num(f.get("tickSize"));
+                        precision.price = dec(f.get("tickSize"));
                         limits.price = Some(crate::types::Limit {
-                            min: num(f.get("minPrice")),
-                            max: num(f.get("maxPrice")),
+                            min: dec(f.get("minPrice")),
+                            max: dec(f.get("maxPrice")),
                         });
                     }
                     Some("LOT_SIZE") => {
-                        precision.amount = num(f.get("stepSize"));
+                        precision.amount = dec(f.get("stepSize"));
                         limits.amount = Some(crate::types::Limit {
-                            min: num(f.get("minQty")),
-                            max: num(f.get("maxQty")),
+                            min: dec(f.get("minQty")),
+                            max: dec(f.get("maxQty")),
                         });
                     }
                     Some("MIN_NOTIONAL") => {
                         limits.cost = Some(crate::types::Limit {
-                            min: num(f.get("minNotional")),
+                            min: dec(f.get("minNotional")),
                             max: None,
                         });
                     }
@@ -180,8 +167,8 @@ impl BinanceUs {
 
     pub fn parse_ticker(&self, raw: &Value) -> Ticker {
         let timestamp = raw["closeTime"].as_i64();
-        let open_price = num(raw.get("openPrice"));
-        let close_price = num(raw.get("lastPrice"));
+        let open_price = dec(raw.get("openPrice"));
+        let close_price = dec(raw.get("lastPrice"));
         let average = match (open_price, close_price) {
             (Some(o), Some(c)) => {
                 let sum = crate::precise::string_add(&o.to_string(), &c.to_string());
@@ -192,37 +179,30 @@ impl BinanceUs {
         Ticker {
             symbol: self.market_symbol(raw["symbol"].as_str().unwrap_or_default()),
             timestamp,
-            datetime: timestamp.and_then(iso8601),
-            high: num(raw.get("highPrice")),
-            low: num(raw.get("lowPrice")),
-            bid: num(raw.get("bidPrice")),
-            ask: num(raw.get("askPrice")),
-            bid_volume: num(raw.get("bidQty")),
-            ask_volume: num(raw.get("askQty")),
-            vwap: num(raw.get("weightedAvgPrice")),
+            datetime: timestamp.and_then(iso8601_ms),
+            high: dec(raw.get("highPrice")),
+            low: dec(raw.get("lowPrice")),
+            bid: dec(raw.get("bidPrice")),
+            ask: dec(raw.get("askPrice")),
+            bid_volume: dec(raw.get("bidQty")),
+            ask_volume: dec(raw.get("askQty")),
+            vwap: dec(raw.get("weightedAvgPrice")),
             open: open_price,
             close: close_price,
             last: close_price,
-            previous_close: num(raw.get("prevClosePrice")),
-            change: num(raw.get("priceChange")),
-            percentage: num(raw.get("priceChangePercent")),
+            previous_close: dec(raw.get("prevClosePrice")),
+            change: dec(raw.get("priceChange")),
+            percentage: dec(raw.get("priceChangePercent")),
             average,
-            quote_volume: num(raw.get("quoteVolume")),
-            base_volume: num(raw.get("volume")),
+            quote_volume: dec(raw.get("quoteVolume")),
+            base_volume: dec(raw.get("volume")),
             info: raw.clone(),
             ..Ticker::default()
         }
     }
 
     pub fn parse_ohlcv(&self, row: &Value) -> OHLCV {
-        OHLCV {
-            timestamp: row.get(0).and_then(Value::as_i64),
-            open: num(row.get(1)),
-            high: num(row.get(2)),
-            low: num(row.get(3)),
-            close: num(row.get(4)),
-            volume: num(row.get(5)),
-        }
+        parse_ohlcv_standard(row)
     }
 
     pub fn parse_trade(&self, raw: &Value) -> Trade {
@@ -232,13 +212,13 @@ impl BinanceUs {
             id: raw["id"].as_i64().map(|v| v.to_string()),
             info: raw.clone(),
             timestamp,
-            datetime: timestamp.and_then(iso8601),
+            datetime: timestamp.and_then(iso8601_ms),
             symbol: Some(self.market_symbol(raw["symbol"].as_str().unwrap_or_default())),
             side: Some(if buyer_maker { "sell" } else { "buy" }.to_string()),
             taker_or_maker: Some("taker".to_string()),
-            price: num(raw.get("price")),
-            amount: num(raw.get("qty")),
-            cost: num(raw.get("quoteQty")),
+            price: dec(raw.get("price")),
+            amount: dec(raw.get("qty")),
+            cost: dec(raw.get("quoteQty")),
             ..Trade::default()
         }
     }
@@ -272,8 +252,8 @@ impl BinanceUs {
             "EXPIRED" => "expired",
             other => other,
         });
-        let qty = num(raw.get("origQty"));
-        let filled = num(raw.get("executedQty"));
+        let qty = dec(raw.get("origQty"));
+        let filled = dec(raw.get("executedQty"));
         let remaining = match (qty, filled) {
             (Some(q), Some(f)) => Some(q - f),
             _ => None,
@@ -282,13 +262,13 @@ impl BinanceUs {
             id: raw["orderId"].as_i64().map(|v| v.to_string()),
             client_order_id: raw["clientOrderId"].as_str().map(String::from),
             timestamp: raw["transactTime"].as_i64(),
-            datetime: raw["transactTime"].as_i64().and_then(iso8601),
+            datetime: raw["transactTime"].as_i64().and_then(iso8601_ms),
             status: status.map(String::from),
             symbol: raw["symbol"].as_str().map(|s| self.market_symbol(s)),
             order_type: raw["type"].as_str().map(|s| s.to_lowercase()),
             side: raw["side"].as_str().map(|s| s.to_lowercase()),
-            price: num(raw.get("price")),
-            average: num(raw.get("avgPrice")),
+            price: dec(raw.get("price")),
+            average: dec(raw.get("avgPrice")),
             amount: qty,
             filled,
             remaining,
@@ -367,10 +347,10 @@ impl Exchange for BinanceUs {
                 symbol.clone(),
                 Ticker {
                     symbol,
-                    bid: num(raw.get("bidPrice")),
-                    bid_volume: num(raw.get("bidQty")),
-                    ask: num(raw.get("askPrice")),
-                    ask_volume: num(raw.get("askQty")),
+                    bid: dec(raw.get("bidPrice")),
+                    bid_volume: dec(raw.get("bidQty")),
+                    ask: dec(raw.get("askPrice")),
+                    ask_volume: dec(raw.get("askQty")),
                     info: raw.clone(),
                     ..Ticker::default()
                 },
@@ -448,8 +428,8 @@ impl Exchange for BinanceUs {
         if let Some(balances) = resp["balances"].as_array() {
             for b in balances {
                 let asset = b["asset"].as_str().unwrap_or_default().to_string();
-                let free = num(b.get("free"));
-                let used = num(b.get("locked"));
+                let free = dec(b.get("free"));
+                let used = dec(b.get("locked"));
                 let total = match (free, used) {
                     (Some(f), Some(u)) => Some(f + u),
                     (Some(f), None) => Some(f),
@@ -564,27 +544,4 @@ impl Exchange for BinanceUs {
         let arr = resp.as_array().cloned().unwrap_or_default();
         Ok(arr.iter().map(|t| self.parse_trade(t)).collect())
     }
-}
-
-// ---------- 工具 ----------
-
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(|x| match x {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => rust_decimal::Decimal::from_str(&n.to_string()).ok(),
-        _ => None,
-    })
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
-        .map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
-}
-
-fn sign_hmac_sha256(data: &str, secret: &str) -> String {
-    use hmac::{Hmac, KeyInit, Mac};
-    type HmacSha256 = Hmac<sha2::Sha256>;
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");
-    mac.update(data.as_bytes());
-    hex::encode(mac.finalize().into_bytes())
 }

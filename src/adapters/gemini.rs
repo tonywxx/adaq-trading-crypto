@@ -6,17 +6,14 @@
 //! 统一 symbol 写作 `BTC/USD`)。端点与签名以官方文档为准。
 
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use base64::Engine;
-use hmac::{Hmac, KeyInit, Mac};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use sha2::{Sha256, Sha384};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, now_ms, parse_level, query_string};
+use crate::httpcore::{HttpCore, dec, iso8601_ms, now_ms, parse_level, query_string};
 use crate::types::{
     Balance, Balances, Market, MarketType, Markets, OHLCV, Order, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -88,16 +85,8 @@ impl Gemini {
 
     /// 私有签名请求(gemini:HMAC-SHA384 over base64(payload),`X-GEMINI-*` 头)。
     async fn private_request(&self, method: &str, path: &str, payload: Value) -> Result<Value> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "gemini api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "gemini secret required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "gemini")?;
+        let secret = crate::signing::require_secret(&self.config, "gemini")?;
         let mut body = payload;
         if !body.is_object() {
             body = json!({});
@@ -108,23 +97,11 @@ impl Gemini {
         obj.insert("nonce".to_string(), json!(now_ms()));
         body = Value::Object(obj);
         let b64 = base64::engine::general_purpose::STANDARD.encode(body.to_string());
-        let signature = sign_hmac_sha384(&b64, secret);
+        let signature = crate::signing::hmac_sha384_hex(secret, &b64);
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "X-GEMINI-APIKEY",
-            HeaderValue::from_str(api_key)
-                .map_err(|e| Error::new(ErrorKind::BadRequest, format!("apikey: {e}")))?,
-        );
-        headers.insert(
-            "X-GEMINI-PAYLOAD",
-            HeaderValue::from_str(&b64)
-                .map_err(|e| Error::new(ErrorKind::BadRequest, format!("payload: {e}")))?,
-        );
-        headers.insert(
-            "X-GEMINI-SIGNATURE",
-            HeaderValue::from_str(&signature)
-                .map_err(|e| Error::new(ErrorKind::BadRequest, format!("signature: {e}")))?,
-        );
+        crate::signing::set_header(&mut headers, "X-GEMINI-APIKEY", api_key)?;
+        crate::signing::set_header(&mut headers, "X-GEMINI-PAYLOAD", &b64)?;
+        crate::signing::set_header(&mut headers, "X-GEMINI-SIGNATURE", &signature)?;
         let url = format!("{BASE_URL}{path}");
         self.core.request_url(method, &url, &headers, None).await
     }
@@ -180,15 +157,15 @@ impl Gemini {
         Ticker {
             symbol: self.market_symbol(raw["symbol"].as_str().unwrap_or_default()),
             timestamp: ts,
-            datetime: ts.and_then(iso8601),
-            high: num(raw.get("high")),
-            low: num(raw.get("low")),
-            bid: num(raw.get("bid")),
-            ask: num(raw.get("ask")),
-            open: num(raw.get("open")),
-            close: num(raw.get("close")),
-            last: num(raw.get("last")),
-            base_volume: num(raw.get("volume")).or_else(|| {
+            datetime: ts.and_then(iso8601_ms),
+            high: dec(raw.get("high")),
+            low: dec(raw.get("low")),
+            bid: dec(raw.get("bid")),
+            ask: dec(raw.get("ask")),
+            open: dec(raw.get("open")),
+            close: dec(raw.get("close")),
+            last: dec(raw.get("last")),
+            base_volume: dec(raw.get("volume")).or_else(|| {
                 raw.get("volume")
                     .and_then(|v| v.get("USD"))
                     .and_then(Value::as_str)
@@ -206,12 +183,12 @@ impl Gemini {
             id: raw["tid"].as_i64().map(|v| v.to_string()),
             info: raw.clone(),
             timestamp,
-            datetime: timestamp.and_then(iso8601),
+            datetime: timestamp.and_then(iso8601_ms),
             symbol: Some(self.market_symbol(raw["symbol"].as_str().unwrap_or_default())),
             side,
             taker_or_maker: Some("taker".to_string()),
-            price: num(raw.get("price")),
-            amount: num(raw.get("amount")),
+            price: dec(raw.get("price")),
+            amount: dec(raw.get("amount")),
             ..Trade::default()
         }
     }
@@ -221,11 +198,11 @@ impl Gemini {
         let arr = row.as_array();
         OHLCV {
             timestamp: arr.and_then(|a| a.first()).and_then(Value::as_i64),
-            open: arr.and_then(|a| a.get(3)).and_then(|v| num(Some(v))),
-            high: arr.and_then(|a| a.get(2)).and_then(|v| num(Some(v))),
-            low: arr.and_then(|a| a.get(1)).and_then(|v| num(Some(v))),
-            close: arr.and_then(|a| a.get(4)).and_then(|v| num(Some(v))),
-            volume: arr.and_then(|a| a.get(5)).and_then(|v| num(Some(v))),
+            open: arr.and_then(|a| a.get(3)).and_then(|v| dec(Some(v))),
+            high: arr.and_then(|a| a.get(2)).and_then(|v| dec(Some(v))),
+            low: arr.and_then(|a| a.get(1)).and_then(|v| dec(Some(v))),
+            close: arr.and_then(|a| a.get(4)).and_then(|v| dec(Some(v))),
+            volume: arr.and_then(|a| a.get(5)).and_then(|v| dec(Some(v))),
         }
     }
 
@@ -257,18 +234,18 @@ impl Gemini {
                 "closed"
             }
         });
-        let qty = num(raw.get("original_amount"));
-        let filled = num(raw.get("executed_amount"));
+        let qty = dec(raw.get("original_amount"));
+        let filled = dec(raw.get("executed_amount"));
         Order {
             id: raw["order_id"].as_i64().map(|v| v.to_string()),
             client_order_id: raw["client_order_id"].as_str().map(String::from),
             timestamp: raw["timestampms"].as_i64(),
-            datetime: raw["timestampms"].as_i64().and_then(iso8601),
+            datetime: raw["timestampms"].as_i64().and_then(iso8601_ms),
             status: status.map(String::from),
             symbol: raw["symbol"].as_str().map(|s| self.market_symbol(s)),
             order_type: Some("limit".to_string()),
             side: raw["side"].as_str().map(|s| s.to_lowercase()),
-            price: num(raw.get("price")),
+            price: dec(raw.get("price")),
             amount: qty,
             filled,
             remaining: match (qty, filled) {
@@ -398,8 +375,8 @@ impl Exchange for Gemini {
         if let Some(arr) = resp.as_array() {
             for b in arr {
                 let cur = b["currency"].as_str().unwrap_or_default().to_string();
-                let free = num(b.get("available"));
-                let total = num(b.get("amount"));
+                let free = dec(b.get("available"));
+                let total = dec(b.get("amount"));
                 accounts.insert(
                     cur,
                     Balance {
@@ -522,33 +499,6 @@ impl Exchange for Gemini {
 
 // ---------- 工具 ----------
 
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(|x| match x {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => rust_decimal::Decimal::from_str(&n.to_string()).ok(),
-        _ => None,
-    })
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
-        .map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
-}
-
-fn sign_hmac_sha384(data: &str, secret: &str) -> String {
-    type HmacSha384 = Hmac<Sha384>;
-    let mut mac = HmacSha384::new_from_slice(secret.as_bytes()).expect("hmac key");
-    mac.update(data.as_bytes());
-    hex::encode(mac.finalize().into_bytes())
-}
-
-#[allow(dead_code)]
-fn sign_hmac_sha256(data: &str, secret: &str) -> String {
-    type HmacSha256 = Hmac<Sha256>;
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");
-    mac.update(data.as_bytes());
-    hex::encode(mac.finalize().into_bytes())
-}
 #[cfg(test)]
 mod tests {
     use super::*;

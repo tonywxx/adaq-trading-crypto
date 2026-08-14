@@ -18,12 +18,11 @@
 
 mod common;
 
-use std::str::FromStr;
-
 use rust_decimal::Decimal;
 use serde_json::Value;
 
 use adaq_trading_crypto::adapters::Binance;
+use adaq_trading_crypto::httpcore::value_decimal as dec;
 use adaq_trading_crypto::{Config, Level};
 
 use common::{load_ccxt_parsed, load_raw, parsed};
@@ -34,15 +33,6 @@ fn setup() -> Binance {
     let mut config = Config::new();
     config.enable_rate_limit = false;
     Binance::new(config).expect("binance adapter")
-}
-
-/// Value → Option<Decimal>(兼容数字/字符串)。
-fn dec(v: &Value) -> Option<Decimal> {
-    match v {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => Decimal::from_str(&n.to_string()).ok(),
-        _ => None,
-    }
 }
 
 /// 断言我们的数值与 ccxt 数值一致。

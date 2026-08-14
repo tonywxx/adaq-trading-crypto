@@ -11,14 +11,12 @@
 //! 原生 signer 绑定或移植该密码学后,再补全 `create_order` / `cancel_order` /
 //! `fetch_balance` / `fetch_positions` 等私密面(照搬 polymarket 的 EIP-712 方案是**错误**的)。
 
-use std::str::FromStr;
-
 use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, query_string};
+use crate::httpcore::{HttpCore, dec, query_string};
 use crate::types::{Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker, Tickers};
 
 pub const ID: &str = "lighter";
@@ -155,12 +153,12 @@ impl Lighter {
                     .as_deref()
                     .unwrap_or(""),
             ),
-            last: num(raw.get("last_trade_price")),
-            high: num(raw.get("daily_price_high")),
-            low: num(raw.get("daily_price_low")),
-            change: num(raw.get("daily_price_change")),
-            base_volume: num(raw.get("daily_base_token_volume")),
-            quote_volume: num(raw.get("daily_quote_token_volume")),
+            last: dec(raw.get("last_trade_price")),
+            high: dec(raw.get("daily_price_high")),
+            low: dec(raw.get("daily_price_low")),
+            change: dec(raw.get("daily_price_change")),
+            base_volume: dec(raw.get("daily_base_token_volume")),
+            quote_volume: dec(raw.get("daily_quote_token_volume")),
             info: raw.clone(),
             ..Ticker::default()
         }
@@ -187,11 +185,11 @@ impl Lighter {
     pub fn parse_ohlcv(&self, raw: &Value) -> OHLCV {
         OHLCV {
             timestamp: raw["t"].as_i64(),
-            open: num(raw.get("o")),
-            high: num(raw.get("h")),
-            low: num(raw.get("l")),
-            close: num(raw.get("c")),
-            volume: num(raw.get("v")),
+            open: dec(raw.get("o")),
+            high: dec(raw.get("h")),
+            low: dec(raw.get("l")),
+            close: dec(raw.get("c")),
+            volume: dec(raw.get("v")),
         }
     }
 }
@@ -336,19 +334,11 @@ impl Exchange for Lighter {
 
 // ---------- 工具 ----------
 
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(|x| match x {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => rust_decimal::Decimal::from_str(&n.to_string()).ok(),
-        _ => None,
-    })
-}
-
 /// 解析 Lighter 簿档位(`{price, remaining_base_amount, ...}` → `Level`)。
 fn parse_book_level(raw: &Value) -> crate::types::Level {
     crate::types::Level {
-        price: num(raw.get("price")),
-        amount: num(raw.get("remaining_base_amount")),
+        price: dec(raw.get("price")),
+        amount: dec(raw.get("remaining_base_amount")),
     }
 }
 fn tf_ms(timeframe: &str) -> i64 {

@@ -15,11 +15,8 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use base64::Engine;
-use hmac::{Hmac, KeyInit, Mac};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use sha2::Sha256;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
@@ -66,16 +63,8 @@ impl Htx {
 
     /// 私密 GET(AWS 风格签名)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "htx api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "htx secret required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "htx")?;
+        let secret = crate::signing::require_secret(&self.config, "htx")?;
         let timestamp = utc_now_ts();
         let mut p = params.clone();
         p.insert("AccessKeyId".into(), json!(api_key));
@@ -84,17 +73,14 @@ impl Htx {
         p.insert("Timestamp".into(), json!(timestamp));
         let qs = sorted_query_string(&p);
         let canonical = format!("GET\napi.huobi.pro\n{path}\n{qs}");
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(canonical.as_bytes());
-        let signature =
-            base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+        let signature = crate::signing::hmac_sha256_b64(secret, &canonical);
         let url = format!("{BASE_URL}{path}?{qs}&Signature={}", pct_encode(&signature));
         let mut headers = HeaderMap::new();
-        headers.insert(
+        crate::signing::set_header(
+            &mut headers,
             "Content-Type",
-            HeaderValue::from_static("application/x-www-form-urlencoded"),
-        );
+            "application/x-www-form-urlencoded",
+        )?;
         self.core.request_url("GET", &url, &headers, None).await
     }
 

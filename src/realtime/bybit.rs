@@ -152,8 +152,8 @@ impl BybitWs {
         let ts = now_ms().to_string();
         let recv_window = "20000";
         let auth_str = format!("{ts}{api_key}{recv_window}");
-        // 复用 REST 适配器签名原语(签名合一,ADR-0013 sign 接缝)
-        let signature = crate::adapters::bybit::hmac_sha256_hex(secret, &auth_str);
+        // 复用签名深模块(签名合一,ADR-0013 sign 接缝)
+        let signature = crate::signing::hmac_sha256_hex(secret, &auth_str);
         let auth_frame = json!({
             "op": "auth",
             "args": [api_key, ts, recv_window, signature]

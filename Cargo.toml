@@ -1,39 +1,27 @@
 [package]
-name = "adaq-trading-crypto"
-version = "1.0.3"
-edition = "2024"
-rust-version = "1.85"
-license = "Apache-2.0"
-description = "Unified trading interface for crypto and prediction markets (ccxt-compatible), for the AdaQ quant platform."
-repository = "https://github.com/tonywxx/adaq-trading-crypto"
-homepage = "https://github.com/tonywxx/adaq-trading-crypto"
-documentation = "https://docs.rs/adaq-trading-crypto"
-keywords = ["trading", "crypto", "exchange", "prediction-market", "ccxt"]
 categories = ["cryptography::cryptocurrencies", "finance", "api-bindings"]
+description = "Unified trading interface for crypto and prediction markets (ccxt-compatible), for the AdaQ quant platform."
+documentation = "https://docs.rs/adaq-trading-crypto"
+edition = "2024"
 exclude = ["src/main.rs"]
+homepage = "https://github.com/tonywxx/adaq-trading-crypto"
+keywords = ["trading", "crypto", "exchange", "prediction-market", "ccxt"]
+license = "Apache-2.0"
+name = "adaq-trading-crypto"
+repository = "https://github.com/tonywxx/adaq-trading-crypto"
+rust-version = "1.85"
+version = "1.0.4"
 
 [features]
-default = ["binance", "okx", "kalshi", "polymarket"]
-sync = []
-realtime = []
-binance = []
-okx = []
-coinbase = []
-bybit = []
-bitget = []
-kraken = []
-gate = []
-mexc = []
-htx = []
-kucoin = []
-kalshi = []
-polymarket = []
-manifold = []
+alpaca = []
 apex = []
+aster = []
 backpack = []
 bequant = []
 bigone = []
+binance = []
 binancecoinm = []
+binanceus = []
 binanceusdm = []
 bingx = []
 bit2c = []
@@ -41,6 +29,7 @@ bitbank = []
 bitbns = []
 bitfinex = []
 bitflyer = []
+bitget = []
 bithumb = []
 bitmex = []
 bitopro = []
@@ -56,9 +45,11 @@ btcbox = []
 btcmarkets = []
 btcturk = []
 bullish = []
+bybit = []
 bybiteu = []
 bydfi = []
 cex = []
+coinbase = []
 coinbaseexchange = []
 coinbaseinternational = []
 coincheck = []
@@ -70,6 +61,7 @@ coinspot = []
 cryptocom = []
 cryptomus = []
 deepcoin = []
+default = ["binance", "okx", "kalshi", "polymarket"]
 delta = []
 deribit = []
 derive = []
@@ -79,30 +71,157 @@ exmo = []
 extended = []
 fmfwio = []
 foxbit = []
+full = [
+  "generated",
+  "binance",
+  "okx",
+  "coinbase",
+  "bybit",
+  "bitget",
+  "kraken",
+  "gate",
+  "mexc",
+  "htx",
+  "kucoin",
+  "hyperliquid",
+  "prediction",
+  "realtime",
+]
+futures = []
+gate = []
 gateeu = []
+gemini = []
+generated = [
+  "apex",
+  "backpack",
+  "bequant",
+  "bigone",
+  "binancecoinm",
+  "binanceusdm",
+  "bingx",
+  "bit2c",
+  "bitbank",
+  "bitbns",
+  "bitfinex",
+  "bitflyer",
+  "bithumb",
+  "bitmex",
+  "bitopro",
+  "bitrue",
+  "bitso",
+  "bitstamp",
+  "bitteam",
+  "bittrade",
+  "bitvavo",
+  "blockchaincom",
+  "blofin",
+  "btcbox",
+  "btcmarkets",
+  "btcturk",
+  "bullish",
+  "bybiteu",
+  "bydfi",
+  "cex",
+  "coinbaseexchange",
+  "coinbaseinternational",
+  "coincheck",
+  "coinex",
+  "coinmate",
+  "coinone",
+  "coinsph",
+  "coinspot",
+  "cryptocom",
+  "cryptomus",
+  "deepcoin",
+  "delta",
+  "deribit",
+  "derive",
+  "digifinex",
+  "dydx",
+  "exmo",
+  "extended",
+  "fmfwio",
+  "foxbit",
+  "gateeu",
+  "grvt",
+  "hibachi",
+  "hitbtc",
+  "hollaex",
+  "independentreserve",
+  "indodax",
+  "krakenfutures",
+  "kucoinfutures",
+  "latoken",
+  "lbank",
+  "luno",
+  "mercado",
+  "modetrade",
+  "mudrex",
+  "nado",
+  "ndax",
+  "onetrading",
+  "p2b",
+  "pacifica",
+  "paradex",
+  "paymium",
+  "phemex",
+  "poloniex",
+  "tokocrypto",
+  "toobit",
+  "upbit",
+  "weex",
+  "whitebit",
+  "woo",
+  "woofipro",
+  "xt",
+  "zaif",
+  "zebpay",
+  "limitless",
+  "myriad",
+  "opinion",
+]
 grvt = []
+hashkey = []
 hibachi = []
 hitbtc = []
 hollaex = []
+htx = []
+hyperliquid = []
 independentreserve = []
 indodax = []
+kalshi = []
+kraken = []
 krakenfutures = []
+kucoin = []
 kucoinfutures = []
 latoken = []
 lbank = []
+lighter = []
+limitless = []
 luno = []
+manifold = []
 mercado = []
+mexc = []
 modetrade = []
 mudrex = []
+myokx = []
+myriad = []
 nado = []
 ndax = []
+okx = []
+okxus = []
 onetrading = []
+opinion = []
 p2b = []
 pacifica = []
 paradex = []
 paymium = []
 phemex = []
 poloniex = []
+polymarket = []
+prediction = ["kalshi", "polymarket", "manifold"]
+realtime = []
+sync = []
 tokocrypto = []
 toobit = []
 upbit = []
@@ -113,156 +232,37 @@ woofipro = []
 xt = []
 zaif = []
 zebpay = []
-limitless = []
-myriad = []
-opinion = []
-generated = [
-    "apex",
-    "backpack",
-    "bequant",
-    "bigone",
-    "binancecoinm",
-    "binanceusdm",
-    "bingx",
-    "bit2c",
-    "bitbank",
-    "bitbns",
-    "bitfinex",
-    "bitflyer",
-    "bithumb",
-    "bitmex",
-    "bitopro",
-    "bitrue",
-    "bitso",
-    "bitstamp",
-    "bitteam",
-    "bittrade",
-    "bitvavo",
-    "blockchaincom",
-    "blofin",
-    "btcbox",
-    "btcmarkets",
-    "btcturk",
-    "bullish",
-    "bybiteu",
-    "bydfi",
-    "cex",
-    "coinbaseexchange",
-    "coinbaseinternational",
-    "coincheck",
-    "coinex",
-    "coinmate",
-    "coinone",
-    "coinsph",
-    "coinspot",
-    "cryptocom",
-    "cryptomus",
-    "deepcoin",
-    "delta",
-    "deribit",
-    "derive",
-    "digifinex",
-    "dydx",
-    "exmo",
-    "extended",
-    "fmfwio",
-    "foxbit",
-    "gateeu",
-    "grvt",
-    "hibachi",
-    "hitbtc",
-    "hollaex",
-    "independentreserve",
-    "indodax",
-    "krakenfutures",
-    "kucoinfutures",
-    "latoken",
-    "lbank",
-    "luno",
-    "mercado",
-    "modetrade",
-    "mudrex",
-    "nado",
-    "ndax",
-    "onetrading",
-    "p2b",
-    "pacifica",
-    "paradex",
-    "paymium",
-    "phemex",
-    "poloniex",
-    "tokocrypto",
-    "toobit",
-    "upbit",
-    "weex",
-    "whitebit",
-    "woo",
-    "woofipro",
-    "xt",
-    "zaif",
-    "zebpay",
-    "limitless",
-    "myriad",
-    "opinion",
-]
-alpaca = []
-aster = []
-binanceus = []
-gemini = []
-hashkey = []
-lighter = []
-myokx = []
-okxus = []
-hyperliquid = []
-prediction = ["kalshi", "polymarket", "manifold"]
-futures = []
-full = [
-    "generated",
-    "binance",
-    "okx",
-    "coinbase",
-    "bybit",
-    "bitget",
-    "kraken",
-    "gate",
-    "mexc",
-    "htx",
-    "kucoin",
-    "hyperliquid",
-    "prediction",
-    "realtime",
-]
 
 [dependencies]
 async-trait = "0.1"
-num-bigint = "0.5.1"
-num-traits = "0.2"
-reqwest = { version = "0.13.4", default-features = false, features = [
-    "json",
-    "rustls",
-] }
-rust_decimal = { version = "1", features = ["serde-str"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1.53.1", features = [
-    "rt-multi-thread",
-    "macros",
-    "time",
-    "sync",
-    "net",
-] }
-chrono = { version = "0.4.45", features = ["serde"] }
+base64 = "0.23.1"
+chrono = {version = "0.4.45", features = ["serde"]}
+futures-util = "0.3.34"
 hex = "0.4"
 hmac = "0.13"
-sha2 = "0.11"
-base64 = "0.23.1"
-openssl = "0.10.81"
-sha3 = "0.12"
 libsecp256k1 = "0.7"
-tokio-tungstenite = { version = "0.30.0", features = [
-    "rustls-tls-native-roots",
-] }
-futures-util = "0.3.34"
+num-bigint = "0.5.1"
+num-traits = "0.2"
+openssl = "0.10.81"
+reqwest = {version = "0.13.4", default-features = false, features = [
+  "json",
+  "rustls",
+]}
+rust_decimal = {version = "1", features = ["serde-str"]}
+serde = {version = "1", features = ["derive"]}
+serde_json = "1"
+sha2 = "0.11"
+sha3 = "0.12"
+tokio = {version = "1.53.1", features = [
+  "rt-multi-thread",
+  "macros",
+  "time",
+  "sync",
+  "net",
+]}
+tokio-tungstenite = {version = "0.30.0", features = [
+  "rustls-tls-native-roots",
+]}
 
 [build-dependencies]
 regex = "1.13.1"

@@ -6,14 +6,15 @@
 //! 端点路径以官方文档为准(此处采用 v1 命名,待核对)。
 
 use std::collections::HashMap;
-use std::str::FromStr;
 
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, now_ms, parse_level, query_string};
+use crate::httpcore::{
+    HttpCore, dec, iso8601_ms, now_ms, parse_level, parse_ohlcv_standard, query_string,
+};
 use crate::types::{
     Balance, Balances, Market, MarketType, Markets, OHLCV, Order, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -92,16 +93,8 @@ impl Hashkey {
         params: &Params,
         body: Option<Value>,
     ) -> Result<Value> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "hashkey api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "hashkey secret required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "hashkey")?;
+        let secret = crate::signing::require_secret(&self.config, "hashkey")?;
         let timestamp = now_ms().to_string();
         // GET:path 含 query;POST:path + body
         let (request_path, body_json): (String, Option<Value>) = if method == "GET" {
@@ -121,15 +114,11 @@ impl Hashkey {
             .map(|v| v.to_string())
             .unwrap_or_default();
         let presign = format!("{method}{timestamp}{request_path}{body_str}");
-        let signature = sign_hmac_sha256(&presign, secret);
+        let signature = crate::signing::hmac_sha256_hex(secret, &presign);
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "X-HK-APIKEY",
-            HeaderValue::from_str(api_key)
-                .map_err(|e| Error::new(ErrorKind::BadRequest, format!("apikey: {e}")))?,
-        );
-        headers.insert("X-HK-TIMESTAMP", HeaderValue::from_str(&timestamp).unwrap());
-        headers.insert("X-HK-SIGNATURE", HeaderValue::from_str(&signature).unwrap());
+        crate::signing::set_header(&mut headers, "X-HK-APIKEY", api_key)?;
+        crate::signing::set_header(&mut headers, "X-HK-TIMESTAMP", &timestamp)?;
+        crate::signing::set_header(&mut headers, "X-HK-SIGNATURE", &signature)?;
         let url = format!("{BASE_URL}{request_path}");
         self.core
             .request_url(method, &url, &headers, body_json)
@@ -182,30 +171,23 @@ impl Hashkey {
         Ticker {
             symbol: self.market_symbol(raw["symbol"].as_str().unwrap_or_default()),
             timestamp: ts,
-            datetime: ts.and_then(iso8601),
-            high: num(raw.get("highPrice")),
-            low: num(raw.get("lowPrice")),
-            bid: num(raw.get("bidPrice")),
-            ask: num(raw.get("askPrice")),
-            open: num(raw.get("openPrice")),
-            close: num(raw.get("lastPrice")),
-            last: num(raw.get("lastPrice")),
-            base_volume: num(raw.get("volume")),
-            quote_volume: num(raw.get("quoteVolume")),
+            datetime: ts.and_then(iso8601_ms),
+            high: dec(raw.get("highPrice")),
+            low: dec(raw.get("lowPrice")),
+            bid: dec(raw.get("bidPrice")),
+            ask: dec(raw.get("askPrice")),
+            open: dec(raw.get("openPrice")),
+            close: dec(raw.get("lastPrice")),
+            last: dec(raw.get("lastPrice")),
+            base_volume: dec(raw.get("volume")),
+            quote_volume: dec(raw.get("quoteVolume")),
             info: raw.clone(),
             ..Ticker::default()
         }
     }
 
     pub fn parse_ohlcv(&self, row: &Value) -> OHLCV {
-        OHLCV {
-            timestamp: row.get(0).and_then(Value::as_i64),
-            open: num(row.get(1)),
-            high: num(row.get(2)),
-            low: num(row.get(3)),
-            close: num(row.get(4)),
-            volume: num(row.get(5)),
-        }
+        parse_ohlcv_standard(row)
     }
 
     pub fn parse_trade(&self, raw: &Value) -> Trade {
@@ -217,11 +199,11 @@ impl Hashkey {
                 .map(|v| v.to_string()),
             info: raw.clone(),
             timestamp: ts,
-            datetime: ts.and_then(iso8601),
+            datetime: ts.and_then(iso8601_ms),
             symbol: raw["symbol"].as_str().map(|s| self.market_symbol(s)),
             side: raw["side"].as_str().map(|s| s.to_lowercase()),
-            price: num(raw.get("price")),
-            amount: num(raw.get("quantity")).or_else(|| num(raw.get("amount"))),
+            price: dec(raw.get("price")),
+            amount: dec(raw.get("quantity")).or_else(|| dec(raw.get("amount"))),
             ..Trade::default()
         }
     }
@@ -252,8 +234,8 @@ impl Hashkey {
             "EXPIRED" => "expired",
             other => other,
         });
-        let qty = num(raw.get("quantity")).or_else(|| num(raw.get("origQty")));
-        let filled = num(raw.get("filledQuantity")).or_else(|| num(raw.get("executedQty")));
+        let qty = dec(raw.get("quantity")).or_else(|| dec(raw.get("origQty")));
+        let filled = dec(raw.get("filledQuantity")).or_else(|| dec(raw.get("executedQty")));
         let remaining = match (qty, filled) {
             (Some(q), Some(f)) => Some(q - f),
             _ => None,
@@ -270,13 +252,13 @@ impl Hashkey {
             datetime: raw["createTime"]
                 .as_i64()
                 .or_else(|| raw["timestamp"].as_i64())
-                .and_then(iso8601),
+                .and_then(iso8601_ms),
             status: status.map(String::from),
             symbol: raw["symbol"].as_str().map(|s| self.market_symbol(s)),
             order_type: raw["type"].as_str().map(|s| s.to_lowercase()),
             side: raw["side"].as_str().map(|s| s.to_lowercase()),
-            price: num(raw.get("price")).or_else(|| num(raw.get("avgPrice"))),
-            average: num(raw.get("avgPrice")),
+            price: dec(raw.get("price")).or_else(|| dec(raw.get("avgPrice"))),
+            average: dec(raw.get("avgPrice")),
             amount: qty,
             filled,
             remaining,
@@ -397,8 +379,8 @@ impl Exchange for Hashkey {
             .unwrap_or_default();
         for b in arr {
             if let Some(asset) = b["asset"].as_str() {
-                let free = num(b.get("free")).or_else(|| num(b.get("available")));
-                let used = num(b.get("locked")).or_else(|| num(b.get("frozen")));
+                let free = dec(b.get("free")).or_else(|| dec(b.get("available")));
+                let used = dec(b.get("locked")).or_else(|| dec(b.get("frozen")));
                 let total = match (free, used) {
                     (Some(f), Some(u)) => Some(f + u),
                     (Some(f), None) => Some(f),
@@ -539,25 +521,4 @@ impl Exchange for Hashkey {
         let arr = resp.as_array().cloned().unwrap_or_default();
         Ok(arr.iter().map(|t| self.parse_trade(t)).collect())
     }
-}
-
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(|x| match x {
-        Value::String(s) => s.parse().ok(),
-        Value::Number(n) => rust_decimal::Decimal::from_str(&n.to_string()).ok(),
-        _ => None,
-    })
-}
-
-fn iso8601(ms: i64) -> Option<String> {
-    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
-        .map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
-}
-
-fn sign_hmac_sha256(data: &str, secret: &str) -> String {
-    use hmac::{Hmac, KeyInit, Mac};
-    type HmacSha256 = Hmac<sha2::Sha256>;
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");
-    mac.update(data.as_bytes());
-    hex::encode(mac.finalize().into_bytes())
 }

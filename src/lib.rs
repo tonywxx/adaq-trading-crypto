@@ -18,11 +18,13 @@ pub mod eip712;
 pub mod error;
 pub mod exchange;
 pub mod generic;
+pub(crate) mod generic_parse;
 pub mod httpcore;
 pub mod methods;
 pub mod precise;
 pub mod realtime;
 pub mod serde_helpers;
+pub mod signing;
 #[cfg(feature = "sync")]
 pub mod sync;
 pub mod throttle;

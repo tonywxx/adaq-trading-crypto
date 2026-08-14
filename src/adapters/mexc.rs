@@ -12,12 +12,14 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, iso8601, now_ms, parse_level, query_string, value_decimal};
+use crate::httpcore::{
+    HttpCore, dec, iso8601, now_ms, parse_level, parse_ohlcv_standard, query_string, value_decimal,
+};
 use crate::types::{
     Balance, Balances, Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker, Tickers,
     Trade,
@@ -65,32 +67,16 @@ impl Mexc {
 
     /// 私密 GET(binance 式签名)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "mexc api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "mexc secret required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "mexc")?;
+        let secret = crate::signing::require_secret(&self.config, "mexc")?;
         let mut p = params.clone();
         p.insert("timestamp".into(), json!(now_ms()));
         p.insert("recvWindow".into(), json!(5000));
         let qs = query_string(&p);
-        let signature = sign_hmac_sha256(qs.trim_start_matches('?'), secret);
+        let signature = crate::signing::hmac_sha256_hex(secret, qs.trim_start_matches('?'));
         let url = format!("{BASE_URL}{path}{qs}&signature={signature}");
         let mut headers = HeaderMap::new();
-        headers.insert(
-            "X-MEXC-APIKEY",
-            HeaderValue::from_str(api_key).map_err(|e| {
-                Error::new(
-                    ErrorKind::BadRequest,
-                    format!("invalid api key header: {e}"),
-                )
-            })?,
-        );
+        crate::signing::set_header(&mut headers, "X-MEXC-APIKEY", api_key)?;
         self.core.request_url("GET", &url, &headers, None).await
     }
 
@@ -161,8 +147,8 @@ impl Mexc {
             active: Some(active),
             market_type: Some(MarketType::Spot),
             spot: Some(true),
-            taker: num(raw.get("takerCommission")),
-            maker: num(raw.get("makerCommission")),
+            taker: dec(raw.get("takerCommission")),
+            maker: dec(raw.get("makerCommission")),
             precision: Precision {
                 amount: precision(raw.get("baseAssetPrecision")),
                 price: precision(raw.get("quoteAssetPrecision")),
@@ -170,12 +156,12 @@ impl Mexc {
             },
             limits: crate::types::Limits {
                 amount: Some(crate::types::Limit {
-                    min: num(raw.get("baseSizePrecision")),
+                    min: dec(raw.get("baseSizePrecision")),
                     max: None,
                 }),
                 cost: Some(crate::types::Limit {
-                    min: num(raw.get("quoteAmountPrecision")),
-                    max: num(raw.get("maxQuoteAmount")),
+                    min: dec(raw.get("quoteAmountPrecision")),
+                    max: dec(raw.get("maxQuoteAmount")),
                 }),
                 ..crate::types::Limits::default()
             },
@@ -186,8 +172,8 @@ impl Mexc {
 
     pub fn parse_ticker(&self, raw: &Value) -> Ticker {
         let timestamp = raw["closeTime"].as_i64();
-        let open_price = num(raw.get("openPrice"));
-        let close_price = num(raw.get("lastPrice"));
+        let open_price = dec(raw.get("openPrice"));
+        let close_price = dec(raw.get("lastPrice"));
         let average = match (open_price, close_price) {
             (Some(o), Some(c)) => {
                 let sum = crate::precise::string_add(&o.to_string(), &c.to_string());
@@ -204,42 +190,35 @@ impl Mexc {
             symbol: self.market_symbol(raw["symbol"].as_str().unwrap_or_default()),
             timestamp,
             datetime: timestamp.and_then(iso8601),
-            high: num(raw.get("highPrice")),
-            low: num(raw.get("lowPrice")),
-            bid: num(raw.get("bidPrice")),
-            ask: num(raw.get("askPrice")),
-            bid_volume: num(raw.get("bidQty")),
-            ask_volume: num(raw.get("askQty")),
+            high: dec(raw.get("highPrice")),
+            low: dec(raw.get("lowPrice")),
+            bid: dec(raw.get("bidPrice")),
+            ask: dec(raw.get("askPrice")),
+            bid_volume: dec(raw.get("bidQty")),
+            ask_volume: dec(raw.get("askQty")),
             open: open_price,
             close: close_price,
             last: close_price,
-            previous_close: num(raw.get("prevClosePrice")),
-            change: num(raw.get("priceChange")),
+            previous_close: dec(raw.get("prevClosePrice")),
+            change: dec(raw.get("priceChange")),
             percentage,
             average,
-            quote_volume: num(raw.get("quoteVolume")),
-            base_volume: num(raw.get("volume")),
+            quote_volume: dec(raw.get("quoteVolume")),
+            base_volume: dec(raw.get("volume")),
             info: raw.clone(),
             ..Ticker::default()
         }
     }
 
     pub fn parse_ohlcv(&self, row: &Value) -> OHLCV {
-        OHLCV {
-            timestamp: row.get(0).and_then(Value::as_i64),
-            open: num(row.get(1)),
-            high: num(row.get(2)),
-            low: num(row.get(3)),
-            close: num(row.get(4)),
-            volume: num(row.get(5)),
-        }
+        parse_ohlcv_standard(row)
     }
 
     pub fn parse_trade(&self, raw: &Value) -> Trade {
         let timestamp = raw["time"].as_i64();
         let buyer_maker = raw["isBuyerMaker"].as_bool().unwrap_or(false);
-        let price = num(raw.get("price"));
-        let amount = num(raw.get("qty"));
+        let price = dec(raw.get("price"));
+        let amount = dec(raw.get("qty"));
         Trade {
             id: raw["id"].as_str().map(str::to_string),
             info: raw.clone(),
@@ -250,7 +229,7 @@ impl Mexc {
             taker_or_maker: Some("taker".to_string()),
             price,
             amount,
-            cost: num(raw.get("quoteQty")),
+            cost: dec(raw.get("quoteQty")),
             ..Trade::default()
         }
     }
@@ -336,10 +315,10 @@ impl Exchange for Mexc {
                 symbol.clone(),
                 Ticker {
                     symbol,
-                    bid: num(raw.get("bidPrice")),
-                    bid_volume: num(raw.get("bidQty")),
-                    ask: num(raw.get("askPrice")),
-                    ask_volume: num(raw.get("askQty")),
+                    bid: dec(raw.get("bidPrice")),
+                    bid_volume: dec(raw.get("bidQty")),
+                    ask: dec(raw.get("askPrice")),
+                    ask_volume: dec(raw.get("askQty")),
                     info: raw.clone(),
                     ..Ticker::default()
                 },
@@ -409,8 +388,8 @@ impl Exchange for Mexc {
         if let Some(balances) = resp["balances"].as_array() {
             for b in balances {
                 if let Some(asset) = b["asset"].as_str() {
-                    let free = num(b.get("free"));
-                    let locked = num(b.get("locked"));
+                    let free = dec(b.get("free"));
+                    let locked = dec(b.get("locked"));
                     out.accounts.insert(
                         asset.to_string(),
                         Balance {
@@ -438,18 +417,6 @@ fn params1(k: &str, v: &str) -> Params {
     let mut p = Params::new();
     p.insert(k.into(), json!(v));
     p
-}
-
-fn num(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
-    v.and_then(value_decimal)
-}
-
-fn sign_hmac_sha256(data: &str, secret: &str) -> String {
-    use hmac::{Hmac, KeyInit, Mac};
-    type HmacSha256 = Hmac<sha2::Sha256>;
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");
-    mac.update(data.as_bytes());
-    hex::encode(mac.finalize().into_bytes())
 }
 
 #[cfg(test)]

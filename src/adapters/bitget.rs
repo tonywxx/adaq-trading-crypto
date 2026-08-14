@@ -12,11 +12,8 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use base64::Engine;
-use hmac::{Hmac, KeyInit, Mac};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use sha2::Sha256;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
@@ -63,40 +60,18 @@ impl Bitget {
 
     /// 私密 GET(v2 签名,query 按 key 排序入签名)。
     async fn private_get(&self, path: &str, params: &Params) -> Result<Value> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "bitget api_key required"))?;
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "bitget secret required"))?;
-        let passphrase = self
-            .config
-            .password
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "bitget password required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "bitget")?;
+        let secret = crate::signing::require_secret(&self.config, "bitget")?;
+        let passphrase = crate::signing::require_passphrase(&self.config, "bitget")?;
         let timestamp = now_ms().to_string();
         let qs = sorted_query_string(params);
         let auth = format!("{timestamp}GET{path}{qs}");
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(auth.as_bytes());
-        let signature =
-            base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+        let signature = crate::signing::hmac_sha256_b64(secret, &auth);
         let mut headers = HeaderMap::new();
-        headers.insert("ACCESS-KEY", HeaderValue::from_str(api_key).unwrap());
-        headers.insert("ACCESS-SIGN", HeaderValue::from_str(&signature).unwrap());
-        headers.insert(
-            "ACCESS-TIMESTAMP",
-            HeaderValue::from_str(&timestamp).unwrap(),
-        );
-        headers.insert(
-            "ACCESS-PASSPHRASE",
-            HeaderValue::from_str(passphrase).unwrap(),
-        );
+        crate::signing::set_header(&mut headers, "ACCESS-KEY", api_key)?;
+        crate::signing::set_header(&mut headers, "ACCESS-SIGN", &signature)?;
+        crate::signing::set_header(&mut headers, "ACCESS-TIMESTAMP", &timestamp)?;
+        crate::signing::set_header(&mut headers, "ACCESS-PASSPHRASE", passphrase)?;
         let url = format!("{path}{qs}");
         self.core.request("GET", &url, &headers, None).await
     }

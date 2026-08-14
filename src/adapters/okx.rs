@@ -11,11 +11,8 @@
 //!
 //! 参考实现基于 ccxt(MIT)适配器解析逻辑,见 `NOTICE`。
 
-use base64::Engine;
-use hmac::{Hmac, KeyInit, Mac};
-use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::header::HeaderMap;
 use serde_json::{Value, json};
-use sha2::Sha256;
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
@@ -71,16 +68,9 @@ impl Okx {
         path: &str,
         body: &str,
     ) -> Result<String> {
-        let secret = self
-            .config
-            .secret
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx secret required"))?;
+        let secret = crate::signing::require_secret(&self.config, "okx")?;
         let auth = format!("{timestamp}{method}{path}{body}");
-        let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(auth.as_bytes());
-        Ok(base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes()))
+        Ok(crate::signing::hmac_sha256_b64(secret, &auth))
     }
 
     /// 私密请求(OKX v5 签名)。
@@ -91,16 +81,8 @@ impl Okx {
         params: &Params,
         body: Option<Value>,
     ) -> Result<Value> {
-        let api_key = self
-            .config
-            .api_key
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx api_key required"))?;
-        let passphrase = self
-            .config
-            .password
-            .as_deref()
-            .ok_or_else(|| Error::new(ErrorKind::Authentication, "okx password required"))?;
+        let api_key = crate::signing::require_api_key(&self.config, "okx")?;
+        let passphrase = crate::signing::require_passphrase(&self.config, "okx")?;
         let timestamp = iso8601_now();
         // GET:requestPath 含 ?query;POST:拼接 JSON body
         let (request_path, body_json) = if method == "GET" {
@@ -122,16 +104,10 @@ impl Okx {
             .unwrap_or_default();
         let signature = self.sign_str(&timestamp, method, &request_path, &body_str)?;
         let mut headers = HeaderMap::new();
-        headers.insert("OK-ACCESS-KEY", HeaderValue::from_str(api_key).unwrap());
-        headers.insert("OK-ACCESS-SIGN", HeaderValue::from_str(&signature).unwrap());
-        headers.insert(
-            "OK-ACCESS-TIMESTAMP",
-            HeaderValue::from_str(&timestamp).unwrap(),
-        );
-        headers.insert(
-            "OK-ACCESS-PASSPHRASE",
-            HeaderValue::from_str(passphrase).unwrap(),
-        );
+        crate::signing::set_header(&mut headers, "OK-ACCESS-KEY", api_key)?;
+        crate::signing::set_header(&mut headers, "OK-ACCESS-SIGN", &signature)?;
+        crate::signing::set_header(&mut headers, "OK-ACCESS-TIMESTAMP", &timestamp)?;
+        crate::signing::set_header(&mut headers, "OK-ACCESS-PASSPHRASE", passphrase)?;
         self.core
             .request(method, &request_path, &headers, body_json)
             .await
