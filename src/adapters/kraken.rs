@@ -15,10 +15,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use base64::Engine;
-use hmac::{Hmac, KeyInit, Mac};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256, Sha512};
+use sha2::{Digest, Sha256};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
@@ -116,11 +115,7 @@ impl Kraken {
         let secret_bytes = base64::engine::general_purpose::STANDARD
             .decode(secret)
             .map_err(|e| Error::new(ErrorKind::Authentication, format!("invalid secret: {e}")))?;
-        let mut mac = Hmac::<Sha512>::new_from_slice(&secret_bytes)
-            .map_err(|e| Error::new(ErrorKind::Authentication, format!("hmac key: {e}")))?;
-        mac.update(&binhash);
-        let signature =
-            base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+        let signature = crate::signing::hmac_sha512_b64_bytes(&secret_bytes, &binhash);
         let mut headers = HeaderMap::new();
         headers.insert("API-Key", HeaderValue::from_str(api_key).unwrap());
         headers.insert("API-Sign", HeaderValue::from_str(&signature).unwrap());

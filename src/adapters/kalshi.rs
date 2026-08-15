@@ -11,10 +11,6 @@
 
 use std::collections::HashMap;
 
-use base64::Engine;
-use openssl::pkey::PKey;
-use openssl::rsa::Padding;
-use openssl::sign::Signer;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
@@ -101,7 +97,7 @@ impl Kalshi {
         // 签名 payload:{timestamp}{METHOD}{/trade-api/v2/path}(不含 query)
         let path_for_signing = format!("/trade-api/v2{path}");
         let payload = format!("{timestamp}{method}{path_for_signing}");
-        let signature = sign_rsa_pss(&payload, private_key)?;
+        let signature = crate::signing::sign_rsa_pss(&payload, private_key)?;
         let mut headers = HeaderMap::new();
         headers.insert(
             "KALSHI-ACCESS-KEY",
@@ -896,31 +892,6 @@ impl Kalshi {
 }
 
 // ================= 静态助手 =================
-
-/// 从 PEM 私钥做 RSA-PSS SHA-256 签名,输出 base64(对齐 ccxt rsa() → base64)。
-pub fn sign_rsa_pss(payload: &str, private_key_pem: &str) -> Result<String> {
-    let pkey = PKey::private_key_from_pem(private_key_pem.as_bytes()).map_err(|e| {
-        Error::new(
-            ErrorKind::Authentication,
-            format!("invalid kalshi RSA private key PEM: {e}"),
-        )
-    })?;
-    let mut signer = Signer::new(openssl::hash::MessageDigest::sha256(), &pkey)
-        .map_err(|e| Error::new(ErrorKind::Authentication, format!("signer init: {e}")))?;
-    signer
-        .set_rsa_padding(Padding::PKCS1_PSS)
-        .map_err(|e| Error::new(ErrorKind::Authentication, format!("set pss: {e}")))?;
-    signer
-        .set_rsa_pss_saltlen(openssl::sign::RsaPssSaltlen::DIGEST_LENGTH)
-        .map_err(|e| Error::new(ErrorKind::Authentication, format!("set salt: {e}")))?;
-    signer
-        .update(payload.as_bytes())
-        .map_err(|e| Error::new(ErrorKind::Authentication, format!("sign update: {e}")))?;
-    let sig = signer
-        .sign_to_vec()
-        .map_err(|e| Error::new(ErrorKind::Authentication, format!("sign: {e}")))?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(sig))
-}
 
 /// ccxt `shorten_slug`:小写 → 字母数字保留、其余转 `-` → 替换表 → 去停用词 → `_` join → 大写。
 pub fn shorten_slug(slug: &str) -> String {

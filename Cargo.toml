@@ -10,7 +10,7 @@ license = "Apache-2.0"
 name = "adaq-trading-crypto"
 repository = "https://github.com/tonywxx/adaq-trading-crypto"
 rust-version = "1.85"
-version = "1.0.4"
+version = "1.0.5"
 
 [features]
 alpaca = []
@@ -22,7 +22,7 @@ bybit = []
 coinbase = []
 default = ["binance", "okx", "kalshi", "polymarket"]
 full = [
-    "generated",
+  "generated",
   "binance",
   "okx",
   "coinbase",
@@ -136,93 +136,93 @@ limitless = []
 myriad = []
 opinion = []
 generated = [
-    "apex",
-    "backpack",
-    "bequant",
-    "bigone",
-    "binancecoinm",
-    "binanceusdm",
-    "bingx",
-    "bit2c",
-    "bitbank",
-    "bitbns",
-    "bitfinex",
-    "bitflyer",
-    "bithumb",
-    "bitmex",
-    "bitopro",
-    "bitrue",
-    "bitso",
-    "bitstamp",
-    "bitteam",
-    "bittrade",
-    "bitvavo",
-    "blockchaincom",
-    "blofin",
-    "btcbox",
-    "btcmarkets",
-    "btcturk",
-    "bullish",
-    "bybiteu",
-    "bydfi",
-    "cex",
-    "coinbaseexchange",
-    "coinbaseinternational",
-    "coincheck",
-    "coinex",
-    "coinmate",
-    "coinone",
-    "coinsph",
-    "coinspot",
-    "cryptocom",
-    "cryptomus",
-    "deepcoin",
-    "delta",
-    "deribit",
-    "derive",
-    "digifinex",
-    "dydx",
-    "exmo",
-    "extended",
-    "fmfwio",
-    "foxbit",
-    "gateeu",
-    "grvt",
-    "hibachi",
-    "hitbtc",
-    "hollaex",
-    "independentreserve",
-    "indodax",
-    "krakenfutures",
-    "kucoinfutures",
-    "latoken",
-    "lbank",
-    "luno",
-    "mercado",
-    "modetrade",
-    "mudrex",
-    "nado",
-    "ndax",
-    "onetrading",
-    "p2b",
-    "pacifica",
-    "paradex",
-    "paymium",
-    "phemex",
-    "poloniex",
-    "tokocrypto",
-    "toobit",
-    "upbit",
-    "weex",
-    "whitebit",
-    "woo",
-    "woofipro",
-    "xt",
-    "zaif",
-    "zebpay",
-    "limitless",
-    "myriad",
-    "opinion",
+  "apex",
+  "backpack",
+  "bequant",
+  "bigone",
+  "binancecoinm",
+  "binanceusdm",
+  "bingx",
+  "bit2c",
+  "bitbank",
+  "bitbns",
+  "bitfinex",
+  "bitflyer",
+  "bithumb",
+  "bitmex",
+  "bitopro",
+  "bitrue",
+  "bitso",
+  "bitstamp",
+  "bitteam",
+  "bittrade",
+  "bitvavo",
+  "blockchaincom",
+  "blofin",
+  "btcbox",
+  "btcmarkets",
+  "btcturk",
+  "bullish",
+  "bybiteu",
+  "bydfi",
+  "cex",
+  "coinbaseexchange",
+  "coinbaseinternational",
+  "coincheck",
+  "coinex",
+  "coinmate",
+  "coinone",
+  "coinsph",
+  "coinspot",
+  "cryptocom",
+  "cryptomus",
+  "deepcoin",
+  "delta",
+  "deribit",
+  "derive",
+  "digifinex",
+  "dydx",
+  "exmo",
+  "extended",
+  "fmfwio",
+  "foxbit",
+  "gateeu",
+  "grvt",
+  "hibachi",
+  "hitbtc",
+  "hollaex",
+  "independentreserve",
+  "indodax",
+  "krakenfutures",
+  "kucoinfutures",
+  "latoken",
+  "lbank",
+  "luno",
+  "mercado",
+  "modetrade",
+  "mudrex",
+  "nado",
+  "ndax",
+  "onetrading",
+  "p2b",
+  "pacifica",
+  "paradex",
+  "paymium",
+  "phemex",
+  "poloniex",
+  "tokocrypto",
+  "toobit",
+  "upbit",
+  "weex",
+  "whitebit",
+  "woo",
+  "woofipro",
+  "xt",
+  "zaif",
+  "zebpay",
+  "limitless",
+  "myriad",
+  "opinion",
 ]
 mexc = []
 myokx = []
@@ -236,7 +236,7 @@ sync = []
 [dependencies]
 async-trait = "0.1"
 base64 = "0.23.1"
-chrono = {version = "0.4.45", features = ["serde"]}
+chrono = { version = "0.4.45", features = ["serde"] }
 futures-util = "0.3.34"
 hex = "0.4"
 hmac = "0.13"
@@ -244,25 +244,25 @@ libsecp256k1 = "0.7"
 num-bigint = "0.5.1"
 num-traits = "0.2"
 openssl = "0.10.81"
-reqwest = {version = "0.13.4", default-features = false, features = [
+reqwest = { version = "0.13.4", default-features = false, features = [
   "json",
   "rustls",
-]}
-rust_decimal = {version = "1", features = ["serde-str"]}
-serde = {version = "1", features = ["derive"]}
+] }
+rust_decimal = { version = "1", features = ["serde-str"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
 sha3 = "0.12"
-tokio = {version = "1.53.1", features = [
+tokio = { version = "1.53.1", features = [
   "rt-multi-thread",
   "macros",
   "time",
   "sync",
   "net",
-]}
-tokio-tungstenite = {version = "0.30.0", features = [
+] }
+tokio-tungstenite = { version = "0.30.0", features = [
   "rustls-tls-native-roots",
-]}
+] }
 
 [build-dependencies]
 regex = "1.13.1"

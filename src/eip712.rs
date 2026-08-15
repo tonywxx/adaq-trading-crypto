@@ -6,7 +6,7 @@
 //! - struct 编码支持 `uint256/uint8/address/bytes32/string/bytes32[]` 等常见类型
 //!   (polymarket 订单只用到 uint256/address/uint8/bytes32)。
 
-use libsecp256k1::{PublicKey, RecoveryId, SecretKey, Signature, sign};
+use libsecp256k1::{PublicKey, RecoveryId, Signature};
 use sha3::{Digest, Keccak256};
 
 use crate::error::{Error, ErrorKind, Result};
@@ -158,7 +158,7 @@ pub fn digest(
 
 /// 从 secp256k1 私钥 hex(64 hex 或 0x 前缀)推导 EIP-55 校验和地址。
 pub fn address_from_private_key(private_key: &str) -> Result<String> {
-    let key = secret_key(private_key)?;
+    let key = crate::signing::secp256k1_secret_from_hex(private_key)?;
     let public = PublicKey::from_secret_key(&key);
     // 去掉 0x04 前缀(共 65 字节),取 keccak 后 20 字节
     let pub_bytes = public.serialize();
@@ -196,39 +196,6 @@ fn hex_digit_value(b: u8) -> u8 {
         b'A'..=b'F' => b - b'A' + 10,
         _ => 0,
     }
-}
-
-fn secret_key(private_key: &str) -> Result<SecretKey> {
-    let clean = private_key.trim_start_matches("0x");
-    let bytes = hex::decode(clean).map_err(|e| {
-        Error::new(
-            ErrorKind::Authentication,
-            format!("invalid private key: {e}"),
-        )
-    })?;
-    SecretKey::parse_slice(&bytes).map_err(|e| {
-        Error::new(
-            ErrorKind::Authentication,
-            format!("invalid secp256k1 key: {e}"),
-        )
-    })
-}
-
-/// 对 digest 做可恢复 ECDSA 签名,返回 `r(64hex) + s(64hex) + v(27/28)`。
-pub fn sign_recoverable(private_key: &str, digest: &[u8; 32]) -> Result<String> {
-    let key = secret_key(private_key)?;
-    let message = libsecp256k1::Message::parse_slice(digest)
-        .map_err(|e| Error::new(ErrorKind::Authentication, format!("bad message: {e}")))?;
-    let (signature, recovery_id) = sign(&message, &key);
-    let (r, s) = split_signature(&signature);
-    let v = 27 + recovery_id.serialize();
-    Ok(format!("{r}{s}{v:02x}"))
-}
-
-fn split_signature(sig: &Signature) -> (String, String) {
-    let r = hex::encode(sig.r.b32());
-    let s = hex::encode(sig.s.b32());
-    (r, s)
 }
 
 /// 测试辅助:校验签名恢复的地址。
@@ -302,7 +269,7 @@ mod tests {
     #[test]
     fn sign_and_recover_matches_key() {
         let digest = [7u8; 32];
-        let sig = sign_recoverable(KEY, &digest).unwrap();
+        let sig = crate::signing::sign_ecdsa_recoverable(KEY, &digest).unwrap();
         assert_eq!(sig.len(), 130);
         let r = &sig[..64];
         let s = &sig[64..128];
@@ -354,7 +321,7 @@ mod tests {
             "rust struct_hash: {}",
             hex::encode(struct_hash(ORDER_TYPE, &fields).unwrap())
         );
-        let sig = sign_recoverable(KEY, &d).unwrap();
+        let sig = crate::signing::sign_ecdsa_recoverable(KEY, &d).unwrap();
         // eth-account 参考签名(r + s + v,小写 hex)
         assert_eq!(
             sig,

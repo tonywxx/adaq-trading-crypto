@@ -81,7 +81,7 @@ impl KalshiWs {
             })?;
         let timestamp = now_ms().to_string();
         let payload = format!("{timestamp}GET{SIGN_PATH}");
-        let signature = crate::adapters::kalshi::sign_rsa_pss(&payload, private_key)?;
+        let signature = crate::signing::sign_rsa_pss(&payload, private_key)?;
         let mut headers = HeaderMap::new();
         headers.insert("KALSHI-ACCESS-KEY", HeaderValue::from_str(api_key).unwrap());
         headers.insert(

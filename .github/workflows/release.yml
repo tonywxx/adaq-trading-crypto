@@ -75,11 +75,19 @@ jobs:
       # Light retry absorbs transient crates.io index/network hiccups; breaks on success.
       - name: Publish to crates.io
         run: |
+          published=0
           for i in 1 2 3; do
             if cargo publish; then
               echo "Published adaq-trading-crypto v$(grep -m1 '^version' Cargo.toml | sed -E 's/version[[:space:]]*=[[:space:]]*"(.*)"/\1/')"
+              published=1
               break
             fi
             echo "Publish attempt $i failed, retrying in 10s..."
             sleep 10
           done
+          # Fail the job loudly if every attempt failed, so a broken publish
+          # is never masked as a green run.
+          if [ "$published" -ne 1 ]; then
+            echo "::error::cargo publish failed after 3 attempts; crate was NOT published"
+            exit 1
+          fi

@@ -38,6 +38,10 @@ _Avoid_: 长连接、流
 交易价格与数量使用的精确十进制运算(避免二进制浮点误差),语义对齐 ccxt `Precise`。
 _Avoid_: 浮点、decimal 混称
 
+**统一签名 (Unified Signing)**:
+ADR-0013 四接缝之一的 `sign` 缝收口实现:`src/signing.rs` 集中全部与交易所无关的签名原语(HMAC / ECDSA 可恢复 / RSA-PSS)、凭据抽取与请求头装配;交易所专属的认证串拼接与头名仍留各适配器。
+_Avoid_: 签名模块、auth 模块(过于泛)
+
 **契约测试 (Contract Test)**:
 验证统一 API 方法面与结构字段面完整性的测试形态(发布门槛)。
 

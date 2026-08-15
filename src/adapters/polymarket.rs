@@ -725,7 +725,7 @@ impl Exchange for Polymarket {
             order_type_str,
             &fields,
         )?;
-        let signature = crate::eip712::sign_recoverable(private_key, &digest)?;
+        let signature = crate::signing::sign_ecdsa_recoverable(private_key, &digest)?;
         let order_type_tif = if order_type == "market" { "FOK" } else { "GTC" };
         let body = json!({
             "deferExec": false,
