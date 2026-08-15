@@ -281,7 +281,8 @@ ocxHieA7Y0yvMHC0w2peEQ==
         assert_eq!(sig.len(), 344, "256 字节 RSA 签名 base64 后应为 344");
         // 用对应公钥验签,确认签名有效(RSA-PSS SHA-256, saltlen = DIGEST_LENGTH)
         let rsa = openssl::rsa::Rsa::private_key_from_pem(PEM.as_bytes()).unwrap();
-        let pubkey = openssl::pkey::PKey::public_key_from_pem(&rsa.public_key_to_pem().unwrap()).unwrap();
+        let pubkey =
+            openssl::pkey::PKey::public_key_from_pem(&rsa.public_key_to_pem().unwrap()).unwrap();
         let mut verifier =
             openssl::sign::Verifier::new(openssl::hash::MessageDigest::sha256(), &pubkey).unwrap();
         verifier
@@ -291,7 +292,9 @@ ocxHieA7Y0yvMHC0w2peEQ==
             .set_rsa_pss_saltlen(openssl::sign::RsaPssSaltlen::DIGEST_LENGTH)
             .unwrap();
         verifier.update(payload.as_bytes()).unwrap();
-        let raw = base64::engine::general_purpose::STANDARD.decode(&sig).unwrap();
+        let raw = base64::engine::general_purpose::STANDARD
+            .decode(&sig)
+            .unwrap();
         assert!(verifier.verify(&raw).unwrap());
     }
 }
