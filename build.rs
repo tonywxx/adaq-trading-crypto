@@ -155,6 +155,14 @@ fn gen_adapter_registration() {
         .collect();
 
     // --- 生成 adapter_reg.rs(mod.rs include) ---
+    // 关键点:`include!` 把文本拼接到 `src/adapters/mod.rs`,但其中的 `mod X;`
+    // 仍按「被包含文件自身所在目录」解析(即 OUT_DIR),而非 mod.rs 所在目录。
+    // 因此必须显式用 `#[path]` 指向真实适配器文件 `src/adapters/X.rs`,否则
+    // 把文件放进 OUT_DIR 后 Rust 会去 OUT_DIR 找 X.rs 而失败。
+    // `#[path]` 用绝对路径(来自 CARGO_MANIFEST_DIR),构建时重新生成,发布包
+    // 不含本文件,故不受机器路径差异影响。
+    let adapters_root = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("src/adapters");
     let mut reg = String::new();
     reg.push_str("// 本文件由 build.rs 自动生成,请勿手改。\n");
     reg.push_str(
@@ -162,7 +170,8 @@ fn gen_adapter_registration() {
     );
     for (module, struct_name, has_id) in &adapters {
         let cfg = format!("#[cfg(feature = \"{module}\")]");
-        reg.push_str(&format!("{cfg} pub mod {module};\n"));
+        let abs = adapters_root.join(format!("{module}.rs")).display().to_string();
+        reg.push_str(&format!("{cfg} #[path = \"{abs}\"] pub mod {module};\n"));
         if *has_id {
             let alias = format!("{}_ID", module.to_uppercase());
             reg.push_str(&format!(
@@ -188,17 +197,14 @@ fn gen_adapter_registration() {
     }
     pairs.push_str("];\n");
 
-    // adapter_reg.rs 必须落在 src/adapters/ 内:`include!` 中的 `pub mod X;`
-    // 会相对于「被包含文件所在目录」解析子模块路径;若放在 OUT_DIR,则找不到
-    // src/adapters/X.rs。故写入源码树(同 generated.rs 的先例),并由 .gitignore 忽略。
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    std::fs::write(
-        Path::new(&manifest_dir).join("src/adapters/adapter_reg.rs"),
-        reg,
-    )
-    .expect("write src/adapters/adapter_reg.rs");
-
+    // adapter_reg.rs 写入 OUT_DIR:`include!` 中的 `mod X;` 仍相对于本文件目录
+    // 解析,故上面的 `#[path]` 已显式指向 `src/adapters/X.rs`。放进 OUT_DIR 才能
+    // 通过 `cargo publish --verify` —— 构建脚本禁止改写源码树(OUT_DIR 之外),
+    // 否则发布校验直接失败。发布包不含本文件(构建时重新生成)。
     let out_dir = std::env::var("OUT_DIR").unwrap();
+    std::fs::write(Path::new(&out_dir).join("adapter_reg.rs"), reg)
+        .expect("write adapter_reg.rs");
+
     std::fs::write(Path::new(&out_dir).join("contract_pairs.rs"), pairs)
         .expect("write contract_pairs.rs");
 
