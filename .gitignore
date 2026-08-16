@@ -2,6 +2,7 @@
 .workbuddy
 tony
 /ccxt
+src/adapters/adapter_reg.rs
 .env
 .venv/
 .codegraph/

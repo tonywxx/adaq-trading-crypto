@@ -22,7 +22,9 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
 use crate::httpcore::{collect_levels, dec, iso8601, now_ms};
 use crate::realtime::orderbook::OrderBookStore;
-use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
+use crate::realtime::ws::{
+    ChannelMap, Conn, SubscriptionSet, WsSession, get_or_subscribe, wait_first, ws_err,
+};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://ws.okx.com:8443/ws/v5/public";
@@ -105,7 +107,7 @@ impl OkxWs {
         })
     }
 
-    async fn subscribe(&self, channel: &str, inst_id: &str) -> Result<()> {
+    async fn subscribe(&self, channel: String, inst_id: String) -> Result<()> {
         let key = format!("{channel}:{inst_id}");
         let first = self.subs.lock().unwrap().register(&key);
         if !first {
@@ -358,15 +360,10 @@ impl Realtime for OkxWs {
     async fn watch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         self.ensure_public();
         let inst = self.symbol_id(symbol);
-        self.subscribe("tickers", &inst).await?;
-        let rx = {
-            let mut map = self.tickers.lock().unwrap();
-            if !map.contains_key(&inst) {
-                let (tx, _) = watch::channel(Ticker::default());
-                map.insert(inst.clone(), tx.clone());
-            }
-            map.get(&inst).cloned().unwrap().subscribe()
-        };
+        let rx = get_or_subscribe(&self.tickers, inst, Ticker::default(), |k| {
+            self.subscribe("tickers".to_string(), k)
+        })
+        .await?;
         wait_first(rx).await
     }
 
@@ -378,23 +375,16 @@ impl Realtime for OkxWs {
     ) -> Result<OrderBook> {
         self.ensure_public();
         let inst = self.symbol_id(symbol);
-        self.subscribe("books", &inst).await?;
         if !self.book_stores.lock().unwrap().contains_key(&inst) {
             self.book_stores
                 .lock()
                 .unwrap()
                 .insert(inst.clone(), OrderBookStore::new(0));
-            let (tx, _) = watch::channel(OrderBook::default());
-            self.books.lock().unwrap().insert(inst.clone(), tx);
         }
-        let rx = self
-            .books
-            .lock()
-            .unwrap()
-            .get(&inst)
-            .cloned()
-            .unwrap()
-            .subscribe();
+        let rx = get_or_subscribe(&self.books, inst, OrderBook::default(), |k| {
+            self.subscribe("books".to_string(), k)
+        })
+        .await?;
         wait_first(rx).await
     }
 
@@ -407,15 +397,10 @@ impl Realtime for OkxWs {
     ) -> Result<Vec<Trade>> {
         self.ensure_public();
         let inst = self.symbol_id(symbol);
-        self.subscribe("trades", &inst).await?;
-        let rx = {
-            let mut map = self.trades.lock().unwrap();
-            if !map.contains_key(&inst) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(inst.clone(), tx.clone());
-            }
-            map.get(&inst).cloned().unwrap().subscribe()
-        };
+        let rx = get_or_subscribe(&self.trades, inst, Vec::new(), |k| {
+            self.subscribe("trades".to_string(), k)
+        })
+        .await?;
         wait_first(rx).await
     }
 
@@ -429,17 +414,12 @@ impl Realtime for OkxWs {
     ) -> Result<Vec<OHLCV>> {
         self.ensure_public();
         let inst = self.symbol_id(symbol);
-        let channel = format!("candle{timeframe}");
-        self.subscribe(&channel, &inst).await?;
         let key = (inst, timeframe.to_string());
-        let rx = {
-            let mut map = self.ohlcvs.lock().unwrap();
-            if !map.contains_key(&key) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(key.clone(), tx.clone());
-            }
-            map.get(&key).cloned().unwrap().subscribe()
-        };
+        let channel = format!("candle{timeframe}");
+        let rx = get_or_subscribe(&self.ohlcvs, key, Vec::new(), move |k| {
+            self.subscribe(channel.clone(), k.0)
+        })
+        .await?;
         wait_first(rx).await
     }
 

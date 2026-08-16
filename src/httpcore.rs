@@ -14,6 +14,8 @@ use serde_json::Value;
 use crate::client::Client;
 use crate::error::{Error, ErrorContext, ErrorKind, Result};
 use crate::exchange::{Config, Params};
+#[cfg(test)]
+use crate::transport::Transport;
 use crate::types::{Level, Markets, OHLCV};
 
 /// 交易所无关核心:HTTP 客户端 + 市集缓存。
@@ -115,6 +117,12 @@ impl HttpCore {
     /// 当前市集缓存快照(未加载时为空)。
     pub fn markets_snapshot(&self) -> Markets {
         self.markets.lock().unwrap().clone().unwrap_or_default()
+    }
+
+    /// 运行时替换传输(离线测试桩注入,候选 6)。仅测试构建可用。
+    #[cfg(test)]
+    pub(crate) fn set_transport(&mut self, transport: Box<dyn Transport + Send + Sync>) {
+        self.client.set_transport(transport);
     }
 }
 
@@ -259,6 +267,42 @@ pub fn pick_i64(v: &Value, keys: &[&str]) -> Option<i64> {
         }
     }
     None
+}
+
+/// 从对象按 `key` 取出数组字段(收口原各适配器 `.get(key).and_then(Value::as_array)` 副本)。
+///
+/// 交易所响应把数组放在不同信封字段下:OKX/Bitget/Kucoin 用 `data`,
+/// Bybit 用 `result`/`list`,Kraken 用 `result`。本函数把「按字段取数组」
+/// 这一 safe 提取动作集中到核心,调用方只需关心字段名;其余链式转换
+/// (`.and_then(|a| a.first())` / `.cloned().unwrap_or_default()`)保持原位。
+pub fn array_at<'a>(v: &'a Value, key: &str) -> Option<&'a Vec<Value>> {
+    v.get(key).and_then(Value::as_array)
+}
+
+/// 取 `data` 信封数组(OKX/Bitget/Kucoin/Kraken 等 `{"code":"0","data":[...]}` 形)。
+///
+/// [`array_at`] 的 `data` 字段特化,收口原各适配器 `resp.get("data").and_then(Value::as_array)` 副本。
+pub fn data_array(v: &Value) -> Option<&Vec<Value>> {
+    array_at(v, "data")
+}
+
+/// 表驱动把统一 `timeframe`(如 `"1m"`/`"1h"`)映射到交易所原生粒度字符串。
+///
+/// 取代各适配器 `match timeframe { "1m" => "1m", "1h" => "1H", other => Err(...) }` 副本
+/// (属 ADR-0013 describe 面)。`table` 形如 `&[("1m","1m"),("1h","1H")]`;未命中返回
+/// [`ErrorKind::BadRequest`](unsupported timeframe)。仅适用于原生粒度是单个字符串的交易所
+/// (coinbase 等返回 `(粒度, 秒数)` 元组的属真实差异,仍走各自 match)。
+pub fn resolve_timeframe<'a>(table: &[(&str, &'a str)], timeframe: &str) -> Result<&'a str> {
+    table
+        .iter()
+        .find(|(u, _)| *u == timeframe)
+        .map(|(_, n)| *n)
+        .ok_or_else(|| {
+            Error::new(
+                ErrorKind::BadRequest,
+                format!("unsupported timeframe {timeframe}"),
+            )
+        })
 }
 
 /// `[price, amount, ...]` 行数组 → `(price, amount)` 元组(逐行跳过无效行)。
@@ -617,5 +661,36 @@ mod tests {
     fn pct_encode_reserves_unreserved_chars() {
         assert_eq!(pct_encode("BTC/USDT"), "BTC%2FUSDT");
         assert_eq!(pct_encode("a-b_c.d~"), "a-b_c.d~");
+    }
+
+    // ---- safe 提取:array_at / data_array / resolve_timeframe(候选 ②) ----
+
+    #[test]
+    fn array_at_reads_named_field_as_array() {
+        let v = json!({"data":[{"a":1},{"b":2}],"result":[3]});
+        assert_eq!(array_at(&v, "data").map(Vec::len), Some(2));
+        assert_eq!(array_at(&v, "result").map(Vec::len), Some(1));
+        // 字段缺失或非数组 → None(不 panic)。
+        assert!(array_at(&v, "missing").is_none());
+        assert!(array_at(&json!({"data":"not array"}), "data").is_none());
+    }
+
+    #[test]
+    fn data_array_is_array_at_data() {
+        let v = json!({"code":"0","data":[{"instId":"BTC-USDT"}]});
+        assert_eq!(data_array(&v).map(Vec::len), Some(1));
+        assert!(data_array(&json!({"code":"0"})).is_none());
+    }
+
+    #[test]
+    fn resolve_timeframe_maps_unified_to_native() {
+        let tf: &[(&str, &str)] = &[("1m", "1m"), ("1h", "1H"), ("1d", "1D")];
+        assert_eq!(resolve_timeframe(tf, "1h").unwrap(), "1H");
+        assert_eq!(resolve_timeframe(tf, "1m").unwrap(), "1m");
+        // 表驱动未命中 → BadRequest(unsupported timeframe)。
+        assert_eq!(
+            resolve_timeframe(tf, "2w").err().map(|e| e.kind),
+            Some(ErrorKind::BadRequest)
+        );
     }
 }

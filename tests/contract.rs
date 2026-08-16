@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 
+use adaq_trading_crypto::contract_gen::ADAPTER_PAIRS;
 use adaq_trading_crypto::methods::{all_methods, rest_methods, ws_methods};
 
 /// 方法名允许的动词前缀(与 ccxt 命名约定一致)。
@@ -63,85 +64,13 @@ fn ws_names_are_watch_methods() {
 fn adapter_implemented_subset_of_manifest() {
     // M2d/M3d:适配器声明的已实现方法必须是统一方法面的子集(防止实现未枚举的方法)
     // 仅校验当前 feature 组合下已编译的适配器(其余交易所按 feature 门控,见 ADR)。
-    #[cfg(feature = "alpaca")]
-    use adaq_trading_crypto::adapters::Alpaca;
-    #[cfg(feature = "aster")]
-    use adaq_trading_crypto::adapters::Aster;
-    #[cfg(feature = "binanceus")]
-    use adaq_trading_crypto::adapters::BinanceUs;
-    #[cfg(feature = "bitget")]
-    use adaq_trading_crypto::adapters::Bitget;
-    #[cfg(feature = "bybit")]
-    use adaq_trading_crypto::adapters::Bybit;
-    #[cfg(feature = "coinbase")]
-    use adaq_trading_crypto::adapters::Coinbase;
-    #[cfg(feature = "gate")]
-    use adaq_trading_crypto::adapters::Gate;
-    #[cfg(feature = "gemini")]
-    use adaq_trading_crypto::adapters::Gemini;
-    #[cfg(feature = "hashkey")]
-    use adaq_trading_crypto::adapters::Hashkey;
-    #[cfg(feature = "htx")]
-    use adaq_trading_crypto::adapters::Htx;
-    #[cfg(feature = "kraken")]
-    use adaq_trading_crypto::adapters::Kraken;
-    #[cfg(feature = "kucoin")]
-    use adaq_trading_crypto::adapters::Kucoin;
-    #[cfg(feature = "lighter")]
-    use adaq_trading_crypto::adapters::Lighter;
-    #[cfg(feature = "manifold")]
-    use adaq_trading_crypto::adapters::Manifold;
-    #[cfg(feature = "mexc")]
-    use adaq_trading_crypto::adapters::Mexc;
-    #[cfg(feature = "myokx")]
-    use adaq_trading_crypto::adapters::MyOkx;
-    #[cfg(feature = "okxus")]
-    use adaq_trading_crypto::adapters::OkxUs;
-    use adaq_trading_crypto::adapters::{Binance, Kalshi, Okx, Polymarket};
+    // 适配器清单由 build.rs 扫描生成并集中在 `ADAPTER_PAIRS`(见 src/contract_gen.rs),
+    // 此处不再手抄 pairs。Binance/Kalshi 仍按需直接引用(默认 feature,见下方断言)。
+    use adaq_trading_crypto::adapters::{Binance, Kalshi};
 
     let manifest: HashSet<&str> = all_methods().iter().copied().collect();
-    let pairs = vec![
-        ("binance", Binance::IMPLEMENTED),
-        ("okx", Okx::IMPLEMENTED),
-        ("kalshi", Kalshi::IMPLEMENTED),
-        ("polymarket", Polymarket::IMPLEMENTED),
-        #[cfg(feature = "coinbase")]
-        ("coinbase", Coinbase::IMPLEMENTED),
-        #[cfg(feature = "bitget")]
-        ("bitget", Bitget::IMPLEMENTED),
-        #[cfg(feature = "gate")]
-        ("gate", Gate::IMPLEMENTED),
-        #[cfg(feature = "mexc")]
-        ("mexc", Mexc::IMPLEMENTED),
-        #[cfg(feature = "htx")]
-        ("htx", Htx::IMPLEMENTED),
-        #[cfg(feature = "kucoin")]
-        ("kucoin", Kucoin::IMPLEMENTED),
-        #[cfg(feature = "manifold")]
-        ("manifold", Manifold::IMPLEMENTED),
-        #[cfg(feature = "alpaca")]
-        ("alpaca", Alpaca::IMPLEMENTED),
-        #[cfg(feature = "aster")]
-        ("aster", Aster::IMPLEMENTED),
-        #[cfg(feature = "binanceus")]
-        ("binanceus", BinanceUs::IMPLEMENTED),
-        #[cfg(feature = "gemini")]
-        ("gemini", Gemini::IMPLEMENTED),
-        #[cfg(feature = "hashkey")]
-        ("hashkey", Hashkey::IMPLEMENTED),
-        #[cfg(feature = "lighter")]
-        ("lighter", Lighter::IMPLEMENTED),
-        #[cfg(feature = "myokx")]
-        ("myokx", MyOkx::IMPLEMENTED),
-        #[cfg(feature = "okxus")]
-        ("okxus", OkxUs::IMPLEMENTED),
-        #[cfg(feature = "bybit")]
-        ("bybit", Bybit::IMPLEMENTED),
-        #[cfg(feature = "kraken")]
-        ("kraken", Kraken::IMPLEMENTED),
-    ];
 
-    for (exchange, implemented) in pairs {
+    for &(exchange, implemented) in ADAPTER_PAIRS {
         assert!(!implemented.is_empty(), "{exchange} IMPLEMENTED 非空");
         for name in implemented {
             assert!(

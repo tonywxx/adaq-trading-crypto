@@ -17,7 +17,8 @@ use serde_json::{Value, json};
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
 use crate::httpcore::{
-    HttpCore, dec, iso8601, iso8601_now, parse_level, query_string, value_decimal,
+    HttpCore, data_array, dec, iso8601, iso8601_now, parse_level, query_string, resolve_timeframe,
+    value_decimal,
 };
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position,
@@ -28,10 +29,14 @@ pub const ID: &str = "okx";
 const BASE_URL: &str = "https://www.okx.com/api/v5";
 const RATE_LIMIT_MS: u64 = 110;
 
-/// okx 现货适配器。
+/// okx 现货适配器(姊妹所 okxus / myokx 复用,见候选 ③ 参数化)。
+///
+/// `id` 为字段而非常量:姊妹所只是换 id 与根地址,实现(签名、解析、市集)
+/// 完全复用,不再各持一份 ~570 行克隆。base_url 由 [`HttpCore`] 内部持有。
 pub struct Okx {
     config: Config,
     core: HttpCore,
+    id: &'static str,
 }
 
 impl Okx {
@@ -51,9 +56,23 @@ impl Okx {
         "cancel_order",
     ];
 
+    /// okx 主站(默认 id `okx`)。
     pub fn new(config: Config) -> Result<Self> {
-        let core = HttpCore::new(&config, BASE_URL, RATE_LIMIT_MS, "okx")?;
-        Ok(Self { config, core })
+        Self::with_endpoints(config, ID, BASE_URL, RATE_LIMIT_MS)
+    }
+
+    /// 姊妹所构造:换 `id` 与 `base_url`,实现(签名/解析/市集)复用。
+    ///
+    /// `id` 同时用于凭据查找(`signing::require_secret`)与错误来源标注,
+    /// 因此 okxus / myokx 用各自 id 即可命中对应密钥,无需重抄签名代码。
+    pub fn with_endpoints(
+        config: Config,
+        id: &'static str,
+        base_url: &str,
+        rate_limit_ms: u64,
+    ) -> Result<Self> {
+        let core = HttpCore::new(&config, base_url, rate_limit_ms, id)?;
+        Ok(Self { config, core, id })
     }
 
     // ================= 内部 HTTP =================
@@ -68,7 +87,7 @@ impl Okx {
         path: &str,
         body: &str,
     ) -> Result<String> {
-        let secret = crate::signing::require_secret(&self.config, "okx")?;
+        let secret = crate::signing::require_secret(&self.config, self.id)?;
         let auth = format!("{timestamp}{method}{path}{body}");
         Ok(crate::signing::hmac_sha256_b64(secret, &auth))
     }
@@ -120,9 +139,7 @@ impl Okx {
         let mut p = Params::new();
         p.insert("instType".into(), json!("SPOT"));
         let resp = self.core.public_get("/public/instruments", &p).await?;
-        let arr = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let arr = data_array(&resp)
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "instruments not array"))?;
         let mut map = Markets::new();
         for raw in arr {
@@ -191,9 +208,7 @@ impl Okx {
     }
 
     pub fn parse_order_book(&self, raw: &Value, symbol: &str) -> OrderBook {
-        let data = raw
-            .get("data")
-            .and_then(Value::as_array)
+        let data = data_array(raw)
             .and_then(|a| a.first())
             .cloned();
         let book = data.as_ref().unwrap_or(raw);
@@ -302,7 +317,7 @@ impl Okx {
 
 impl Exchange for Okx {
     fn id(&self) -> &'static str {
-        ID
+        self.id
     }
     fn config(&self) -> &Config {
         &self.config
@@ -316,9 +331,7 @@ impl Exchange for Okx {
     async fn fetch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         let p = params1("instId", &self.symbol_id(symbol));
         let resp = self.core.public_get("/market/ticker", &p).await?;
-        let raw = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let raw = data_array(&resp)
             .and_then(|a| a.first())
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "ticker empty"))?;
         Ok(self.parse_ticker(raw))
@@ -328,9 +341,7 @@ impl Exchange for Okx {
         let mut p = Params::new();
         p.insert("instType".into(), json!("SPOT"));
         let resp = self.core.public_get("/market/tickers", &p).await?;
-        let arr = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let arr = data_array(&resp)
             .cloned()
             .unwrap_or_default();
         let mut out = Tickers::new();
@@ -365,9 +376,7 @@ impl Exchange for Okx {
         p.insert("instId".into(), json!(self.symbol_id(symbol)));
         p.insert("limit".into(), json!(limit.unwrap_or(100).min(500)));
         let resp = self.core.public_get("/market/trades", &p).await?;
-        let arr = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let arr = data_array(&resp)
             .cloned()
             .unwrap_or_default();
         Ok(arr.iter().map(|t| self.parse_trade(t)).collect())
@@ -381,28 +390,16 @@ impl Exchange for Okx {
         limit: Option<i64>,
         _params: Params,
     ) -> Result<Vec<OHLCV>> {
-        let bar = match timeframe {
-            "1m" => "1m",
-            "5m" => "5m",
-            "15m" => "15m",
-            "1h" => "1H",
-            "4h" => "4H",
-            "1d" => "1D",
-            other => {
-                return Err(Error::new(
-                    ErrorKind::BadRequest,
-                    format!("unsupported timeframe {other}"),
-                ));
-            }
-        };
+        let bar = resolve_timeframe(
+            &[("1m", "1m"), ("5m", "5m"), ("15m", "15m"), ("1h", "1H"), ("4h", "4H"), ("1d", "1D")],
+            timeframe,
+        )?;
         let mut p = Params::new();
         p.insert("instId".into(), json!(self.symbol_id(symbol)));
         p.insert("bar".into(), json!(bar));
         p.insert("limit".into(), json!(limit.unwrap_or(100).min(300)));
         let resp = self.core.public_get("/market/candles", &p).await?;
-        let arr = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let arr = data_array(&resp)
             .cloned()
             .unwrap_or_default();
         Ok(arr.iter().map(|r| self.parse_ohlcv(r)).collect())
@@ -416,9 +413,7 @@ impl Exchange for Okx {
             info: resp.clone(),
             ..Balances::default()
         };
-        if let Some(data) = resp
-            .get("data")
-            .and_then(Value::as_array)
+        if let Some(data) = data_array(&resp)
             .and_then(|a| a.first())
         {
             if let Some(details) = data.get("details").and_then(Value::as_array) {
@@ -449,9 +444,7 @@ impl Exchange for Okx {
         let resp = self
             .private_request("GET", "/account/positions", &Params::new(), None)
             .await?;
-        let arr = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let arr = data_array(&resp)
             .cloned()
             .unwrap_or_default();
         Ok(arr
@@ -476,9 +469,7 @@ impl Exchange for Okx {
         let resp = self
             .private_request("GET", "/trade/orders-history", &p, None)
             .await?;
-        let arr = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let arr = data_array(&resp)
             .cloned()
             .unwrap_or_default();
         Ok(arr.iter().map(|o| self.parse_order(o)).collect())
@@ -498,9 +489,7 @@ impl Exchange for Okx {
         let resp = self
             .private_request("GET", "/trade/orders-pending", &p, None)
             .await?;
-        let arr = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let arr = data_array(&resp)
             .cloned()
             .unwrap_or_default();
         Ok(arr.iter().map(|o| self.parse_order(o)).collect())
@@ -542,9 +531,7 @@ impl Exchange for Okx {
                 Some(Value::Object(body)),
             )
             .await?;
-        let data = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let data = data_array(&resp)
             .and_then(|a| a.first())
             .cloned()
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "order empty"))?;
@@ -563,9 +550,7 @@ impl Exchange for Okx {
         let resp = self
             .private_request("POST", "/trade/cancel-order", &Params::new(), Some(body))
             .await?;
-        let data = resp
-            .get("data")
-            .and_then(Value::as_array)
+        let data = data_array(&resp)
             .and_then(|a| a.first())
             .cloned()
             .ok_or_else(|| Error::new(ErrorKind::BadResponse, "cancel empty"))?;

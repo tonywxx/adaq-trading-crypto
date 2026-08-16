@@ -13,6 +13,7 @@
 
 pub mod adapters;
 pub mod client;
+pub mod contract_gen;
 pub mod decimal;
 pub mod eip712;
 pub mod error;

@@ -73,9 +73,146 @@ fn main() {
     let out_path = Path::new(&std::env::var("OUT_DIR").unwrap()).join("methods.rs");
     std::fs::write(&out_path, out).expect("write methods.rs");
 
+    // Candidate 4(ADR-0001):扫描 curated 适配器,生成注册面与契约 pairs。
+    gen_adapter_registration();
+
     eprintln!(
         "methods manifest: {} REST + {} WS methods",
         rest.len(),
         ws.len()
+    );
+}
+
+/// 扫描 `src/adapters/*.rs`(curated,排除 mod/outcome/generated 与 generated/ 子目录),
+/// 提取 `impl Exchange for X` 与 `pub const ID`,生成两份产物:
+///
+/// - `OUT_DIR/adapter_reg.rs`:`#[cfg(feature)] pub mod X` + `pub use X::{...}`,
+///   供 `src/adapters/mod.rs` 通过 `include!` 吸收 —— 删除手维护的成对注册。
+/// - `OUT_DIR/contract_pairs.rs`:`pub const ADAPTER_PAIRS: &[(&str, &[&str])]`,
+///   供 `src/contract_gen.rs` 通过 `include!` 吸收 —— 删除 `tests/contract.rs` 手抄的 pairs。
+///
+/// 真源在适配器自身的 `ID` / `IMPLEMENTED` 常量;机械注册簇被删除,漂移面随之消失
+/// (对照上面已从 `exchange.rs` 抽取方法清单的先例)。
+fn gen_adapter_registration() {
+    use std::collections::HashSet;
+
+    let adapters_dir = Path::new("src/adapters");
+    println!("cargo:rerun-if-changed=src/adapters");
+    println!("cargo:rerun-if-changed=Cargo.toml");
+
+    // 已知非适配器模块,跳过(它们不是 curated 交易所注册面的一部分)。
+    // `adapter_reg` 是本案自身生成的产物,也须排除,否则会被误当作适配器扫描。
+    let skip: HashSet<&str> = ["mod", "outcome", "generated", "adapter_reg"]
+        .iter()
+        .copied()
+        .collect();
+
+    let mut entries: Vec<_> = std::fs::read_dir(adapters_dir)
+        .expect("read src/adapters")
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().map(|x| x == "rs").unwrap_or(false))
+        .filter(|p| {
+            p.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| !skip.contains(s))
+                .unwrap_or(false)
+        })
+        .collect();
+    entries.sort();
+
+    let struct_re = Regex::new(r"impl\s+Exchange\s+for\s+([A-Z][A-Za-z0-9]+)").unwrap();
+    let id_re = Regex::new(r"pub\s+const\s+ID\s*[:=]").unwrap();
+
+    // (module, struct, has_id)
+    let mut adapters: Vec<(String, String, bool)> = Vec::new();
+    for path in entries {
+        let src = std::fs::read_to_string(&path).expect("read adapter");
+        let module = path.file_stem().unwrap().to_string_lossy().to_string();
+        let struct_name = struct_re
+            .captures(&src)
+            .map(|c| c[1].to_string())
+            .unwrap_or_else(|| panic!("未找到 `impl Exchange for X`: {}", path.display()));
+        let has_id = id_re.is_match(&src);
+        adapters.push((module, struct_name, has_id));
+    }
+
+    // 读取 Cargo.toml 用于:(a) 漂移守卫所需的 feature 名集合;(b) 后续可选校验。
+    let cargo = std::fs::read_to_string("Cargo.toml").expect("read Cargo.toml");
+
+    // 全部 feature 名,用于漂移守卫(适配器存在但 Cargo.toml 缺同名 feature)。
+    // 只在 `[features]` 段内匹配,避免误吞 `[dependencies]` 等段的键名。
+    let feat_pos = cargo.find("[features]").unwrap_or(0);
+    let end = cargo[feat_pos..]
+        .find("\n[")
+        .map(|i| feat_pos + i)
+        .unwrap_or(cargo.len());
+    let features_section = cargo.get(feat_pos..end).unwrap_or("").to_string();
+    let feature_names: HashSet<String> = Regex::new(r"(?m)^([a-zA-Z][\w-]*)\s*=")
+        .unwrap()
+        .captures_iter(&features_section)
+        .map(|c| c[1].to_string())
+        .collect();
+
+    // --- 生成 adapter_reg.rs(mod.rs include) ---
+    let mut reg = String::new();
+    reg.push_str("// 本文件由 build.rs 自动生成,请勿手改。\n");
+    reg.push_str(
+        "// 来源:扫描 src/adapters/*.rs 提取 `impl Exchange for X` 与 `pub const ID`。\n\n",
+    );
+    for (module, struct_name, has_id) in &adapters {
+        let cfg = format!("#[cfg(feature = \"{module}\")]");
+        reg.push_str(&format!("{cfg} pub mod {module};\n"));
+        if *has_id {
+            let alias = format!("{}_ID", module.to_uppercase());
+            reg.push_str(&format!(
+                "{cfg} pub use {module}::{{{struct_name}, ID as {alias}}};\n"
+            ));
+        } else {
+            reg.push_str(&format!("{cfg} pub use {module}::{struct_name};\n"));
+        }
+    }
+
+    // --- 生成 contract_pairs.rs(lib crate 内 const,供 contract.rs 消费) ---
+    // 全部条目均按 feature 门控:即使 `--no-default-features` 也能编译
+    // (`contract_gen` 是常驻 lib 模块),且 default feature 在默认构建下自然在场。
+    let mut pairs = String::new();
+    pairs.push_str("// 本文件由 build.rs 自动生成,请勿手改。\n");
+    pairs.push_str("// 来源:扫描 src/adapters/*.rs。\n");
+    pairs.push_str("pub const ADAPTER_PAIRS: &[(&str, &[&str])] = &[\n");
+    for (module, struct_name, _has_id) in &adapters {
+        let path = format!("crate::adapters::{struct_name}");
+        pairs.push_str(&format!(
+            "    #[cfg(feature = \"{module}\")] (\"{module}\", {path}::IMPLEMENTED),\n"
+        ));
+    }
+    pairs.push_str("];\n");
+
+    // adapter_reg.rs 必须落在 src/adapters/ 内:`include!` 中的 `pub mod X;`
+    // 会相对于「被包含文件所在目录」解析子模块路径;若放在 OUT_DIR,则找不到
+    // src/adapters/X.rs。故写入源码树(同 generated.rs 的先例),并由 .gitignore 忽略。
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    std::fs::write(
+        Path::new(&manifest_dir).join("src/adapters/adapter_reg.rs"),
+        reg,
+    )
+    .expect("write src/adapters/adapter_reg.rs");
+
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    std::fs::write(Path::new(&out_dir).join("contract_pairs.rs"), pairs)
+        .expect("write contract_pairs.rs");
+
+    // 漂移守卫:适配器文件存在但 Cargo.toml 无同名 feature
+    for (module, _, _) in &adapters {
+        if !feature_names.contains(module) {
+            println!(
+                "cargo:warning=适配器模块 `{module}` 在 src/adapters/ 存在,但 Cargo.toml 缺少同名 feature"
+            );
+        }
+    }
+
+    eprintln!(
+        "adapter registration: {} curated adapters scanned",
+        adapters.len()
     );
 }

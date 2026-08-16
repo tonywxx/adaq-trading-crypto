@@ -485,6 +485,17 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    // ------------------------------------------------------------------
+    // 回放覆盖(5a):87 个 generated 适配器共用本模块的 best-effort 解析器,
+    // 但 `impl_generated_adapter!` 只转发 `fetch_*`,不暴露 `parse_*` 方法,
+    // 故共享解析路径仅靠这些 free function 被测试。下面按「两种代表性响应族」
+    // 展开:扁平族(大多数交易所的规范 ccxt 形状)与嵌套信封族
+    // (`{data:...}` / `{result:...}` / `{"SYMBOL":{...}}` 映射),覆盖所有
+    // `parse_*` 与信封分支,作为深模块回归锁。
+    // ------------------------------------------------------------------
+
+    // ---- 族 A:扁平形状(ticker) ----
+
     #[test]
     fn parse_ticker_common_shape() {
         let raw = json!({
@@ -505,20 +516,178 @@ mod tests {
         assert_eq!(t.timestamp, Some(1700000000000_i64));
     }
 
+    // ---- 族 B:嵌套信封 ticker(`{"SYMBOL":{...}}` 映射 / 单元素对象) ----
+
+    #[test]
+    fn parse_ticker_symbol_map_resolves_inner() {
+        // `fetch_ticker` 会先 `resolve_one` 再喂给 `parse_ticker`,此处模拟该路径。
+        let raw = json!({
+            "BTC/USDT": { "last": "50000", "high": "51000", "volume": "10" }
+        });
+        let t = parse_ticker(resolve_one(&raw, "BTC/USDT"), "BTC/USDT");
+        assert_eq!(t.last.unwrap().to_string(), "50000");
+        assert_eq!(t.symbol, "BTC/USDT");
+    }
+
+    #[test]
+    fn parse_ticker_single_element_object() {
+        // 单元素对象:`resolve_one` 取唯一值(部分交易所把 ticker 包在键名下)。
+        let raw = json!({ "ticker": { "last": "42000", "bid": "41900", "ask": "42100" } });
+        let t = parse_ticker(resolve_one(&raw, "ETH/USDT"), "ETH/USDT");
+        assert_eq!(t.last.unwrap().to_string(), "42000");
+        assert_eq!(t.symbol, "ETH/USDT");
+    }
+
+    #[test]
+    fn parse_tickers_map_and_array() {
+        let map = json!({
+            "BTC/USDT": { "last": "50000" },
+            "ETH/USDT": { "price": "3000" }
+        });
+        let t = parse_tickers(&map);
+        assert_eq!(t.len(), 2);
+        assert_eq!(t["BTC/USDT"].last.unwrap().to_string(), "50000");
+        assert_eq!(t["ETH/USDT"].last.unwrap().to_string(), "3000");
+
+        let arr = json!({ "tickers": [ { "symbol": "SOL/USDT", "last": "150" } ] });
+        let t2 = parse_tickers(&arr);
+        assert_eq!(t2.len(), 1);
+        assert_eq!(t2["SOL/USDT"].last.unwrap().to_string(), "150");
+    }
+
+    // ---- OHLCV:数组 / 嵌套 data / 对象行 三态 ----
+
+    #[test]
+    fn parse_ohlcv_array_rows() {
+        // 数组形 K 线:时间戳为数值(ccxt 规范形状),其余可为字符串。
+        let raw = json!([
+            [
+                1700000000000_i64,
+                "50000",
+                "51000",
+                "49000",
+                "50500",
+                "123.4"
+            ],
+            [
+                1700000060000_i64,
+                "50500",
+                "51500",
+                "49500",
+                "51000",
+                "99.1"
+            ]
+        ]);
+        let v = parse_ohlcv(&raw);
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0].timestamp, Some(1700000000000));
+        assert_eq!(v[0].open.unwrap().to_string(), "50000");
+        assert_eq!(v[0].close.unwrap().to_string(), "50500");
+        assert_eq!(v[0].volume.unwrap().to_string(), "123.4");
+        assert_eq!(v[1].high.unwrap().to_string(), "51500");
+    }
+
+    #[test]
+    fn parse_ohlcv_nested_data_envelope() {
+        // 部分交易所把 K 线包在 { data:[...] } / { result:[...] }。
+        let raw = json!({ "data": [
+            ["1700000000000", "1.1", "1.2", "1.0", "1.15", "500"]
+        ]});
+        let v = parse_ohlcv(&raw);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].low.unwrap().to_string(), "1.0");
+        assert_eq!(v[0].close.unwrap().to_string(), "1.15");
+    }
+
+    #[test]
+    fn parse_ohlcv_object_rows() {
+        let raw = json!([
+            { "timestamp": 1700000000000_i64, "open": "10", "high": "11",
+              "low": "9", "close": "10.5", "volume": "100" }
+        ]);
+        let v = parse_ohlcv(&raw);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].timestamp, Some(1700000000000));
+        assert_eq!(v[0].open.unwrap().to_string(), "10");
+        assert_eq!(v[0].volume.unwrap().to_string(), "100");
+    }
+
+    // ---- trades / orders:数组 / 嵌套 ----
+
+    #[test]
+    fn parse_trades_array_and_nested() {
+        let arr = json!([
+            { "id": "1", "timestamp": 1700000000000_i64, "price": "50000",
+              "amount": "0.5", "side": "buy", "symbol": "BTC/USDT" }
+        ]);
+        let t = parse_trades(&arr, "BTC/USDT");
+        assert_eq!(t.len(), 1);
+        assert_eq!(t[0].id.as_deref(), Some("1"));
+        assert_eq!(t[0].price.unwrap().to_string(), "50000");
+        assert_eq!(t[0].side.as_deref(), Some("buy"));
+        assert_eq!(t[0].symbol.as_deref(), Some("BTC/USDT"));
+
+        let nested = json!({ "trades": [
+            { "id": "2", "price": "100", "amount": "2", "side": "sell" }
+        ]});
+        let t2 = parse_trades(&nested, "ETH/USDT");
+        assert_eq!(t2.len(), 1);
+        assert_eq!(t2[0].symbol.as_deref(), Some("ETH/USDT"));
+        assert_eq!(t2[0].side.as_deref(), Some("sell"));
+    }
+
+    #[test]
+    fn parse_order_basic_fields() {
+        let raw = json!({
+            "orderId": "99", "status": "closed", "symbol": "BTC/USDT",
+            "type": "limit", "side": "BUY", "price": "50000", "amount": "0.1",
+            "filled": "0.1", "cost": "5000", "timestamp": 1700000000000_i64
+        });
+        let o = parse_order(&raw, "BTC/USDT");
+        assert_eq!(o.id.as_deref(), Some("99"));
+        assert_eq!(o.status.as_deref(), Some("closed"));
+        assert_eq!(o.side.as_deref(), Some("buy")); // 大小写归一
+        assert_eq!(o.price.unwrap().to_string(), "50000");
+        assert_eq!(o.filled.unwrap().to_string(), "0.1");
+        assert_eq!(o.cost.unwrap().to_string(), "5000");
+    }
+
+    #[test]
+    fn parse_orders_array_and_nested() {
+        let arr = json!([ { "id": "1", "price": "1" }, { "id": "2", "price": "2" } ]);
+        let o = parse_orders(&arr, Some("X/Y"));
+        assert_eq!(o.len(), 2);
+        assert_eq!(o[1].id.as_deref(), Some("2"));
+        assert_eq!(o[1].symbol.as_deref(), Some("X/Y"));
+
+        let nested = json!({ "result": [ { "id": "3", "price": "3" } ] });
+        let o2 = parse_orders(&nested, None);
+        assert_eq!(o2.len(), 1);
+        assert_eq!(o2[0].id.as_deref(), Some("3"));
+    }
+
+    // ---- order book ----
+
     #[test]
     fn parse_order_book_levels() {
         let raw = json!({
             "bids": [["50000", "1.5"], ["49900", "2.0"]],
-            "asks": [["50100", "1.2"]]
+            "asks": [["50100", "1.2"]],
+            "timestamp": 1700000000000_i64,
+            "nonce": 42
         });
         let ob = parse_order_book(&raw, "BTC/USDT");
         assert_eq!(ob.bids.len(), 2);
         assert_eq!(ob.asks.len(), 1);
         assert_eq!(ob.bids[0].price.unwrap().to_string(), "50000");
+        assert_eq!(ob.timestamp, Some(1700000000000_i64));
+        assert_eq!(ob.nonce, Some(42));
     }
 
+    // ---- balance:三种形状 ----
+
     #[test]
-    fn parse_balance_two_shapes() {
+    fn parse_balance_three_shapes() {
         let a = json!({"BTC": {"free":"1.0","used":"0.5","total":"1.5"}});
         let b = parse_balance(&a);
         assert_eq!(b.accounts["BTC"].free.unwrap().to_string(), "1.0");
@@ -527,5 +696,46 @@ mod tests {
         let d = parse_balance(&c);
         assert_eq!(d.accounts["ETH"].free.unwrap().to_string(), "2");
         assert_eq!(d.accounts["ETH"].used.unwrap().to_string(), "1");
+
+        let e = json!({"result":{"list":[{"currency":"SOL","available":"5","locked":"3"}]}});
+        let f = parse_balance(&e);
+        assert_eq!(f.accounts["SOL"].free.unwrap().to_string(), "5");
+        assert_eq!(f.accounts["SOL"].used.unwrap().to_string(), "3");
+    }
+
+    // ---- markets / currencies ----
+
+    #[test]
+    fn parse_markets_array_and_map() {
+        let arr = json!([
+            { "id": "BTCUSDT", "baseId": "BTC", "quoteId": "USDT",
+              "symbol": "BTC/USDT", "active": true, "type": "spot" }
+        ]);
+        let m = parse_markets(&arr);
+        let btc = m.get("BTC/USDT").expect("应含 BTC/USDT");
+        assert_eq!(btc.id, "BTCUSDT");
+        assert_eq!(btc.base.as_deref(), Some("BTC"));
+        assert_eq!(btc.market_type, Some(MarketType::Spot));
+
+        let map = json!({
+            "ETH/USDT": { "id": "ETHUSDT", "baseId": "ETH", "quoteId": "USDT",
+                          "symbol": "ETH/USDT", "type": "swap" }
+        });
+        let m2 = parse_markets(&map);
+        assert_eq!(m2.len(), 1);
+        assert_eq!(m2["ETH/USDT"].market_type, Some(MarketType::Swap));
+    }
+
+    #[test]
+    fn parse_currencies_object_and_array() {
+        let obj = json!({ "BTC": { "id": "bitcoin", "name": "Bitcoin",
+                                   "active": true, "precision": 8 } });
+        let c = parse_currencies(&obj);
+        assert_eq!(c["BTC"].name.as_deref(), Some("Bitcoin"));
+        assert_eq!(c["BTC"].precision, Some(8));
+
+        let arr = json!([ { "code": "ETH", "name": "Ethereum", "active": true } ]);
+        let c2 = parse_currencies(&arr);
+        assert_eq!(c2["ETH"].name.as_deref(), Some("Ethereum"));
     }
 }

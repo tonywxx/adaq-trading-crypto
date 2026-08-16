@@ -10,7 +10,7 @@ license = "Apache-2.0"
 name = "adaq-trading-crypto"
 repository = "https://github.com/tonywxx/adaq-trading-crypto"
 rust-version = "1.85"
-version = "1.0.5"
+version = "1.0.6"
 
 [features]
 alpaca = []

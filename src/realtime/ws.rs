@@ -276,6 +276,37 @@ impl SubscriptionSet {
     }
 }
 
+/// 取或创建指定键的 watch channel,并触发订阅(收口各 realtime 适配器
+/// `watch_*` 里的 `if !map.contains_key(key) { insert watch::channel; }` 样板,
+/// ADR-0014 续)。
+///
+/// 键 → channel 的映射由各适配器持有([`ChannelMap`]);订阅帧构造因交易所而异,
+/// 交由 `subscribe` 闭包(通常直接转发到该适配器的 `subscribe(channel, key)`)。
+/// 这样 `watch_*` 从「建 channel + 订阅 + 等首条更新」三段样板,收敛为数据驱动的一行。
+#[cfg(feature = "realtime")]
+pub async fn get_or_subscribe<K, V, F, Fut>(
+    map: &ChannelMap<K, V>,
+    key: K,
+    default: V,
+    subscribe: F,
+) -> Result<watch::Receiver<V>>
+where
+    K: Eq + std::hash::Hash + Clone,
+    F: FnOnce(K) -> Fut,
+    Fut: std::future::Future<Output = Result<()>>,
+{
+    let rx = {
+        let mut m = map.lock().unwrap();
+        if !m.contains_key(&key) {
+            let (tx, _) = watch::channel(default);
+            m.insert(key.clone(), tx.clone());
+        }
+        m.get(&key).cloned().unwrap().subscribe()
+    };
+    subscribe(key).await?;
+    Ok(rx)
+}
+
 #[cfg(all(test, feature = "realtime"))]
 mod tests {
     use super::*;
@@ -338,5 +369,20 @@ mod tests {
         tokio::time::timeout(Duration::from_millis(100), heartbeat_tick(&mut interval))
             .await
             .expect("heartbeat tick should fire");
+    }
+
+    #[tokio::test]
+    async fn get_or_subscribe_returns_receiver_and_dedups_key() {
+        let map: ChannelMap<String, i32> = ChannelMap::default();
+        let rx = get_or_subscribe(&map, "BTC/USDT".to_string(), 0, |_k| async { Ok(()) })
+            .await
+            .unwrap();
+        assert_eq!(*rx.borrow(), 0);
+        // 同键复用同一 channel:get_or_subscribe 不再插入新 sender。
+        let rx2 = get_or_subscribe(&map, "BTC/USDT".to_string(), 0, |_k| async { Ok(()) })
+            .await
+            .unwrap();
+        assert_eq!(*rx.borrow(), *rx2.borrow());
+        assert_eq!(map.lock().unwrap().len(), 1);
     }
 }

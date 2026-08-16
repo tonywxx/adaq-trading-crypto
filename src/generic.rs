@@ -130,6 +130,15 @@ impl GenericExchange {
         &self.config
     }
 
+    /// 运行时替换传输(离线测试桩注入,候选 6)。仅测试构建可用。
+    #[cfg(test)]
+    pub(crate) fn set_transport(
+        &mut self,
+        transport: Box<dyn crate::transport::Transport + Send + Sync>,
+    ) {
+        self.core.set_transport(transport);
+    }
+
     // ---- 路由 ----
 
     /// 在端点表中按候选键(从具体到宽泛)查找首个匹配端点。
@@ -846,5 +855,108 @@ mod tests {
         assert!(key_matches("getorderbook", "orderbook"));
         // 中缀嵌入不算匹配(gettradehistorysummary 中 trade 后接 history)
         assert!(!key_matches("gettradehistorysummary", "trade"));
+    }
+}
+
+// ============================================================
+// 候选 6 落地后,5b 自然消化:用 `MockTransport` 离线断言请求形态。
+// `fetch_ohlcv` 的 `interval`/`timeframe`、`startTime`/`since` 双键猜测
+// 是防御性设计,此前只能联网验证;现注入内存桩即可断言实际发出的 query。
+// ============================================================
+#[cfg(test)]
+mod transport_injection_tests {
+    use super::*;
+    use crate::transport::{MockTransport, RecordedRequest};
+    use std::sync::{Arc, Mutex};
+
+    /// 最小 `ApiSpec`:一个 GET `ohlcv` 端点 + `timeframes=["1m"]`,足以驱动
+    /// `fetch_ohlcv` 的参数成形逻辑。
+    fn sample_spec() -> &'static ApiSpec {
+        static SPEC: ApiSpec = ApiSpec {
+            id: "mock",
+            name: "Mock",
+            version: "1",
+            rate_limit_ms: 1000,
+            has: &["fetchOHLCV"],
+            endpoints: &[Endpoint {
+                base: "https://api.mock.com/v1",
+                verb: "GET",
+                key: "ohlcv",
+                path: "klines",
+                auth: false,
+            }],
+            taker: 0.0,
+            maker: 0.0,
+            timeframes: &["1m"],
+            kind: MarketKind::Cex,
+        };
+        &SPEC
+    }
+
+    /// 构造带内存桩的 `GenericExchange`,返回桩与共享的请求记录句柄。
+    fn mock_exchange() -> (GenericExchange, Arc<Mutex<Option<RecordedRequest>>>) {
+        let mut config = Config::new();
+        config.enable_rate_limit = false;
+        let mut ex = GenericExchange::new(config, sample_spec(), SignScheme::HmacSha256Default)
+            .expect("build mock exchange");
+        let (mock, recorded) = MockTransport::new(Value::Array(vec![]));
+        ex.set_transport(Box::new(mock));
+        (ex, recorded)
+    }
+
+    #[tokio::test]
+    async fn fetch_ohlcv_emits_both_interval_and_timeframe_for_known_tf() {
+        let (ex, recorded) = mock_exchange();
+        let _ = ex
+            .fetch_ohlcv("BTC/USDT", "1m", None, None, Params::new())
+            .await
+            .expect("fetch_ohlcv");
+        let url = recorded.lock().unwrap().as_ref().unwrap().url.clone();
+        assert!(url.contains("symbol="), "symbol 应入参,url={url}");
+        assert!(
+            url.contains("interval=1m"),
+            "已知周期应发 interval,url={url}"
+        );
+        assert!(
+            url.contains("timeframe=1m"),
+            "已知周期应同时发 timeframe(防御双键),url={url}"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_ohlcv_emits_only_interval_for_unknown_tf() {
+        let (ex, recorded) = mock_exchange();
+        let _ = ex
+            .fetch_ohlcv("BTC/USDT", "2m", None, None, Params::new())
+            .await
+            .expect("fetch_ohlcv");
+        let url = recorded.lock().unwrap().as_ref().unwrap().url.clone();
+        assert!(
+            url.contains("interval=2m"),
+            "未知周期仅透传 interval,url={url}"
+        );
+        assert!(
+            !url.contains("timeframe="),
+            "未知周期不应发 timeframe,url={url}"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_ohlcv_emits_both_starttime_and_since() {
+        let (ex, recorded) = mock_exchange();
+        let since = 1_700_000_000_000_i64;
+        let _ = ex
+            .fetch_ohlcv("BTC/USDT", "1m", Some(since), None, Params::new())
+            .await
+            .expect("fetch_ohlcv");
+        let url = recorded.lock().unwrap().as_ref().unwrap().url.clone();
+        assert!(
+            url.contains(&format!("startTime={since}")),
+            "since 应同时发 startTime,url={url}"
+        );
+        assert!(
+            url.contains(&format!("since={since}")),
+            "since 应同时发 since(防御双键),url={url}"
+        );
     }
 }
