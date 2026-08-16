@@ -161,8 +161,8 @@ fn gen_adapter_registration() {
     // 把文件放进 OUT_DIR 后 Rust 会去 OUT_DIR 找 X.rs 而失败。
     // `#[path]` 用绝对路径(来自 CARGO_MANIFEST_DIR),构建时重新生成,发布包
     // 不含本文件,故不受机器路径差异影响。
-    let adapters_root = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("src/adapters");
+    let adapters_root =
+        Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("src/adapters");
     let mut reg = String::new();
     reg.push_str("// 本文件由 build.rs 自动生成,请勿手改。\n");
     reg.push_str(
@@ -170,7 +170,10 @@ fn gen_adapter_registration() {
     );
     for (module, struct_name, has_id) in &adapters {
         let cfg = format!("#[cfg(feature = \"{module}\")]");
-        let abs = adapters_root.join(format!("{module}.rs")).display().to_string();
+        let abs = adapters_root
+            .join(format!("{module}.rs"))
+            .display()
+            .to_string();
         reg.push_str(&format!("{cfg} #[path = \"{abs}\"] pub mod {module};\n"));
         if *has_id {
             let alias = format!("{}_ID", module.to_uppercase());
@@ -202,8 +205,7 @@ fn gen_adapter_registration() {
     // 通过 `cargo publish --verify` —— 构建脚本禁止改写源码树(OUT_DIR 之外),
     // 否则发布校验直接失败。发布包不含本文件(构建时重新生成)。
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    std::fs::write(Path::new(&out_dir).join("adapter_reg.rs"), reg)
-        .expect("write adapter_reg.rs");
+    std::fs::write(Path::new(&out_dir).join("adapter_reg.rs"), reg).expect("write adapter_reg.rs");
 
     std::fs::write(Path::new(&out_dir).join("contract_pairs.rs"), pairs)
         .expect("write contract_pairs.rs");
