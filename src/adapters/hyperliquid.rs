@@ -23,7 +23,7 @@ use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, iso8601, value_decimal};
+use crate::httpcore::{HttpCore, apply_client_limit, iso8601, value_decimal};
 use crate::types::{Market, MarketType, Markets, OHLCV, OrderBook, Precision, Ticker, Tickers};
 
 pub const ID: &str = "hyperliquid";
@@ -299,12 +299,7 @@ impl Exchange for Hyperliquid {
             .collect();
         // ccxt 默认按 since..until 截断尾部(useTail);按时间升序返回。
         out.sort_by_key(|o| o.timestamp.unwrap_or(0));
-        if let Some(l) = limit {
-            let n = out.len() as i64;
-            if l < n {
-                out = out.split_off((n - l) as usize);
-            }
-        }
+        apply_client_limit(&mut out, limit.map(|l| l as usize), true);
         Ok(out)
     }
 

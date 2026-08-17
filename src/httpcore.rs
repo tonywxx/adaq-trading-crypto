@@ -140,6 +140,29 @@ pub fn dec(v: Option<&Value>) -> Option<rust_decimal::Decimal> {
     v.and_then(value_decimal)
 }
 
+/// 客户端 `limit` 截断原语(ADR-0013 `handle_errors` 之外的请求后处理接缝)。
+///
+/// 各 curated 适配器原本各自内联手写截断(`truncate` 保留头 /
+/// `split_off` 保留尾),语义与方向不一。收口到此一处:`tail=false`
+/// 保留前 `limit` 项,`tail=true` 保留后 `limit` 项;`limit >= len` 或
+/// `None` 时原样返回(与既有行为一致,不补零)。
+///
+/// 仅 `gemini` / `hyperliquid` / `kraken` 三个 curated 适配器当前调用本原语,
+/// 故按这些 feature 门控,避免默认 feature 集(binance/okx/kalshi/polymarket)
+/// 下出现未使用告警。新增调用方时把对应 feature 并入门控即可。
+#[cfg(any(feature = "gemini", feature = "hyperliquid", feature = "kraken"))]
+pub(crate) fn apply_client_limit<T>(items: &mut Vec<T>, limit: Option<usize>, tail: bool) {
+    if let Some(l) = limit {
+        if l < items.len() {
+            if tail {
+                *items = items.split_off(items.len() - l);
+            } else {
+                items.truncate(l);
+            }
+        }
+    }
+}
+
 /// `[price, amount, ...]` → Level(原各适配器 `parse_level` 副本)。
 pub fn parse_level(raw: &Value) -> Level {
     let arr = raw.as_array();
@@ -360,6 +383,16 @@ pub fn extract_exchange_error(body: &Value, exchange: &str) -> Option<Error> {
             .filter_map(|v| v.as_str())
             .find(|s| !s.is_empty())
         {
+            // kraken 错误按消息前缀细分归类(收口到此处,ADR-0013 handle_errors 接缝)。
+            if exchange == "kraken" {
+                let mut ctx = ErrorContext::new();
+                ctx = ctx.exchange("kraken".to_string());
+                return Some(Error::with_context(
+                    classify_kraken_error(first),
+                    first.to_string(),
+                    ctx,
+                ));
+            }
             return Some(error_with(exchange, first, code_str(obj.get("code"))));
         }
     }
@@ -450,7 +483,19 @@ fn classify_error_code(exchange: &str, code: &str) -> ErrorKind {
     ErrorKind::Exchange
 }
 
-/// 把业务错误码规整为字符串(供 `context.http_error_code`)。
+/// Kraken 业务错误按消息前缀归类(无数字码,只有形如
+/// `EAPI:Invalid key` / `EOrder:...` 的前缀串)。原 curated 适配器曾在
+/// `ok_result` 内做此归类,但因 `HttpCore` 先拦截错误体而不可达;现收口到
+/// `handle_errors` 接缝一处(ADR-0013)。
+fn classify_kraken_error(msg: &str) -> ErrorKind {
+    if msg.contains("EAPI:Invalid key") || msg.contains("EGeneral:Permission denied") {
+        ErrorKind::Authentication
+    } else if msg.contains("EOrder") || msg.contains("EAPI:Rate limit") {
+        ErrorKind::RateLimitExceeded
+    } else {
+        ErrorKind::Exchange
+    }
+}
 fn code_str(v: Option<&Value>) -> Option<String> {
     match v {
         Some(Value::String(s)) => Some(s.clone()),
@@ -479,6 +524,36 @@ mod tests {
     use serde_json::json;
 
     // ---- handle_errors 接缝:extract_exchange_error ----
+
+    #[test]
+    fn kraken_auth_error_maps_to_authentication() {
+        let body = json!({"error": ["EAPI:Invalid key"]});
+        let err = extract_exchange_error(&body, "kraken").expect("should detect error");
+        assert_eq!(err.kind, ErrorKind::Authentication);
+        assert_eq!(err.context.exchange.as_deref(), Some("kraken"));
+    }
+
+    #[test]
+    fn kraken_rate_limit_maps_to_rate_limit_exceeded() {
+        let body = json!({"error": ["EAPI:Rate limit exceeded"]});
+        let err = extract_exchange_error(&body, "kraken").expect("should detect error");
+        assert_eq!(err.kind, ErrorKind::RateLimitExceeded);
+    }
+
+    #[test]
+    fn kraken_unknown_error_maps_to_exchange() {
+        let body = json!({"error": ["EGeneral:Unknown asset"]});
+        let err = extract_exchange_error(&body, "kraken").expect("should detect error");
+        assert_eq!(err.kind, ErrorKind::Exchange);
+    }
+
+    #[test]
+    fn kraken_error_classification_is_exchange_scoped() {
+        // 非 kraken 的 error 数组不触发 kraken 前缀归类,回退通用 Exchange。
+        let body = json!({"error": ["EAPI:Invalid key"]});
+        let err = extract_exchange_error(&body, "binance").expect("should detect error");
+        assert_eq!(err.kind, ErrorKind::Exchange);
+    }
 
     #[test]
     fn okx_error_body_maps_to_exchange_error() {
@@ -512,9 +587,10 @@ mod tests {
 
     #[test]
     fn kraken_error_array_is_error() {
+        // `EOrder` 前缀按收口后的归类映射到 RateLimitExceeded(原适配器死代码即如此)。
         let body = json!({"error":["EOrder:Insufficient funds"]});
         let err = extract_exchange_error(&body, "kraken").expect("should detect error");
-        assert_eq!(err.kind, ErrorKind::Exchange);
+        assert_eq!(err.kind, ErrorKind::RateLimitExceeded);
         assert!(err.message.contains("Insufficient funds"));
     }
 
@@ -536,6 +612,40 @@ mod tests {
     fn bybit_success_passes_through() {
         let body = json!({"retCode":0,"retMsg":"OK","result":{"price":"1"}});
         assert!(extract_exchange_error(&body, "bybit").is_none());
+    }
+
+    // ---- 客户端 limit 截断原语:apply_client_limit ----
+
+    #[cfg(any(feature = "gemini", feature = "hyperliquid", feature = "kraken"))]
+    #[test]
+    fn apply_client_limit_none_keeps_all() {
+        let mut v = vec![1, 2, 3];
+        apply_client_limit(&mut v, None, false);
+        assert_eq!(v, vec![1, 2, 3]);
+    }
+
+    #[cfg(any(feature = "gemini", feature = "hyperliquid", feature = "kraken"))]
+    #[test]
+    fn apply_client_limit_head_keeps_first() {
+        let mut v = vec![1, 2, 3, 4, 5];
+        apply_client_limit(&mut v, Some(2), false);
+        assert_eq!(v, vec![1, 2]);
+    }
+
+    #[cfg(any(feature = "gemini", feature = "hyperliquid", feature = "kraken"))]
+    #[test]
+    fn apply_client_limit_tail_keeps_last() {
+        let mut v = vec![1, 2, 3, 4, 5];
+        apply_client_limit(&mut v, Some(2), true);
+        assert_eq!(v, vec![4, 5]);
+    }
+
+    #[cfg(any(feature = "gemini", feature = "hyperliquid", feature = "kraken"))]
+    #[test]
+    fn apply_client_limit_ge_len_noop() {
+        let mut v = vec![1, 2, 3];
+        apply_client_limit(&mut v, Some(5), false);
+        assert_eq!(v, vec![1, 2, 3]);
     }
 
     #[test]

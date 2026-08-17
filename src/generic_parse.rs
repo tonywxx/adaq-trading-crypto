@@ -8,7 +8,7 @@
 use serde_json::Value;
 
 use crate::httpcore::{
-    dec_f64, iso8601, parse_level, pick_decimal, pick_i64, pick_str, to_i64, value_decimal,
+    iso8601, parse_level, pick_decimal, pick_i64, pick_str, to_i64, value_decimal,
 };
 use crate::types::{
     Balance, Balances, Currencies, Currency, Level, Limit, Limits, Market, MarketType, Markets,
@@ -116,11 +116,11 @@ pub(crate) fn parse_ohlcv(raw: &Value) -> Vec<OHLCV> {
                 if a.len() >= 6 {
                     return Some(OHLCV {
                         timestamp: a[0].as_i64(),
-                        open: value_decimal(&a[1]).or_else(|| a[1].as_f64().and_then(dec_f64)),
-                        high: value_decimal(&a[2]).or_else(|| a[2].as_f64().and_then(dec_f64)),
-                        low: value_decimal(&a[3]).or_else(|| a[3].as_f64().and_then(dec_f64)),
-                        close: value_decimal(&a[4]).or_else(|| a[4].as_f64().and_then(dec_f64)),
-                        volume: value_decimal(&a[5]).or_else(|| a[5].as_f64().and_then(dec_f64)),
+                        open: value_decimal(&a[1]),
+                        high: value_decimal(&a[2]),
+                        low: value_decimal(&a[3]),
+                        close: value_decimal(&a[4]),
+                        volume: value_decimal(&a[5]),
                     });
                 }
             }

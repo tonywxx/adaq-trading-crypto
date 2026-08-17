@@ -83,3 +83,4 @@ _Avoid_: 签名模块、auth 模块(过于泛)
 | 0015 | accepted | 解析合一:watch_* 复用 REST parse_*(realtime 持有 REST 适配器实例);形状兼容则加纯加法 fallback,不兼容则保持独立 |
 | 0016 | accepted | 转译补齐落地:describe 驱动通用引擎(generic.rs)+ 代码生成器(scripts/gen_adapters.py),实现 ADR-0005 后补路径与 ADR-0013 四接缝批量填 describe;覆盖全部 108 个 ccxt 唯一交易所/预测市场(103 sync 含 89 CEX + 14 DEX,及 7 prediction 命名空间,binance/hyperliquid 双列)+ 1 原生 Manifold,合计 109 适配器,transpiler 现额外覆盖 ccxt.prediction 命名空间(limitless/myriad/opinion) |
 | 0017 | accepted | 混合进化模型:curated(22 手写精品,团队维护,完整交易 API)与 generated(95 ccxt 转译长尾,上游维护,仅公开面)双轨;Python 仅 regen/CI,本地 Rust 开发零 Python;8 个(alpaca/aster/binanceus/gemini/hashkey/lighter/myokx/okxus)由 generated promote 为 curated |
+| 0018 | accepted | 签名装配不收口进 signing.rs(架构评审候选 C 收口):预哈希拼接与头名留适配器,signing.rs 保持交易所无关加密原语(ADR-0013 四接缝的刻意收口);未来评审不再把"签名装配上提"列为深化候选 |

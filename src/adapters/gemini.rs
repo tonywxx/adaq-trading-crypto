@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
-use crate::httpcore::{HttpCore, dec, iso8601_ms, now_ms, parse_level, query_string};
+use crate::httpcore::{HttpCore, apply_client_limit, dec, iso8601_ms, now_ms, parse_level, query_string};
 use crate::types::{
     Balance, Balances, Market, MarketType, Markets, OHLCV, Order, OrderBook, Precision, Ticker,
     Tickers, Trade,
@@ -361,9 +361,7 @@ impl Exchange for Gemini {
         let resp = self.public_request(&path, &Params::new()).await?;
         let arr = resp.as_array().cloned().unwrap_or_default();
         let mut out: Vec<OHLCV> = arr.iter().map(|r| self.parse_ohlcv(r)).collect();
-        if let Some(l) = limit {
-            out.truncate(l as usize);
-        }
+        apply_client_limit(&mut out, limit.map(|l| l as usize), false);
         Ok(out)
     }
 

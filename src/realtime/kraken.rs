@@ -207,7 +207,12 @@ fn dispatch_public(
     match channel {
         "ticker" => {
             if let (Some(d), Some(tx)) = (data, tickers.lock().unwrap().get(pair).cloned()) {
-                let _ = tx.send(parse_ticker(d, pair));
+                // 复用 REST 解析(ADR-0015 解析合一),仅补 WS 实时时间戳。
+                let mut t = rest.parse_ticker(d, pair);
+                let ts = now_ms();
+                t.timestamp = Some(ts);
+                t.datetime = Some(iso8601(ts).unwrap_or_default());
+                let _ = tx.send(t);
             }
         }
         channel if channel.starts_with("book") => {
@@ -318,78 +323,22 @@ fn dispatch_private(
     let _ = token;
 }
 
-fn parse_ticker(raw: &Value, pair: &str) -> Ticker {
-    let ts = now_ms();
-    Ticker {
-        symbol: pair.to_string(),
-        timestamp: Some(ts),
-        datetime: Some(iso8601(ts).unwrap_or_default()),
-        ask: raw["a"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(crate::httpcore::value_decimal),
-        bid: raw["b"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(crate::httpcore::value_decimal),
-        last: raw["c"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(crate::httpcore::value_decimal),
-        close: raw["c"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(crate::httpcore::value_decimal),
-        high: raw["h"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(crate::httpcore::value_decimal),
-        low: raw["l"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(crate::httpcore::value_decimal),
-        open: raw["o"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(crate::httpcore::value_decimal),
-        vwap: raw["p"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(crate::httpcore::value_decimal),
-        base_volume: raw["v"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(crate::httpcore::value_decimal),
-        info: raw.clone(),
-        ..Ticker::default()
-    }
-}
-
 fn parse_order(raw: &Value) -> Order {
-    let status = raw["status"].as_str().map(|s| match s {
-        "open" | "partially_filled" => "open",
-        "closed" | "filled" => "closed",
-        "canceled" => "canceled",
-        other => other,
-    });
     let ts = raw["opentm"].as_f64().map(|f| f as i64 * 1000);
+    // descr 在 WS 为字符串,经共享助手归一(与 REST 同一字段映射,ADR-0015)。
+    let (symbol, side, order_type) =
+        crate::adapters::Kraken::parse_order_descr(raw.get("descr").unwrap_or(&Value::Null));
     Order {
         id: raw["userref"].as_str().map(str::to_string),
         timestamp: ts,
         datetime: ts.and_then(iso8601),
-        status: status.map(str::to_string),
-        symbol: raw["descr"]
+        status: raw["status"]
             .as_str()
-            .and_then(|d| d.split(' ').next())
+            .map(crate::adapters::Kraken::normalize_order_status)
             .map(str::to_string),
-        order_type: raw["descr"]
-            .as_str()
-            .and_then(|d| d.split(' ').nth(1))
-            .map(str::to_string),
-        side: raw["descr"]
-            .as_str()
-            .and_then(|d| d.split(' ').nth(2))
-            .map(str::to_string),
+        symbol,
+        order_type,
+        side,
         price: raw["price"].as_str().and_then(|s| s.parse().ok()),
         amount: raw["vol"].as_str().and_then(|s| s.parse().ok()),
         filled: raw["vol_exec"].as_str().and_then(|s| s.parse().ok()),

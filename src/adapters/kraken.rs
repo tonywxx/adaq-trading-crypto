@@ -22,7 +22,8 @@ use sha2::{Digest, Sha256};
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params};
 use crate::httpcore::{
-    HttpCore, iso8601, now_ms, parse_level, pct_encode, query_string, value_decimal,
+    HttpCore, apply_client_limit, iso8601, now_ms, parse_level, pct_encode, query_string,
+    value_decimal,
 };
 use crate::types::{
     Balance, Balances, Level, Market, MarketType, Markets, OHLCV, Order, OrderBook, Position,
@@ -200,31 +201,71 @@ impl Kraken {
         }
     }
 
+/// kraken ticker 字段的数组/标量兼容抽取:数组取 `idx`(仅 1 个元素时取 0,
+/// 兼容 WS 单元素形),标量直接取值。REST 与 WS 共用同一解析(ADR-0015)。
+fn ticker_arr_num(v: Option<&Value>, idx: usize) -> Option<rust_decimal::Decimal> {
+    match v {
+        Some(Value::Array(a)) => a.get(if a.len() > 1 { idx } else { 0 }).and_then(value_decimal),
+        Some(s) => value_decimal(s),
+        None => None,
+    }
+}
+
+/// 从订单 `descr` 抽取 (symbol, side, order_type)。REST 中 `descr` 为对象,
+/// WS 中为空格分隔字符串 —— 两种形状在此收口(ADR-0015 解析合一)。
+pub(crate) fn parse_order_descr(
+    descr: &Value,
+) -> (Option<String>, Option<String>, Option<String>) {
+    match descr {
+        Value::Object(_) => (
+            descr.get("pair").and_then(Value::as_str).map(str::to_string),
+            descr.get("type").and_then(Value::as_str).map(str::to_string),
+            descr.get("ordertype").and_then(Value::as_str).map(str::to_string),
+        ),
+        Value::String(s) => {
+            let p: Vec<&str> = s.split(' ').collect();
+            (
+                p.first().map(|s| s.to_string()),
+                p.get(1).map(|s| s.to_string()),
+                p.get(2).map(|s| s.to_string()),
+            )
+        }
+        _ => (None, None, None),
+    }
+}
+
+/// 统一订单状态归一化(合并 REST 与 WS 的状态词)。
+pub(crate) fn normalize_order_status(s: &str) -> &str {
+    match s {
+        "open" | "pending" | "partially_filled" => "open",
+        "closed" | "filled" => "closed",
+        "canceled" | "cancelled" => "canceled",
+        "expired" => "expired",
+        other => other,
+    }
+}
+
     pub fn parse_ticker(&self, raw: &Value, pair_id: &str) -> Ticker {
         let a = raw.get("a").and_then(Value::as_array);
         let b = raw.get("b").and_then(Value::as_array);
         let c = raw.get("c").and_then(Value::as_array);
-        let v = raw.get("v").and_then(Value::as_array);
-        let h = raw.get("h").and_then(Value::as_array);
-        let l = raw.get("l").and_then(Value::as_array);
-        let p = raw.get("p").and_then(Value::as_array);
         let symbol = self
             .symbol_from_pair(pair_id)
             .unwrap_or_else(|| pair_id.to_string());
         let ask = a.and_then(|a| a.first()).and_then(value_decimal);
         let bid = b.and_then(|b| b.first()).and_then(value_decimal);
         let last = c.and_then(|c| c.first()).and_then(value_decimal);
-        let base_volume = v.and_then(|v| v.get(1)).and_then(value_decimal);
-        let vwap = p.and_then(|p| p.get(1)).and_then(value_decimal);
+        let base_volume = Self::ticker_arr_num(raw.get("v"), 1);
+        let vwap = Self::ticker_arr_num(raw.get("p"), 1);
         let quote_volume = match (base_volume, vwap) {
             (Some(bv), Some(w)) => Some(bv * w),
             _ => None,
         };
         Ticker {
             symbol,
-            open: raw.get("o").and_then(value_decimal),
-            high: h.and_then(|h| h.get(1)).and_then(value_decimal),
-            low: l.and_then(|l| l.get(1)).and_then(value_decimal),
+            open: Self::ticker_arr_num(raw.get("o"), 1),
+            high: Self::ticker_arr_num(raw.get("h"), 1),
+            low: Self::ticker_arr_num(raw.get("l"), 1),
             close: last,
             last,
             bid,
@@ -306,35 +347,19 @@ impl Kraken {
 
     /// 解析订单(私密面订单对象)。
     pub fn parse_order(&self, raw: &Value) -> Order {
-        let status = raw["status"]
-            .as_str()
-            .map(|s| match s {
-                "open" | "pending" => "open",
-                "closed" => "closed",
-                "canceled" | "cancelled" => "canceled",
-                "expired" => "expired",
-                other => other,
-            })
-            .map(str::to_string);
         let ts = raw["opentm"].as_f64().map(|f| (f * 1000.0) as i64);
-        let symbol = raw["descr"]
-            .get("pair")
-            .and_then(Value::as_str)
-            .map(|p| p.to_string());
-        let side = raw["descr"]
-            .get("type")
-            .and_then(Value::as_str)
-            .map(str::to_string);
+        let (symbol, side, order_type) =
+            Self::parse_order_descr(raw.get("descr").unwrap_or(&Value::Null));
         Order {
             id: raw["txid"].as_str().map(str::to_string),
             timestamp: ts,
             datetime: ts.and_then(iso8601),
-            status,
-            symbol,
-            order_type: raw["descr"]
-                .get("ordertype")
-                .and_then(Value::as_str)
+            status: raw["status"]
+                .as_str()
+                .map(Self::normalize_order_status)
                 .map(str::to_string),
+            symbol,
+            order_type,
             side,
             price: raw["descr"].get("price").and_then(value_decimal),
             amount: raw.get("vol").and_then(value_decimal),
@@ -498,9 +523,7 @@ impl Exchange for Kraken {
             .cloned()
             .unwrap_or_default();
         let mut out: Vec<OHLCV> = arr.iter().map(|r| self.parse_ohlcv(r)).collect();
-        if let Some(l) = limit {
-            out.truncate(l as usize);
-        }
+        apply_client_limit(&mut out, limit.map(|l| l as usize), false);
         Ok(out)
     }
 
@@ -694,25 +717,11 @@ fn params1(k: &str, v: &str) -> Params {
     p
 }
 
-/// 校验响应信封 `{error: [], result: {...}}`,返回 result。
+/// 校验响应信封 `{error: [], result: {...}}`,返回 `result`。
+///
+/// 错误体由 `HttpCore` 的 `handle_errors` 接缝(`extract_exchange_error`)
+/// 统一识别并细分归类,此处只抽取成功时的 `result`(不可达的错误分支已收口)。
 fn ok_result(resp: Value, path: &str) -> Result<Value> {
-    let errors = resp
-        .get("error")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    if let Some(e) = errors.first() {
-        let msg = e.as_str().unwrap_or("unknown").to_string();
-        let kind = if msg.contains("EAPI:Invalid key") || msg.contains("EGeneral:Permission denied")
-        {
-            ErrorKind::Authentication
-        } else if msg.contains("EOrder") || msg.contains("EAPI:Rate limit") {
-            ErrorKind::RateLimitExceeded
-        } else {
-            ErrorKind::Exchange
-        };
-        return Err(Error::new(kind, format!("kraken {path}: {msg}")));
-    }
     resp.get("result").cloned().ok_or_else(|| {
         Error::new(
             ErrorKind::BadResponse,
