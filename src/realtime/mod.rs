@@ -5,6 +5,7 @@
 //! - [`binance`] / [`okx`] / [`bybit`] / [`kraken`] / [`kalshi`] / [`polymarket`]:各交易所 Realtime 实现。
 
 pub mod orderbook;
+pub mod watch;
 pub mod ws;
 
 #[cfg(all(feature = "realtime", feature = "binance"))]

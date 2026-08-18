@@ -23,7 +23,8 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params, Realtime};
 use crate::httpcore::{collect_levels, dec, iso8601, now_ms};
 use crate::realtime::orderbook::OrderBookStore;
-use crate::realtime::ws::{SubscriptionSet, WsSession, ws_err};
+use crate::realtime::watch::WatchContext;
+use crate::realtime::ws::{WsSession, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_BASE: &str = "wss://external-api-ws.kalshi.com/trade-api/ws/v2";
@@ -33,8 +34,7 @@ const SIGN_PATH: &str = "/trade-api/ws/v2";
 pub struct KalshiWs {
     /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0013 方向)。
     rest: std::sync::Arc<crate::adapters::Kalshi>,
-    sub_tx: Mutex<Option<tokio::sync::watch::Sender<Vec<String>>>>,
-    subs: Mutex<SubscriptionSet>,
+    pub_watch: WatchContext,
     tickers: std::sync::Arc<Mutex<HashMap<String, watch::Sender<Ticker>>>>,
     trades: std::sync::Arc<Mutex<HashMap<String, watch::Sender<Vec<Trade>>>>>,
     books: std::sync::Arc<Mutex<HashMap<String, watch::Sender<OrderBook>>>>,
@@ -49,8 +49,7 @@ impl KalshiWs {
         let rest = std::sync::Arc::new(crate::adapters::Kalshi::new(config)?);
         Ok(Self {
             rest,
-            sub_tx: Mutex::new(None),
-            subs: Mutex::new(SubscriptionSet::new()),
+            pub_watch: WatchContext::new(),
             tickers: std::sync::Arc::new(Mutex::new(HashMap::new())),
             trades: std::sync::Arc::new(Mutex::new(HashMap::new())),
             books: std::sync::Arc::new(Mutex::new(HashMap::new())),
@@ -95,10 +94,10 @@ impl KalshiWs {
         Ok(headers)
     }
 
-    /// 启动连接(单例,带认证头)。
-    async fn ensure_conn(&self) -> Result<tokio::sync::watch::Sender<Vec<String>>> {
-        if let Some(tx) = self.sub_tx.lock().unwrap().clone() {
-            return Ok(tx);
+    /// 启动连接(单例,带认证头)。可失败步骤(签名)留在调用点,配方保持无失败。
+    fn ensure_conn(&self) -> Result<()> {
+        if self.pub_watch.is_connected() {
+            return Ok(());
         }
         let headers = self.auth_headers()?;
         let tickers = self.tickers.clone();
@@ -123,50 +122,45 @@ impl KalshiWs {
             *pos_map = Some(tx);
         }
         let positions = self.positions.lock().unwrap().clone();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
         let rest = self.rest.clone();
-        let _ = WsSession::spawn(
-            WS_BASE.to_string(),
-            headers,
-            sub_rx,
-            move |msg| {
-                dispatch(
-                    msg,
-                    &tickers,
-                    &trades,
-                    &books,
-                    &book_stores,
-                    &orders,
-                    &my_trades,
-                    &positions,
-                    &rest,
-                )
-            },
-            None,
-        );
-        *self.sub_tx.lock().unwrap() = Some(sub_tx.clone());
-        Ok(sub_tx)
+        self.pub_watch.ensure(|sub_tx| {
+            WsSession::spawn(
+                WS_BASE.to_string(),
+                headers,
+                sub_tx.subscribe(),
+                move |msg| {
+                    dispatch(
+                        msg,
+                        &tickers,
+                        &trades,
+                        &books,
+                        &book_stores,
+                        &orders,
+                        &my_trades,
+                        &positions,
+                        &rest,
+                    )
+                },
+                None,
+            )
+        });
+        Ok(())
     }
 
     /// 订阅市场 ticker 上的频道(首次发送 subscribe 命令)。
-    async fn subscribe_market(&self, market_ticker: &str, channel: &str) -> Result<()> {
-        let key = format!("{channel}:{market_ticker}");
-        let first = self.subs.lock().unwrap().register(&key);
-        if !first {
-            return Ok(());
-        }
-        let tx = self.ensure_conn().await?;
-        let frame = json!({
-            "id": 1,
-            "cmd": "subscribe",
-            "params": {
-                "channels": [channel],
-                "market_tickers": [market_ticker],
-            }
-        })
-        .to_string();
-        tx.send_modify(|list| list.push(frame));
-        Ok(())
+    fn subscribe_market(&self, market_ticker: &str, channel: &str) -> Result<()> {
+        self.pub_watch
+            .subscribe(&format!("{channel}:{market_ticker}"), || {
+                json!({
+                    "id": 1,
+                    "cmd": "subscribe",
+                    "params": {
+                        "channels": [channel],
+                        "market_tickers": [market_ticker],
+                    }
+                })
+                .to_string()
+            })
     }
 }
 
@@ -333,18 +327,12 @@ fn parse_iso_ms(s: &str) -> Option<i64> {
 impl Realtime for KalshiWs {
     async fn watch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         let ticker = self.market_ticker(symbol).await?;
-        self.subscribe_market(&ticker, "ticker").await?;
-        let rx = {
-            let mut map = self.tickers.lock().unwrap();
-            if !map.contains_key(&ticker) {
-                let (tx, _) = watch::channel(Ticker::default());
-                map.insert(ticker.clone(), tx.clone());
-            }
-            map.get(&ticker).cloned().unwrap().subscribe()
-        };
-        let mut rx = rx;
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.pub_watch
+            .watch(&self.tickers, ticker, Ticker::default(), |k| async move {
+                self.ensure_conn()?;
+                self.subscribe_market(&k, "ticker")
+            })
+            .await
     }
 
     async fn watch_trades(
@@ -355,18 +343,12 @@ impl Realtime for KalshiWs {
         _params: Params,
     ) -> Result<Vec<Trade>> {
         let ticker = self.market_ticker(symbol).await?;
-        self.subscribe_market(&ticker, "trade").await?;
-        let rx = {
-            let mut map = self.trades.lock().unwrap();
-            if !map.contains_key(&ticker) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(ticker.clone(), tx.clone());
-            }
-            map.get(&ticker).cloned().unwrap().subscribe()
-        };
-        let mut rx = rx;
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.pub_watch
+            .watch(&self.trades, ticker, Vec::new(), |k| async move {
+                self.ensure_conn()?;
+                self.subscribe_market(&k, "trade")
+            })
+            .await
     }
 
     async fn watch_order_book(
@@ -376,21 +358,18 @@ impl Realtime for KalshiWs {
         _params: Params,
     ) -> Result<OrderBook> {
         let ticker = self.market_ticker(symbol).await?;
-        self.subscribe_market(&ticker, "orderbook_delta").await?;
-        let rx = {
-            let mut stores = self.book_stores.lock().unwrap();
-            let mut books = self.books.lock().unwrap();
-            if !stores.contains_key(&ticker) {
-                let store = OrderBookStore::new(0);
-                let (tx, _) = watch::channel(store.snapshot(&ticker, None, None, Value::Null));
-                stores.insert(ticker.clone(), store);
-                books.insert(ticker.clone(), tx.clone());
-            }
-            books.get(&ticker).cloned().unwrap().subscribe()
-        };
-        let mut rx = rx;
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        if !self.book_stores.lock().unwrap().contains_key(&ticker) {
+            self.book_stores
+                .lock()
+                .unwrap()
+                .insert(ticker.clone(), OrderBookStore::new(0));
+        }
+        self.pub_watch
+            .watch(&self.books, ticker, OrderBook::default(), |k| async move {
+                self.ensure_conn()?;
+                self.subscribe_market(&k, "orderbook_delta")
+            })
+            .await
     }
 
     async fn watch_ohlcv(
@@ -415,7 +394,11 @@ impl Realtime for KalshiWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<Vec<Order>> {
-        let tx = self.ensure_conn().await?;
+        self.ensure_conn()?;
+        let tx = self
+            .pub_watch
+            .sender()
+            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
         let frame = json!({
             "id": 2,
             "cmd": "subscribe",
@@ -436,7 +419,11 @@ impl Realtime for KalshiWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<Vec<Trade>> {
-        let tx = self.ensure_conn().await?;
+        self.ensure_conn()?;
+        let tx = self
+            .pub_watch
+            .sender()
+            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
         let frame = json!({
             "id": 3,
             "cmd": "subscribe",
@@ -455,7 +442,11 @@ impl Realtime for KalshiWs {
         _symbols: Option<&[&str]>,
         _params: Params,
     ) -> Result<Vec<Position>> {
-        let tx = self.ensure_conn().await?;
+        self.ensure_conn()?;
+        let tx = self
+            .pub_watch
+            .sender()
+            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
         let frame = json!({
             "id": 4,
             "cmd": "subscribe",

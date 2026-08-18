@@ -22,7 +22,8 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params, Realtime};
 use crate::httpcore::{collect_levels, dec, iso8601};
 use crate::realtime::orderbook::OrderBookStore;
-use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
+use crate::realtime::watch::WatchContext;
+use crate::realtime::ws::{ChannelMap, Conn, WsSession, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_BASE: &str = "wss://stream.binance.com:9443/ws";
@@ -38,8 +39,8 @@ type TradeChannel = ChannelMap<String, Vec<Trade>>;
 pub struct BinanceWs {
     /// REST 适配器实例(ADR-0015:持有 REST 实例,复用其 parse_* 与快照/认证)。
     rest: Arc<Binance>,
-    /// 公开流连接就绪信号(懒启动,ADR-0014 Conn 收口)。
-    pub_connected: Conn,
+    /// 公开流连接就绪信号(懒启动,WatchContext 收口)。
+    pub_connected: WatchContext,
     tickers: TickerChannel,
     books: BookChannel,
     book_stores: BookStoreMap,
@@ -50,8 +51,6 @@ pub struct BinanceWs {
     balances: Mutex<Option<watch::Sender<Balances>>>,
     orders: Mutex<Option<watch::Sender<Vec<Order>>>>,
     my_trades: Mutex<Option<watch::Sender<Vec<Trade>>>>,
-    subs: Mutex<SubscriptionSet>,
-    sub_tx: Mutex<Option<tokio::sync::watch::Sender<Vec<String>>>>,
 }
 
 impl BinanceWs {
@@ -60,7 +59,7 @@ impl BinanceWs {
         let rest = Arc::new(Binance::new(config)?);
         Ok(Self {
             rest,
-            pub_connected: Conn::new(),
+            pub_connected: WatchContext::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
             book_stores: Arc::new(Mutex::new(HashMap::new())),
@@ -70,16 +69,12 @@ impl BinanceWs {
             balances: Mutex::new(None),
             orders: Mutex::new(None),
             my_trades: Mutex::new(None),
-            subs: Mutex::new(SubscriptionSet::new()),
-            sub_tx: Mutex::new(None),
         })
     }
 
     /// 懒启动公开流连接(单例),返回连接就绪信号。
     fn ensure_public(&self) -> watch::Receiver<bool> {
-        self.pub_connected.ensure(|| {
-            let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-            *self.sub_tx.lock().unwrap() = Some(sub_tx);
+        self.pub_connected.ensure(|sub_tx| {
             let tickers = self.tickers.clone();
             let books = self.books.clone();
             let book_stores = self.book_stores.clone();
@@ -89,7 +84,7 @@ impl BinanceWs {
             WsSession::spawn(
                 WS_BASE.to_string(),
                 HeaderMap::new(),
-                sub_rx,
+                sub_tx.subscribe(),
                 move |msg| {
                     dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs, &rest)
                 },
@@ -99,20 +94,10 @@ impl BinanceWs {
     }
 
     /// 订阅(仅首次真正发送 SUBSCRIBE 帧)。
-    async fn subscribe_public(&self, stream: &str) -> Result<()> {
-        let first = self.subs.lock().unwrap().register(stream);
-        if !first {
-            return Ok(());
-        }
-        let tx = self
-            .sub_tx
-            .lock()
-            .unwrap()
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
-        let frame = json!({"method": "SUBSCRIBE", "params": [stream], "id": 1}).to_string();
-        tx.send_modify(|list| list.push(frame));
-        Ok(())
+    fn subscribe_public(&self, stream: &str) -> Result<()> {
+        self.pub_connected.subscribe(stream, || {
+            json!({"method": "SUBSCRIBE", "params": [stream], "id": 1}).to_string()
+        })
     }
 
     /// REST 快照初始化订单簿(symbol_id 需小写)。
@@ -349,20 +334,13 @@ fn parse_exec_trade(msg: &Value) -> Trade {
 
 impl Realtime for BinanceWs {
     async fn watch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
-        self.ensure_public();
         let sym = symbol.to_uppercase().replace('/', "");
-        let stream = format!("{}@miniTicker", sym.to_lowercase());
-        self.subscribe_public(&stream).await?;
-        let rx = {
-            let mut map = self.tickers.lock().unwrap();
-            if !map.contains_key(&sym) {
-                let (tx, _) = watch::channel(Ticker::default());
-                map.insert(sym.clone(), tx.clone());
-            }
-            map.get(&sym).cloned().unwrap().subscribe()
-        };
-        // 触发订阅:连接任务负责真正发送;这里等待首个更新
-        wait_first(rx).await
+        self.pub_connected
+            .watch(&self.tickers, sym, Ticker::default(), |k| async move {
+                self.ensure_public();
+                self.subscribe_public(&format!("{}@miniTicker", k.to_lowercase()))
+            })
+            .await
     }
 
     async fn watch_order_book(
@@ -371,10 +349,9 @@ impl Realtime for BinanceWs {
         limit: Option<i64>,
         _params: Params,
     ) -> Result<OrderBook> {
-        self.ensure_public();
         let sym = symbol.to_uppercase().replace('/', "");
-        let stream = format!("{}@depth@100ms", sym.to_lowercase());
-        self.subscribe_public(&stream).await?;
+        self.ensure_public();
+        self.subscribe_public(&format!("{}@depth@100ms", sym.to_lowercase()))?;
         let rx = self.ensure_book(&sym, limit).await?;
         // REST 快照已在 ensure_book 中发出,直接返回当前状态(后续调用为增量最新值)
         Ok(rx.borrow().clone())
@@ -387,19 +364,13 @@ impl Realtime for BinanceWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<Vec<Trade>> {
-        self.ensure_public();
         let sym = symbol.to_uppercase().replace('/', "");
-        let stream = format!("{}@trade", sym.to_lowercase());
-        self.subscribe_public(&stream).await?;
-        let rx = {
-            let mut map = self.trades.lock().unwrap();
-            if !map.contains_key(&sym) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(sym.clone(), tx.clone());
-            }
-            map.get(&sym).cloned().unwrap().subscribe()
-        };
-        wait_first(rx).await
+        self.pub_connected
+            .watch(&self.trades, sym, Vec::new(), |k| async move {
+                self.ensure_public();
+                self.subscribe_public(&format!("{}@trade", k.to_lowercase()))
+            })
+            .await
     }
 
     async fn watch_ohlcv(
@@ -410,21 +381,14 @@ impl Realtime for BinanceWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<Vec<OHLCV>> {
-        self.ensure_public();
         let sym = symbol.to_uppercase().replace('/', "");
-        let tf = timeframe.to_string();
-        let stream = format!("{}@kline_{}", sym.to_lowercase(), timeframe);
-        self.subscribe_public(&stream).await?;
-        let key = (sym, tf);
-        let rx = {
-            let mut map = self.ohlcvs.lock().unwrap();
-            if !map.contains_key(&key) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(key.clone(), tx.clone());
-            }
-            map.get(&key).cloned().unwrap().subscribe()
-        };
-        wait_first(rx).await
+        let key = (sym, timeframe.to_string());
+        self.pub_connected
+            .watch(&self.ohlcvs, key, Vec::new(), |k| async move {
+                self.ensure_public();
+                self.subscribe_public(&format!("{}@kline_{}", k.0.to_lowercase(), k.1))
+            })
+            .await
     }
 
     async fn watch_balance(&self, _params: Params) -> Result<Balances> {

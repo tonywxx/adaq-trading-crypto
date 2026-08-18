@@ -233,6 +233,10 @@ python3 scripts/gen_adapters.py --only=<id>     # 例如 --only=binance
 `Cargo.toml`）—— 否则 CI 的 `transpiler-fresh` 任务会失败。转译器与 Rust 引擎（`src/generic.rs`）的契约由
 `python3 scripts/test_sync.py` 守护。
 
+## 更新日志
+
+完整发布历史见 [CHANGELOG.md](./CHANGELOG.md)（中英双语）。
+
 ## 许可证
 
 Apache-2.0。源自上游库的解析逻辑保留其 MIT 声明 —— 见 `NOTICE`。

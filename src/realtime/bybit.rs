@@ -19,7 +19,8 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
 use crate::httpcore::{collect_levels, dec, iso8601, now_ms};
 use crate::realtime::orderbook::OrderBookStore;
-use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
+use crate::realtime::watch::WatchContext;
+use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://stream.bybit.com/v5/public/spot";
@@ -36,7 +37,7 @@ pub struct BybitWs {
     config: Config,
     /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0013 方向)。
     rest: Arc<crate::adapters::Bybit>,
-    pub_connected: Conn,
+    pub_connected: WatchContext,
     priv_connected: Conn,
     tickers: TickerChannel,
     books: BookChannel,
@@ -47,8 +48,7 @@ pub struct BybitWs {
     orders: Mutex<Option<watch::Sender<Vec<Order>>>>,
     positions: Mutex<Option<watch::Sender<Vec<Position>>>>,
     my_trades: Mutex<Option<watch::Sender<Vec<Trade>>>>,
-    subs: Mutex<SubscriptionSet>,
-    sub_tx: Mutex<Option<watch::Sender<Vec<String>>>>,
+    priv_subs: Mutex<SubscriptionSet>,
     priv_sub_tx: Mutex<Option<watch::Sender<Vec<String>>>>,
 }
 
@@ -58,7 +58,7 @@ impl BybitWs {
         Ok(Self {
             config,
             rest,
-            pub_connected: Conn::new(),
+            pub_connected: WatchContext::new(),
             priv_connected: Conn::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
@@ -69,8 +69,7 @@ impl BybitWs {
             orders: Mutex::new(None),
             positions: Mutex::new(None),
             my_trades: Mutex::new(None),
-            subs: Mutex::new(SubscriptionSet::new()),
-            sub_tx: Mutex::new(None),
+            priv_subs: Mutex::new(SubscriptionSet::new()),
             priv_sub_tx: Mutex::new(None),
         })
     }
@@ -80,7 +79,7 @@ impl BybitWs {
     }
 
     fn ensure_public(&self) -> watch::Receiver<bool> {
-        self.pub_connected.ensure(|| {
+        self.pub_connected.ensure(|sub_tx| {
             let tickers = self.tickers.clone();
             let books = self.books.clone();
             let book_stores = self.book_stores.clone();
@@ -88,12 +87,10 @@ impl BybitWs {
             let ohlcvs = self.ohlcvs.clone();
             let rest = self.rest.clone();
             let headers = HeaderMap::new();
-            let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-            *self.sub_tx.lock().unwrap() = Some(sub_tx);
             WsSession::spawn(
                 WS_PUBLIC.to_string(),
                 headers,
-                sub_rx,
+                sub_tx.subscribe(),
                 move |msg| {
                     dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs, &rest)
                 },
@@ -102,25 +99,15 @@ impl BybitWs {
         })
     }
 
-    async fn subscribe(&self, arg: &str) -> Result<()> {
-        let first = self.subs.lock().unwrap().register(arg);
-        if !first {
-            return Ok(());
-        }
-        let tx = self
-            .sub_tx
-            .lock()
-            .unwrap()
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
-        let frame = json!({"op": "subscribe", "args": [arg]}).to_string();
-        tx.send_modify(|list| list.push(frame));
-        Ok(())
+    fn subscribe(&self, arg: &str) -> Result<()> {
+        self.pub_connected.subscribe(arg, || {
+            json!({"op": "subscribe", "args": [arg]}).to_string()
+        })
     }
 
     async fn subscribe_private(&self, channel: &str) -> Result<()> {
         let key = format!("priv:{channel}");
-        let first = self.subs.lock().unwrap().register(&key);
+        let first = self.priv_subs.lock().unwrap().register(&key);
         if !first {
             return Ok(());
         }
@@ -380,19 +367,14 @@ fn parse_fill(raw: &Value) -> Trade {
 
 impl Realtime for BybitWs {
     async fn watch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
-        self.ensure_public();
         let sym = self.symbol_id(symbol);
         // bybit 现货 ticker 频道为复数形式 tickers.{symbol}
-        self.subscribe(&format!("tickers.{sym}")).await?;
-        let rx = {
-            let mut map = self.tickers.lock().unwrap();
-            if !map.contains_key(&sym) {
-                let (tx, _) = watch::channel(Ticker::default());
-                map.insert(sym.clone(), tx.clone());
-            }
-            map.get(&sym).cloned().unwrap().subscribe()
-        };
-        wait_first(rx).await
+        self.pub_connected
+            .watch(&self.tickers, sym, Ticker::default(), |k| async move {
+                self.ensure_public();
+                self.subscribe(&format!("tickers.{k}"))
+            })
+            .await
     }
 
     async fn watch_order_book(
@@ -401,26 +383,19 @@ impl Realtime for BybitWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<OrderBook> {
-        self.ensure_public();
         let sym = self.symbol_id(symbol);
-        self.subscribe(&format!("orderbook.50.{sym}")).await?;
         if !self.book_stores.lock().unwrap().contains_key(&sym) {
             self.book_stores
                 .lock()
                 .unwrap()
                 .insert(sym.clone(), OrderBookStore::new(50));
-            let (tx, _) = watch::channel(OrderBook::default());
-            self.books.lock().unwrap().insert(sym.clone(), tx);
         }
-        let rx = self
-            .books
-            .lock()
-            .unwrap()
-            .get(&sym)
-            .cloned()
-            .unwrap()
-            .subscribe();
-        wait_first(rx).await
+        self.pub_connected
+            .watch(&self.books, sym, OrderBook::default(), |k| async move {
+                self.ensure_public();
+                self.subscribe(&format!("orderbook.50.{k}"))
+            })
+            .await
     }
 
     async fn watch_trades(
@@ -430,19 +405,14 @@ impl Realtime for BybitWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<Vec<Trade>> {
-        self.ensure_public();
         let sym = self.symbol_id(symbol);
         // bybit 现货成交频道为 publicTrade.{symbol}
-        self.subscribe(&format!("publicTrade.{sym}")).await?;
-        let rx = {
-            let mut map = self.trades.lock().unwrap();
-            if !map.contains_key(&sym) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(sym.clone(), tx.clone());
-            }
-            map.get(&sym).cloned().unwrap().subscribe()
-        };
-        wait_first(rx).await
+        self.pub_connected
+            .watch(&self.trades, sym, Vec::new(), |k| async move {
+                self.ensure_public();
+                self.subscribe(&format!("publicTrade.{k}"))
+            })
+            .await
     }
 
     async fn watch_ohlcv(
@@ -453,20 +423,14 @@ impl Realtime for BybitWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<Vec<OHLCV>> {
-        self.ensure_public();
         let sym = self.symbol_id(symbol);
-        let tf = timeframe.to_string();
-        self.subscribe(&format!("kline.{tf}.{sym}")).await?;
-        let key = (sym, tf);
-        let rx = {
-            let mut map = self.ohlcvs.lock().unwrap();
-            if !map.contains_key(&key) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(key.clone(), tx.clone());
-            }
-            map.get(&key).cloned().unwrap().subscribe()
-        };
-        wait_first(rx).await
+        let key = (sym, timeframe.to_string());
+        self.pub_connected
+            .watch(&self.ohlcvs, key, Vec::new(), |k| async move {
+                self.ensure_public();
+                self.subscribe(&format!("kline.{}.{}", k.1, k.0))
+            })
+            .await
     }
 
     async fn watch_balance(&self, _params: Params) -> Result<Balances> {

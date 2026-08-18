@@ -19,7 +19,8 @@ use tokio::sync::watch;
 use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Exchange, Params, Realtime};
 use crate::realtime::orderbook::{OrderBookStore, PriceChange};
-use crate::realtime::ws::{SubscriptionSet, WsSession, ws_err};
+use crate::realtime::watch::WatchContext;
+use crate::realtime::ws::{WsSession, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const MARKET_WS: &str = "wss://ws-subscriptions-clob.polymarket.com/ws/market";
@@ -28,8 +29,7 @@ const USER_WS: &str = "wss://ws-subscriptions-clob.polymarket.com/ws/user";
 /// polymarket WS 适配器。
 pub struct PolymarketWs {
     rest: crate::adapters::Polymarket,
-    sub_tx: Mutex<Option<tokio::sync::watch::Sender<Vec<String>>>>,
-    subs: Mutex<SubscriptionSet>,
+    pub_watch: WatchContext,
     books: std::sync::Arc<Mutex<HashMap<String, watch::Sender<OrderBook>>>>,
     book_stores: std::sync::Arc<Mutex<HashMap<String, OrderBookStore>>>,
     tickers: std::sync::Arc<Mutex<HashMap<String, watch::Sender<Ticker>>>>,
@@ -44,8 +44,7 @@ impl PolymarketWs {
         let rest = crate::adapters::Polymarket::new(config)?;
         Ok(Self {
             rest,
-            sub_tx: Mutex::new(None),
-            subs: Mutex::new(SubscriptionSet::new()),
+            pub_watch: WatchContext::new(),
             books: std::sync::Arc::new(Mutex::new(HashMap::new())),
             book_stores: std::sync::Arc::new(Mutex::new(HashMap::new())),
             tickers: std::sync::Arc::new(Mutex::new(HashMap::new())),
@@ -63,37 +62,28 @@ impl PolymarketWs {
     }
 
     /// 启动市场频道连接(单例)。
-    async fn ensure_market(&self) -> Result<tokio::sync::watch::Sender<Vec<String>>> {
-        if let Some(tx) = self.sub_tx.lock().unwrap().clone() {
-            return Ok(tx);
-        }
-        let books = self.books.clone();
-        let book_stores = self.book_stores.clone();
-        let tickers = self.tickers.clone();
-        let trades = self.trades.clone();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-        let headers = reqwest::header::HeaderMap::new();
-        let _ = WsSession::spawn(
-            MARKET_WS.to_string(),
-            headers,
-            sub_rx,
-            move |msg| dispatch_market(msg, &books, &book_stores, &tickers, &trades),
-            None,
-        );
-        *self.sub_tx.lock().unwrap() = Some(sub_tx.clone());
-        Ok(sub_tx)
+    fn ensure_market(&self) -> watch::Receiver<bool> {
+        self.pub_watch.ensure(|sub_tx| {
+            let books = self.books.clone();
+            let book_stores = self.book_stores.clone();
+            let tickers = self.tickers.clone();
+            let trades = self.trades.clone();
+            let headers = reqwest::header::HeaderMap::new();
+            WsSession::spawn(
+                MARKET_WS.to_string(),
+                headers,
+                sub_tx.subscribe(),
+                move |msg| dispatch_market(msg, &books, &book_stores, &tickers, &trades),
+                None,
+            )
+        })
     }
 
     /// 订阅某 token(首次真正发送)。
-    async fn subscribe_token(&self, symbol: &str, token_id: &str) -> Result<()> {
-        let first = self.subs.lock().unwrap().register(token_id);
-        let tx = self.ensure_market().await?;
-        if first {
-            let frame = json!({"assets_ids": [token_id], "type": "market"}).to_string();
-            tx.send_modify(|list| list.push(frame));
-        }
-        let _ = symbol;
-        Ok(())
+    fn subscribe_token(&self, token_id: &str) -> Result<()> {
+        self.pub_watch.subscribe(token_id, || {
+            json!({"assets_ids": [token_id], "type": "market"}).to_string()
+        })
     }
 
     /// 启动用户频道(单例),返回 (orders, my_trades)。
@@ -356,18 +346,12 @@ fn dispatch_user(
 impl Realtime for PolymarketWs {
     async fn watch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
         let token_id = self.token_id(symbol).await?;
-        self.subscribe_token(symbol, &token_id).await?;
-        let rx = {
-            let mut map = self.tickers.lock().unwrap();
-            if !map.contains_key(&token_id) {
-                let (tx, _) = watch::channel(Ticker::default());
-                map.insert(token_id.clone(), tx.clone());
-            }
-            map.get(&token_id).cloned().unwrap().subscribe()
-        };
-        let mut rx = rx;
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.pub_watch
+            .watch(&self.tickers, token_id, Ticker::default(), |k| async move {
+                self.ensure_market();
+                self.subscribe_token(&k)
+            })
+            .await
     }
 
     async fn watch_order_book(
@@ -377,21 +361,23 @@ impl Realtime for PolymarketWs {
         _params: Params,
     ) -> Result<OrderBook> {
         let token_id = self.token_id(symbol).await?;
-        self.subscribe_token(symbol, &token_id).await?;
-        let rx = {
-            let mut stores = self.book_stores.lock().unwrap();
-            let mut books = self.books.lock().unwrap();
-            if !stores.contains_key(&token_id) {
-                let store = OrderBookStore::new(0);
-                let (tx, _) = watch::channel(store.snapshot(&token_id, None, None, Value::Null));
-                stores.insert(token_id.clone(), store);
-                books.insert(token_id.clone(), tx.clone());
-            }
-            books.get(&token_id).cloned().unwrap().subscribe()
-        };
-        let mut rx = rx;
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        if !self.book_stores.lock().unwrap().contains_key(&token_id) {
+            self.book_stores
+                .lock()
+                .unwrap()
+                .insert(token_id.clone(), OrderBookStore::new(0));
+        }
+        self.pub_watch
+            .watch(
+                &self.books,
+                token_id,
+                OrderBook::default(),
+                |k| async move {
+                    self.ensure_market();
+                    self.subscribe_token(&k)
+                },
+            )
+            .await
     }
 
     async fn watch_trades(
@@ -402,18 +388,12 @@ impl Realtime for PolymarketWs {
         _params: Params,
     ) -> Result<Vec<Trade>> {
         let token_id = self.token_id(symbol).await?;
-        self.subscribe_token(symbol, &token_id).await?;
-        let rx = {
-            let mut map = self.trades.lock().unwrap();
-            if !map.contains_key(&token_id) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(token_id.clone(), tx.clone());
-            }
-            map.get(&token_id).cloned().unwrap().subscribe()
-        };
-        let mut rx = rx;
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.pub_watch
+            .watch(&self.trades, token_id, Vec::new(), |k| async move {
+                self.ensure_market();
+                self.subscribe_token(&k)
+            })
+            .await
     }
 
     async fn watch_ohlcv(

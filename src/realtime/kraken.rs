@@ -22,7 +22,8 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::exchange::{Config, Params, Realtime};
 use crate::httpcore::{collect_levels, iso8601, now_ms};
 use crate::realtime::orderbook::{OrderBookStore, PriceChange};
-use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, wait_first, ws_err};
+use crate::realtime::watch::WatchContext;
+use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://ws.kraken.com";
@@ -39,7 +40,7 @@ pub struct KrakenWs {
     /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0015),
     /// WS token 获取复用其 private_post(签名合一,ADR-0013 sign 接缝)。
     rest: std::sync::Arc<crate::adapters::Kraken>,
-    pub_connected: Conn,
+    pub_connected: WatchContext,
     priv_connected: Conn,
     tickers: TickerChannel,
     books: BookChannel,
@@ -49,8 +50,7 @@ pub struct KrakenWs {
     balances: Mutex<Option<watch::Sender<Balances>>>,
     orders: Mutex<Option<watch::Sender<Vec<Order>>>>,
     my_trades: Mutex<Option<watch::Sender<Vec<Trade>>>>,
-    subs: Mutex<SubscriptionSet>,
-    sub_tx: Mutex<Option<watch::Sender<Vec<String>>>>,
+    priv_subs: Mutex<SubscriptionSet>,
     priv_sub_tx: Mutex<Option<watch::Sender<Vec<String>>>>,
 }
 
@@ -59,7 +59,7 @@ impl KrakenWs {
         let rest = std::sync::Arc::new(crate::adapters::Kraken::new(config)?);
         Ok(Self {
             rest,
-            pub_connected: Conn::new(),
+            pub_connected: WatchContext::new(),
             priv_connected: Conn::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
@@ -69,8 +69,7 @@ impl KrakenWs {
             balances: Mutex::new(None),
             orders: Mutex::new(None),
             my_trades: Mutex::new(None),
-            subs: Mutex::new(SubscriptionSet::new()),
-            sub_tx: Mutex::new(None),
+            priv_subs: Mutex::new(SubscriptionSet::new()),
             priv_sub_tx: Mutex::new(None),
         })
     }
@@ -81,7 +80,7 @@ impl KrakenWs {
     }
 
     fn ensure_public(&self) -> watch::Receiver<bool> {
-        self.pub_connected.ensure(|| {
+        self.pub_connected.ensure(|sub_tx| {
             let tickers = self.tickers.clone();
             let books = self.books.clone();
             let book_stores = self.book_stores.clone();
@@ -89,12 +88,10 @@ impl KrakenWs {
             let ohlcvs = self.ohlcvs.clone();
             let rest = self.rest.clone();
             let headers = HeaderMap::new();
-            let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-            *self.sub_tx.lock().unwrap() = Some(sub_tx);
             WsSession::spawn(
                 WS_PUBLIC.to_string(),
                 headers,
-                sub_rx,
+                sub_tx.subscribe(),
                 move |msg| {
                     dispatch_public(msg, &tickers, &books, &book_stores, &trades, &ohlcvs, &rest)
                 },
@@ -103,35 +100,24 @@ impl KrakenWs {
         })
     }
 
-    async fn subscribe(&self, name: &str, pair: &str, interval: Option<&str>) -> Result<()> {
-        let key = format!("{name}:{pair}");
-        let first = self.subs.lock().unwrap().register(&key);
-        if !first {
-            return Ok(());
-        }
-        let tx = self
-            .sub_tx
-            .lock()
-            .unwrap()
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
-        let mut sub = json!({"name": name});
-        if let Some(iv) = interval {
-            sub["interval"] = json!(iv);
-        }
-        let frame = json!({
-            "event": "subscribe",
-            "pair": [pair],
-            "subscription": sub
+    fn subscribe(&self, name: &str, pair: &str, interval: Option<&str>) -> Result<()> {
+        self.pub_connected.subscribe(&format!("{name}:{pair}"), || {
+            let mut sub = json!({"name": name});
+            if let Some(iv) = interval {
+                sub["interval"] = json!(iv);
+            }
+            json!({
+                "event": "subscribe",
+                "pair": [pair],
+                "subscription": sub
+            })
+            .to_string()
         })
-        .to_string();
-        tx.send_modify(|list| list.push(frame));
-        Ok(())
     }
 
     async fn subscribe_private(&self, name: &str, token: &str) -> Result<()> {
         let key = format!("priv:{name}");
-        let first = self.subs.lock().unwrap().register(&key);
+        let first = self.priv_subs.lock().unwrap().register(&key);
         if !first {
             return Ok(());
         }
@@ -426,18 +412,13 @@ fn parse_changes(v: Option<&Value>) -> Vec<PriceChange> {
 
 impl Realtime for KrakenWs {
     async fn watch_ticker(&self, symbol: &str, _params: Params) -> Result<Ticker> {
-        self.ensure_public();
         let pair = self.symbol_id(symbol);
-        self.subscribe("ticker", &pair, None).await?;
-        let rx = {
-            let mut map = self.tickers.lock().unwrap();
-            if !map.contains_key(&pair) {
-                let (tx, _) = watch::channel(Ticker::default());
-                map.insert(pair.clone(), tx.clone());
-            }
-            map.get(&pair).cloned().unwrap().subscribe()
-        };
-        wait_first(rx).await
+        self.pub_connected
+            .watch(&self.tickers, pair, Ticker::default(), |k| async move {
+                self.ensure_public();
+                self.subscribe("ticker", &k, None)
+            })
+            .await
     }
 
     async fn watch_order_book(
@@ -446,26 +427,19 @@ impl Realtime for KrakenWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<OrderBook> {
-        self.ensure_public();
         let pair = self.symbol_id(symbol);
-        self.subscribe("book", &pair, None).await?;
         if !self.book_stores.lock().unwrap().contains_key(&pair) {
             self.book_stores
                 .lock()
                 .unwrap()
                 .insert(pair.clone(), OrderBookStore::new(0));
-            let (tx, _) = watch::channel(OrderBook::default());
-            self.books.lock().unwrap().insert(pair.clone(), tx);
         }
-        let rx = self
-            .books
-            .lock()
-            .unwrap()
-            .get(&pair)
-            .cloned()
-            .unwrap()
-            .subscribe();
-        wait_first(rx).await
+        self.pub_connected
+            .watch(&self.books, pair, OrderBook::default(), |k| async move {
+                self.ensure_public();
+                self.subscribe("book", &k, None)
+            })
+            .await
     }
 
     async fn watch_trades(
@@ -475,18 +449,13 @@ impl Realtime for KrakenWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<Vec<Trade>> {
-        self.ensure_public();
         let pair = self.symbol_id(symbol);
-        self.subscribe("trade", &pair, None).await?;
-        let rx = {
-            let mut map = self.trades.lock().unwrap();
-            if !map.contains_key(&pair) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(pair.clone(), tx.clone());
-            }
-            map.get(&pair).cloned().unwrap().subscribe()
-        };
-        wait_first(rx).await
+        self.pub_connected
+            .watch(&self.trades, pair, Vec::new(), |k| async move {
+                self.ensure_public();
+                self.subscribe("trade", &k, None)
+            })
+            .await
     }
 
     async fn watch_ohlcv(
@@ -497,20 +466,15 @@ impl Realtime for KrakenWs {
         _limit: Option<i64>,
         _params: Params,
     ) -> Result<Vec<OHLCV>> {
-        self.ensure_public();
         let pair = self.symbol_id(symbol);
         let iv = kraken_interval(timeframe);
-        self.subscribe("ohlc", &pair, Some(iv)).await?;
         let key = (pair, iv.to_string());
-        let rx = {
-            let mut map = self.ohlcvs.lock().unwrap();
-            if !map.contains_key(&key) {
-                let (tx, _) = watch::channel(vec![]);
-                map.insert(key.clone(), tx.clone());
-            }
-            map.get(&key).cloned().unwrap().subscribe()
-        };
-        wait_first(rx).await
+        self.pub_connected
+            .watch(&self.ohlcvs, key, Vec::new(), |k| async move {
+                self.ensure_public();
+                self.subscribe("ohlc", &k.0, Some(k.1.as_str()))
+            })
+            .await
     }
 
     async fn watch_balance(&self, _params: Params) -> Result<Balances> {

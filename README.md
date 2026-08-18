@@ -283,6 +283,10 @@ After regenerating, run `cargo fmt --all` and commit the generated layer
 `transpiler-fresh` job fails if it is stale. The transpiler's contract with the Rust engine
 (`src/generic.rs`) is guarded by `python3 scripts/test_sync.py`.
 
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for the full release history (bilingual: English + 中文).
+
 ## License
 
 Apache-2.0. Parsing logic derived from the upstream library retains its MIT notice — see `NOTICE`.
