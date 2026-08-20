@@ -10,19 +10,69 @@ license = "Apache-2.0"
 name = "adaq-trading-crypto"
 repository = "https://github.com/tonywxx/adaq-trading-crypto"
 rust-version = "1.85"
-version = "1.0.9"
+version = "1.1.0"
 
 [features]
 alpaca = []
+apex = []
 aster = []
+backpack = []
+bequant = []
+bigone = []
 binance = []
+binancecoinm = []
 binanceus = []
+binanceusdm = []
+bingx = []
+bit2c = []
+bitbank = []
+bitbns = []
+bitfinex = []
+bitflyer = []
 bitget = []
+bithumb = []
+bitmex = []
+bitopro = []
+bitrue = []
+bitso = []
+bitstamp = []
+bitteam = []
+bittrade = []
+bitvavo = []
+blockchaincom = []
+blofin = []
+btcbox = []
+btcmarkets = []
+btcturk = []
+bullish = []
 bybit = []
+bybiteu = []
+bydfi = []
+cex = []
 coinbase = []
+coinbaseexchange = []
+coinbaseinternational = []
+coincheck = []
+coinex = []
+coinmate = []
+coinone = []
+coinsph = []
+coinspot = []
+cryptocom = []
+cryptomus = []
+deepcoin = []
 default = ["binance", "okx", "kalshi", "polymarket"]
+delta = []
+deribit = []
+derive = []
+digifinex = []
+dydx = []
+exmo = []
+extended = []
+fmfwio = []
+foxbit = []
 full = [
-    "generated",
+  "generated",
   "binance",
   "okx",
   "coinbase",
@@ -39,89 +89,139 @@ full = [
 ]
 futures = []
 gate = []
-gemini = []
-hashkey = []
-htx = []
-hyperliquid = []
-kalshi = []
-kraken = []
-kucoin = []
-lighter = []
-manifold = []
-apex = []
-backpack = []
-bequant = []
-bigone = []
-binancecoinm = []
-binanceusdm = []
-bingx = []
-bit2c = []
-bitbank = []
-bitbns = []
-bitfinex = []
-bitflyer = []
-bithumb = []
-bitmex = []
-bitopro = []
-bitrue = []
-bitso = []
-bitstamp = []
-bitteam = []
-bittrade = []
-bitvavo = []
-blockchaincom = []
-blofin = []
-btcbox = []
-btcmarkets = []
-btcturk = []
-bullish = []
-bybiteu = []
-bydfi = []
-cex = []
-coinbaseexchange = []
-coinbaseinternational = []
-coincheck = []
-coinex = []
-coinmate = []
-coinone = []
-coinsph = []
-coinspot = []
-cryptocom = []
-cryptomus = []
-deepcoin = []
-delta = []
-deribit = []
-derive = []
-digifinex = []
-dydx = []
-exmo = []
-extended = []
-fmfwio = []
-foxbit = []
 gateeu = []
+gemini = []
+generated = [
+  "apex",
+  "backpack",
+  "bequant",
+  "bigone",
+  "binancecoinm",
+  "binanceusdm",
+  "bingx",
+  "bit2c",
+  "bitbank",
+  "bitbns",
+  "bitfinex",
+  "bitflyer",
+  "bithumb",
+  "bitmex",
+  "bitopro",
+  "bitrue",
+  "bitso",
+  "bitstamp",
+  "bitteam",
+  "bittrade",
+  "bitvavo",
+  "blockchaincom",
+  "blofin",
+  "btcbox",
+  "btcmarkets",
+  "btcturk",
+  "bullish",
+  "bybiteu",
+  "bydfi",
+  "cex",
+  "coinbaseexchange",
+  "coinbaseinternational",
+  "coincheck",
+  "coinex",
+  "coinmate",
+  "coinone",
+  "coinsph",
+  "coinspot",
+  "cryptocom",
+  "cryptomus",
+  "deepcoin",
+  "delta",
+  "deribit",
+  "derive",
+  "digifinex",
+  "dydx",
+  "exmo",
+  "extended",
+  "fmfwio",
+  "foxbit",
+  "gateeu",
+  "grvt",
+  "hibachi",
+  "hitbtc",
+  "hollaex",
+  "independentreserve",
+  "indodax",
+  "krakenfutures",
+  "kucoinfutures",
+  "latoken",
+  "lbank",
+  "luno",
+  "mercado",
+  "modetrade",
+  "mudrex",
+  "nado",
+  "ndax",
+  "onetrading",
+  "p2b",
+  "pacifica",
+  "paradex",
+  "paymium",
+  "phemex",
+  "poloniex",
+  "tokocrypto",
+  "toobit",
+  "upbit",
+  "weex",
+  "whitebit",
+  "woo",
+  "woofipro",
+  "xt",
+  "zaif",
+  "zebpay",
+  "limitless",
+  "myriad",
+  "opinion",
+]
 grvt = []
+hashkey = []
 hibachi = []
 hitbtc = []
 hollaex = []
+htx = []
+hyperliquid = []
 independentreserve = []
 indodax = []
+kalshi = []
+kraken = []
 krakenfutures = []
+kucoin = []
 kucoinfutures = []
 latoken = []
 lbank = []
+lighter = []
+limitless = []
 luno = []
+manifold = []
 mercado = []
+mexc = []
 modetrade = []
 mudrex = []
+myokx = []
+myriad = []
 nado = []
 ndax = []
+okx = []
+okxus = []
 onetrading = []
+opinion = []
 p2b = []
 pacifica = []
 paradex = []
 paymium = []
 phemex = []
 poloniex = []
+polymarket = []
+prediction = ["kalshi", "polymarket", "manifold"]
+realtime = []
+sync = []
 tokocrypto = []
 toobit = []
 upbit = []
@@ -132,106 +232,6 @@ woofipro = []
 xt = []
 zaif = []
 zebpay = []
-limitless = []
-myriad = []
-opinion = []
-generated = [
-    "apex",
-    "backpack",
-    "bequant",
-    "bigone",
-    "binancecoinm",
-    "binanceusdm",
-    "bingx",
-    "bit2c",
-    "bitbank",
-    "bitbns",
-    "bitfinex",
-    "bitflyer",
-    "bithumb",
-    "bitmex",
-    "bitopro",
-    "bitrue",
-    "bitso",
-    "bitstamp",
-    "bitteam",
-    "bittrade",
-    "bitvavo",
-    "blockchaincom",
-    "blofin",
-    "btcbox",
-    "btcmarkets",
-    "btcturk",
-    "bullish",
-    "bybiteu",
-    "bydfi",
-    "cex",
-    "coinbaseexchange",
-    "coinbaseinternational",
-    "coincheck",
-    "coinex",
-    "coinmate",
-    "coinone",
-    "coinsph",
-    "coinspot",
-    "cryptocom",
-    "cryptomus",
-    "deepcoin",
-    "delta",
-    "deribit",
-    "derive",
-    "digifinex",
-    "dydx",
-    "exmo",
-    "extended",
-    "fmfwio",
-    "foxbit",
-    "gateeu",
-    "grvt",
-    "hibachi",
-    "hitbtc",
-    "hollaex",
-    "independentreserve",
-    "indodax",
-    "krakenfutures",
-    "kucoinfutures",
-    "latoken",
-    "lbank",
-    "luno",
-    "mercado",
-    "modetrade",
-    "mudrex",
-    "nado",
-    "ndax",
-    "onetrading",
-    "p2b",
-    "pacifica",
-    "paradex",
-    "paymium",
-    "phemex",
-    "poloniex",
-    "tokocrypto",
-    "toobit",
-    "upbit",
-    "weex",
-    "whitebit",
-    "woo",
-    "woofipro",
-    "xt",
-    "zaif",
-    "zebpay",
-    "limitless",
-    "myriad",
-    "opinion",
-]
-mexc = []
-myokx = []
-okx = []
-okxus = []
-polymarket = []
-prediction = ["kalshi", "polymarket", "manifold"]
-realtime = []
-sync = []
 
 [dependencies]
 async-trait = "0.1"
