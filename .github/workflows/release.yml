@@ -37,6 +37,18 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
 
+      # openssl-sys needs OpenSSL on the system; Windows runners lack it.
+      - name: Install OpenSSL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install openssl -y
+          $opensslDir = "C:\Program Files\OpenSSL-Win64"
+          echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$opensslDir\include" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC" >> $env:GITHUB_ENV
+          echo "$opensslDir\bin" >> $env:GITHUB_PATH
+
       - name: Build
         run: cargo build --verbose
 

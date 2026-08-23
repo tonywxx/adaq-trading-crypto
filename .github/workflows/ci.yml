@@ -29,6 +29,20 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # openssl-sys needs OpenSSL on the system. Linux runners have it; Windows
+      # does not, so install it via Chocolatey and point openssl-sys at it
+      # (with the DLL dir on PATH so tests can load it at runtime).
+      - name: Install OpenSSL (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install openssl -y
+          $opensslDir = "C:\Program Files\OpenSSL-Win64"
+          echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$opensslDir\include" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC" >> $env:GITHUB_ENV
+          echo "$opensslDir\bin" >> $env:GITHUB_PATH
+
       # MSRV pin check without jq (jq is not preinstalled on windows-latest and
       # pull-request runner images no longer allow taiki-e/install-action).
       - name: Check MSRV pin (edition 2024 / rust-version)
@@ -44,14 +58,31 @@ jobs:
       - name: Build (full features)
         run: cargo build --all-targets --all-features
 
-      # Install nextest via cargo (taiki-e/install-action is unusable on current
-      # runner images: it aborts on BASH_FUNC_ env vars / bash startup failures).
-      # RUSTFLAGS is cleared here so nextest's own dependency warnings don't fail
-      # the build under -D warnings.
-      - name: Install cargo-nextest
+      # Install nextest from a prebuilt release binary. taiki-e/install-action
+      # is unusable on current runner images (BASH_FUNC_ / bash startup failures),
+      # and `cargo install cargo-nextest` needs a newer rustc than our 1.85 MSRV,
+      # so a prebuilt binary avoids both problems and is faster.
+      - name: Install cargo-nextest (prebuilt)
+        shell: bash
         env:
-          RUSTFLAGS: ""
-        run: cargo install cargo-nextest --locked
+          NEXTEST_VERSION: "0.9.143"
+        run: |
+          set -euo pipefail
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            TARGET="x86_64-pc-windows-msvc"
+            BIN="cargo-nextest.exe"
+          else
+            TARGET="x86_64-unknown-linux-gnu"
+            BIN="cargo-nextest"
+          fi
+          URL="https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-${TARGET}.tar.gz"
+          echo "Downloading nextest ${NEXTEST_VERSION} for ${TARGET}"
+          curl -fsSL "$URL" -o nextest.tar.gz
+          tar -xzf nextest.tar.gz
+          BINPATH=$(find . -name "$BIN" | head -n1)
+          mkdir -p "$HOME/.cargo/bin"
+          mv "$BINPATH" "$HOME/.cargo/bin/$BIN"
+          "$HOME/.cargo/bin/$BIN" --version
 
       - name: Run tests (nextest)
         run: cargo nextest run --all-targets --all-features
