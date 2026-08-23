@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         rust: [stable, "1.85"]
     steps:
       - name: Checkout
@@ -44,10 +44,27 @@ jobs:
         run: |
           choco install openssl -y
           $opensslDir = "C:\Program Files\OpenSSL-Win64"
+          $libs = @(Get-ChildItem $opensslDir -Recurse -Filter "libcrypto.lib" -ErrorAction SilentlyContinue)
+          $mdLib = $libs | Where-Object { $_.DirectoryName -like "*\MD" } | Select-Object -First 1
+          if ($mdLib) { $lib = $mdLib.DirectoryName }
+          elseif ($libs.Count -gt 0) { $lib = $libs[0].DirectoryName }
+          else { $lib = "$opensslDir\lib" }
           echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
           echo "OPENSSL_INCLUDE_DIR=$opensslDir\include" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$lib" >> $env:GITHUB_ENV
           echo "$opensslDir\bin" >> $env:GITHUB_PATH
+
+      # macOS ships LibreSSL, not OpenSSL; install OpenSSL via Homebrew and link
+      # it statically (OPENSSL_STATIC) to avoid runtime dylib path issues.
+      - name: Install OpenSSL (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install openssl
+          PREFIX="$(brew --prefix openssl)"
+          echo "OPENSSL_DIR=$PREFIX" >> "$GITHUB_ENV"
+          echo "OPENSSL_INCLUDE_DIR=$PREFIX/include" >> "$GITHUB_ENV"
+          echo "OPENSSL_LIB_DIR=$PREFIX/lib" >> "$GITHUB_ENV"
+          echo "OPENSSL_STATIC=1" >> "$GITHUB_ENV"
 
       - name: Build
         run: cargo build --verbose

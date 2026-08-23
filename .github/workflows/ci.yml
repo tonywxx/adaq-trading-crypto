@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         rust: ["1.85.0", stable]
     steps:
       - uses: actions/checkout@v7
@@ -31,17 +31,35 @@ jobs:
 
       # openssl-sys needs OpenSSL on the system. Linux runners have it; Windows
       # does not, so install it via Chocolatey and point openssl-sys at it
-      # (with the DLL dir on PATH so tests can load it at runtime).
+      # (with the DLL dir on PATH so tests can load it at runtime). The lib dir
+      # layout varies by choco package, so locate the actual .lib dir dynamically.
       - name: Install OpenSSL (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           choco install openssl -y
           $opensslDir = "C:\Program Files\OpenSSL-Win64"
+          $libs = @(Get-ChildItem $opensslDir -Recurse -Filter "libcrypto.lib" -ErrorAction SilentlyContinue)
+          $mdLib = $libs | Where-Object { $_.DirectoryName -like "*\MD" } | Select-Object -First 1
+          if ($mdLib) { $lib = $mdLib.DirectoryName }
+          elseif ($libs.Count -gt 0) { $lib = $libs[0].DirectoryName }
+          else { $lib = "$opensslDir\lib" }
           echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
           echo "OPENSSL_INCLUDE_DIR=$opensslDir\include" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$lib" >> $env:GITHUB_ENV
           echo "$opensslDir\bin" >> $env:GITHUB_PATH
+
+      # macOS ships LibreSSL, not OpenSSL, so install OpenSSL via Homebrew and
+      # link it statically (OPENSSL_STATIC) to avoid runtime dylib path issues.
+      - name: Install OpenSSL (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install openssl
+          PREFIX="$(brew --prefix openssl)"
+          echo "OPENSSL_DIR=$PREFIX" >> "$GITHUB_ENV"
+          echo "OPENSSL_INCLUDE_DIR=$PREFIX/include" >> "$GITHUB_ENV"
+          echo "OPENSSL_LIB_DIR=$PREFIX/lib" >> "$GITHUB_ENV"
+          echo "OPENSSL_STATIC=1" >> "$GITHUB_ENV"
 
       # MSRV pin check without jq (jq is not preinstalled on windows-latest and
       # pull-request runner images no longer allow taiki-e/install-action).
@@ -68,13 +86,25 @@ jobs:
           NEXTEST_VERSION: "0.9.143"
         run: |
           set -euo pipefail
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            TARGET="x86_64-pc-windows-msvc"
-            BIN="cargo-nextest.exe"
-          else
-            TARGET="x86_64-unknown-linux-gnu"
-            BIN="cargo-nextest"
-          fi
+          case "${{ runner.os }}" in
+            Windows)
+              TARGET="x86_64-pc-windows-msvc"
+              BIN="cargo-nextest.exe"
+              ;;
+            macOS)
+              ARCH="$(uname -m)"
+              if [ "$ARCH" = "arm64" ]; then
+                TARGET="aarch64-apple-darwin"
+              else
+                TARGET="x86_64-apple-darwin"
+              fi
+              BIN="cargo-nextest"
+              ;;
+            *)
+              TARGET="x86_64-unknown-linux-gnu"
+              BIN="cargo-nextest"
+              ;;
+          esac
           URL="https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-${NEXTEST_VERSION}/cargo-nextest-${NEXTEST_VERSION}-${TARGET}.tar.gz"
           echo "Downloading nextest ${NEXTEST_VERSION} for ${TARGET}"
           curl -fsSL "$URL" -o nextest.tar.gz
@@ -82,6 +112,10 @@ jobs:
           BINPATH=$(find . -name "$BIN" | head -n1)
           mkdir -p "$HOME/.cargo/bin"
           mv "$BINPATH" "$HOME/.cargo/bin/$BIN"
+          chmod +x "$HOME/.cargo/bin/$BIN"
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            xattr -d com.apple.quarantine "$HOME/.cargo/bin/$BIN" 2>/dev/null || true
+          fi
           "$HOME/.cargo/bin/$BIN" --version
 
       - name: Run tests (nextest)
