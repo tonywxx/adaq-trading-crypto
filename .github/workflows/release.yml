@@ -42,16 +42,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install openssl -y
+          # Pin to OpenSSL 3.x: openssl-sys 0.9.117 supports up to 3.5, while
+          # choco's unpinned "openssl" now resolves to 4.0 (unsupported and
+          # rejected by openssl-sys). x64 import libs live in lib\VC\x64\MD.
+          choco install openssl --version=3.4.1 -y
           $opensslDir = "C:\Program Files\OpenSSL-Win64"
-          $libs = @(Get-ChildItem $opensslDir -Recurse -Filter "libcrypto.lib" -ErrorAction SilentlyContinue)
-          $mdLib = $libs | Where-Object { $_.DirectoryName -like "*\MD" } | Select-Object -First 1
-          if ($mdLib) { $lib = $mdLib.DirectoryName }
-          elseif ($libs.Count -gt 0) { $lib = $libs[0].DirectoryName }
-          else { $lib = "$opensslDir\lib" }
           echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
           echo "OPENSSL_INCLUDE_DIR=$opensslDir\include" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$lib" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC\x64\MD" >> $env:GITHUB_ENV
           echo "$opensslDir\bin" >> $env:GITHUB_PATH
 
       # macOS ships LibreSSL, not OpenSSL; install OpenSSL via Homebrew and link
