@@ -243,7 +243,6 @@ hmac = "0.13"
 libsecp256k1 = "0.7"
 num-bigint = "0.5.1"
 num-traits = "0.2"
-openssl = "0.10.81"
 reqwest = {version = "0.13.4", default-features = false, features = [
   "json",
   "rustls",
@@ -263,6 +262,16 @@ tokio = {version = "1.53.1", features = [
 tokio-tungstenite = {version = "0.30.0", features = [
   "rustls-tls-native-roots",
 ]}
+
+# On Windows we build OpenSSL from source (vendored) via openssl-src, because
+# no reliably usable system OpenSSL is available there for openssl-sys: choco's
+# pinned 3.x installer URLs are dead and its current 4.x package layout is
+# incomplete. Other platforms use system OpenSSL.
+[target.'cfg(windows)'.dependencies]
+openssl = {version = "0.10.81", features = ["vendored"]}
+
+[target.'cfg(not(windows))'.dependencies]
+openssl = "0.10.81"
 
 [build-dependencies]
 regex = "1.13.1"

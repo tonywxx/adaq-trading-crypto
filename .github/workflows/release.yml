@@ -37,20 +37,14 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
 
-      # openssl-sys needs OpenSSL on the system; Windows runners lack it.
-      - name: Install OpenSSL (Windows)
+      # On Windows the openssl dependency is built from source via its
+      # "vendored" feature (openssl-src), which needs Perl + NASM + MSVC on the
+      # runner; no system OpenSSL is required.
+      - name: Install OpenSSL build tools (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Pin to OpenSSL 3.x: openssl-sys 0.9.117 supports up to 3.5, while
-          # choco's unpinned "openssl" now resolves to 4.0 (unsupported and
-          # rejected by openssl-sys). x64 import libs live in lib\VC\x64\MD.
-          choco install openssl --version=3.4.1 -y
-          $opensslDir = "C:\Program Files\OpenSSL-Win64"
-          echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=$opensslDir\include" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC\x64\MD" >> $env:GITHUB_ENV
-          echo "$opensslDir\bin" >> $env:GITHUB_PATH
+          choco install strawberryperl nasm -y
 
       # macOS ships LibreSSL, not OpenSSL; install OpenSSL via Homebrew and link
       # it statically (OPENSSL_STATIC) to avoid runtime dylib path issues.

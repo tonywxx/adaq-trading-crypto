@@ -29,23 +29,16 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # openssl-sys needs OpenSSL on the system. Linux runners have it; Windows
-      # does not, so install it via Chocolatey and point openssl-sys at it
-      # (with the DLL dir on PATH so tests can load it at runtime). The lib dir
-      # layout varies by choco package, so locate the actual .lib dir dynamically.
-      - name: Install OpenSSL (Windows)
+      # On Windows the openssl dependency is built from source via its
+      # "vendored" feature (openssl-src), because no reliably downloadable
+      # system OpenSSL 3.x exists for Windows anymore (choco's pinned 3.x URLs
+      # are dead and its current 4.x layout is unsupported by openssl-sys).
+      # Vendored needs Perl + NASM + MSVC on the runner.
+      - name: Install OpenSSL build tools (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Pin to OpenSSL 3.x: openssl-sys 0.9.117 supports up to 3.5, while
-          # choco's unpinned "openssl" now resolves to 4.0 (unsupported and
-          # rejected by openssl-sys). x64 import libs live in lib\VC\x64\MD.
-          choco install openssl --version=3.4.1 -y
-          $opensslDir = "C:\Program Files\OpenSSL-Win64"
-          echo "OPENSSL_DIR=$opensslDir" >> $env:GITHUB_ENV
-          echo "OPENSSL_INCLUDE_DIR=$opensslDir\include" >> $env:GITHUB_ENV
-          echo "OPENSSL_LIB_DIR=$opensslDir\lib\VC\x64\MD" >> $env:GITHUB_ENV
-          echo "$opensslDir\bin" >> $env:GITHUB_PATH
+          choco install strawberryperl nasm -y
 
       # macOS ships LibreSSL, not OpenSSL, so install OpenSSL via Homebrew and
       # link it statically (OPENSSL_STATIC) to avoid runtime dylib path issues.
