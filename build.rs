@@ -170,11 +170,8 @@ fn gen_adapter_registration() {
     );
     for (module, struct_name, has_id) in &adapters {
         let cfg = format!("#[cfg(feature = \"{module}\")]");
-        let abs = adapters_root
-            .join(format!("{module}.rs"))
-            .display()
-            .to_string();
-        reg.push_str(&format!("{cfg} #[path = \"{abs}\"] pub mod {module};\n"));
+        let abs = format!("{:?}", adapters_root.join(format!("{module}.rs")));
+        reg.push_str(&format!("{cfg} #[path = {abs}] pub mod {module};\n"));
         if *has_id {
             let alias = format!("{}_ID", module.to_uppercase());
             reg.push_str(&format!(
