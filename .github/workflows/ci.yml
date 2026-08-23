@@ -29,21 +29,29 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # jq is needed for the MSRV pin check below and is not preinstalled on
-      # windows-latest; install it (along with nextest) cross-platform here.
-      - name: Install tooling (jq, nextest)
-        uses: taiki-e/install-action@v2
-        with:
-          tool: jq,nextest
-
+      # MSRV pin check without jq (jq is not preinstalled on windows-latest and
+      # pull-request runner images no longer allow taiki-e/install-action).
       - name: Check MSRV pin (edition 2024 / rust-version)
-        run: cargo metadata --no-deps --format-version 1 | jq -e '.packages[0].rust_version == "1.85"'
+        shell: bash
+        run: |
+          VER=$(cargo metadata --no-deps --format-version 1 | python3 -c "import sys,json; print(json.load(sys.stdin)['packages'][0]['rust_version'])")
+          echo "rust-version = $VER"
+          test "$VER" = "1.85"
 
       - name: Build (default features)
         run: cargo build --all-targets
 
       - name: Build (full features)
         run: cargo build --all-targets --all-features
+
+      # Install nextest via cargo (taiki-e/install-action is unusable on current
+      # runner images: it aborts on BASH_FUNC_ env vars / bash startup failures).
+      # RUSTFLAGS is cleared here so nextest's own dependency warnings don't fail
+      # the build under -D warnings.
+      - name: Install cargo-nextest
+        env:
+          RUSTFLAGS: ""
+        run: cargo install cargo-nextest --locked
 
       - name: Run tests (nextest)
         run: cargo nextest run --all-targets --all-features
