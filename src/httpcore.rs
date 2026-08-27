@@ -96,7 +96,10 @@ impl HttpCore {
         if self.enable_rate_limit {
             self.throttler.throttle(1).await;
         }
-        let value = self.transport.fetch_json(method, url, headers, body).await?;
+        let value = self
+            .transport
+            .fetch_json(method, url, headers, body)
+            .await?;
         // handle_errors 接缝(ADR-0013 四缝之一):HTTP 200 + 合法 JSON 仍可能
         // 是交易所业务错误体(如 OKX `{"code":"51000"}`、Kraken
         // `{"error":[...]}`),在此统一识别为分类错误,而非交给解析层静默失败。
