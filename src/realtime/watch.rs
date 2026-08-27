@@ -23,7 +23,9 @@ use tokio::sync::watch;
 #[cfg(feature = "realtime")]
 use crate::error::{Error, ErrorKind, Result};
 #[cfg(feature = "realtime")]
-use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, get_or_subscribe, wait_first};
+use crate::realtime::ws::{
+    ChannelMap, Conn, SubscriptionSet, get_or_subscribe, wait_first, ws_err,
+};
 
 /// watch 会话上下文:连接单例 + 订阅去重 + 帧发送端。
 #[cfg(feature = "realtime")]
@@ -101,6 +103,35 @@ impl WatchContext {
     /// 帧发送端(私密流与公共流共用同一连接时使用,如 kalshi)。
     pub fn sender(&self) -> Option<watch::Sender<Vec<String>>> {
         self.sub_tx.lock().unwrap().clone()
+    }
+
+    /// 懒建单例槽（私密流 Balances/Orders 等无 key 的单频道），返回 sender。
+    pub fn init_singleton<V: Clone>(
+        &self,
+        slot: &Mutex<Option<watch::Sender<V>>>,
+        default: V,
+    ) -> watch::Sender<V> {
+        let mut g = slot.lock().unwrap();
+        if g.is_none() {
+            let (tx, _) = watch::channel(default);
+            *g = Some(tx);
+        }
+        g.clone().unwrap()
+    }
+
+    /// 单例 watch：懒建槽 + 去重订阅 + 等首条（私密流统一入口，Q3/Q4）。
+    pub async fn watch_singleton<V: Clone>(
+        &self,
+        slot: &Mutex<Option<watch::Sender<V>>>,
+        default: V,
+        key: &str,
+        frame: impl FnOnce() -> String,
+    ) -> Result<V> {
+        let tx = self.init_singleton(slot, default);
+        self.subscribe(key, frame)?;
+        let mut rx = tx.subscribe();
+        rx.changed().await.map_err(ws_err)?;
+        Ok(rx.borrow().clone())
     }
 }
 

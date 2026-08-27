@@ -20,7 +20,7 @@ use crate::exchange::{Config, Params, Realtime};
 use crate::httpcore::{collect_levels, dec, iso8601, now_ms};
 use crate::realtime::orderbook::OrderBookStore;
 use crate::realtime::watch::WatchContext;
-use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, ws_err};
+use crate::realtime::ws::{ChannelMap, WsSession};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://stream.bybit.com/v5/public/spot";
@@ -38,7 +38,7 @@ pub struct BybitWs {
     /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0013 方向)。
     rest: Arc<crate::adapters::Bybit>,
     pub_connected: WatchContext,
-    priv_connected: Conn,
+    priv_watch: WatchContext,
     tickers: TickerChannel,
     books: BookChannel,
     book_stores: BookStoreMap,
@@ -48,8 +48,6 @@ pub struct BybitWs {
     orders: Mutex<Option<watch::Sender<Vec<Order>>>>,
     positions: Mutex<Option<watch::Sender<Vec<Position>>>>,
     my_trades: Mutex<Option<watch::Sender<Vec<Trade>>>>,
-    priv_subs: Mutex<SubscriptionSet>,
-    priv_sub_tx: Mutex<Option<watch::Sender<Vec<String>>>>,
 }
 
 impl BybitWs {
@@ -59,7 +57,7 @@ impl BybitWs {
             config,
             rest,
             pub_connected: WatchContext::new(),
-            priv_connected: Conn::new(),
+            priv_watch: WatchContext::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
             book_stores: Arc::new(Mutex::new(HashMap::new())),
@@ -69,8 +67,6 @@ impl BybitWs {
             orders: Mutex::new(None),
             positions: Mutex::new(None),
             my_trades: Mutex::new(None),
-            priv_subs: Mutex::new(SubscriptionSet::new()),
-            priv_sub_tx: Mutex::new(None),
         })
     }
 
@@ -105,25 +101,8 @@ impl BybitWs {
         })
     }
 
-    async fn subscribe_private(&self, channel: &str) -> Result<()> {
-        let key = format!("priv:{channel}");
-        let first = self.priv_subs.lock().unwrap().register(&key);
-        if !first {
-            return Ok(());
-        }
-        let tx = self
-            .priv_sub_tx
-            .lock()
-            .unwrap()
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "private ws not started"))?;
-        let frame = json!({"op": "subscribe", "args": [channel]}).to_string();
-        tx.send_modify(|list| list.push(frame));
-        Ok(())
-    }
-
     async fn ensure_private(&self) -> Result<()> {
-        if self.priv_connected.is_connected() {
+        if self.priv_watch.is_connected() {
             return Ok(());
         }
         let api_key = self
@@ -139,30 +118,39 @@ impl BybitWs {
         let ts = now_ms().to_string();
         let recv_window = "20000";
         let auth_str = format!("{ts}{api_key}{recv_window}");
-        // 复用签名深模块(签名合一,ADR-0013 sign 接缝)
         let signature = crate::signing::hmac_sha256_hex(secret, &auth_str);
         let auth_frame = json!({
             "op": "auth",
             "args": [api_key, ts, recv_window, signature]
         })
         .to_string();
+        self.priv_watch
+            .init_singleton(&self.balances, Balances::default());
+        self.priv_watch
+            .init_singleton(&self.orders, Vec::<Order>::new());
+        self.priv_watch
+            .init_singleton(&self.positions, Vec::<Position>::new());
+        self.priv_watch
+            .init_singleton(&self.my_trades, Vec::<Trade>::new());
         let balances = self.balances.lock().unwrap().clone();
         let orders = self.orders.lock().unwrap().clone();
         let positions = self.positions.lock().unwrap().clone();
         let my_trades = self.my_trades.lock().unwrap().clone();
         let rest = self.rest.clone();
         let headers = HeaderMap::new();
-        self.priv_connected.ensure(|| {
-            let (sub_tx, sub_rx) = tokio::sync::watch::channel(vec![auth_frame]);
-            *self.priv_sub_tx.lock().unwrap() = Some(sub_tx);
+        self.priv_watch.ensure(|sub_tx| {
             WsSession::spawn(
                 WS_PRIVATE.to_string(),
                 headers,
-                sub_rx,
+                sub_tx.subscribe(),
                 move |msg| dispatch_private(msg, &balances, &orders, &positions, &my_trades, &rest),
                 None,
             )
         });
+        self.priv_watch
+            .sender()
+            .unwrap()
+            .send_modify(|list| list.push(auth_frame));
         Ok(())
     }
 }
@@ -435,18 +423,11 @@ impl Realtime for BybitWs {
 
     async fn watch_balance(&self, _params: Params) -> Result<Balances> {
         self.ensure_private().await?;
-        self.subscribe_private("wallet").await?;
-        let tx = {
-            let mut b = self.balances.lock().unwrap();
-            if b.is_none() {
-                let (tx, _) = watch::channel(Balances::default());
-                *b = Some(tx);
-            }
-            b.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.balances, Balances::default(), "priv:wallet", || {
+                json!({"op": "subscribe", "args": ["wallet"]}).to_string()
+            })
+            .await
     }
 
     async fn watch_orders(
@@ -457,18 +438,11 @@ impl Realtime for BybitWs {
         _params: Params,
     ) -> Result<Vec<Order>> {
         self.ensure_private().await?;
-        self.subscribe_private("order").await?;
-        let tx = {
-            let mut o = self.orders.lock().unwrap();
-            if o.is_none() {
-                let (tx, _) = watch::channel(vec![]);
-                *o = Some(tx);
-            }
-            o.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.orders, Vec::new(), "priv:order", || {
+                json!({"op": "subscribe", "args": ["order"]}).to_string()
+            })
+            .await
     }
 
     async fn watch_my_trades(
@@ -479,18 +453,11 @@ impl Realtime for BybitWs {
         _params: Params,
     ) -> Result<Vec<Trade>> {
         self.ensure_private().await?;
-        self.subscribe_private("execution").await?;
-        let tx = {
-            let mut mt = self.my_trades.lock().unwrap();
-            if mt.is_none() {
-                let (tx, _) = watch::channel(vec![]);
-                *mt = Some(tx);
-            }
-            mt.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.my_trades, Vec::new(), "priv:execution", || {
+                json!({"op": "subscribe", "args": ["execution"]}).to_string()
+            })
+            .await
     }
 
     async fn watch_positions(
@@ -499,18 +466,11 @@ impl Realtime for BybitWs {
         _params: Params,
     ) -> Result<Vec<Position>> {
         self.ensure_private().await?;
-        self.subscribe_private("position").await?;
-        let tx = {
-            let mut p = self.positions.lock().unwrap();
-            if p.is_none() {
-                let (tx, _) = watch::channel(vec![]);
-                *p = Some(tx);
-            }
-            p.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.positions, Vec::new(), "priv:position", || {
+                json!({"op": "subscribe", "args": ["position"]}).to_string()
+            })
+            .await
     }
 }
 

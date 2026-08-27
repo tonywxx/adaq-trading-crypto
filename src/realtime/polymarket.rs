@@ -30,11 +30,11 @@ const USER_WS: &str = "wss://ws-subscriptions-clob.polymarket.com/ws/user";
 pub struct PolymarketWs {
     rest: crate::adapters::Polymarket,
     pub_watch: WatchContext,
+    priv_watch: WatchContext,
     books: std::sync::Arc<Mutex<HashMap<String, watch::Sender<OrderBook>>>>,
     book_stores: std::sync::Arc<Mutex<HashMap<String, OrderBookStore>>>,
     tickers: std::sync::Arc<Mutex<HashMap<String, watch::Sender<Ticker>>>>,
     trades: std::sync::Arc<Mutex<HashMap<String, watch::Sender<Vec<Trade>>>>>,
-    user_sub_tx: Mutex<Option<tokio::sync::watch::Sender<Vec<String>>>>,
     orders: Mutex<Option<watch::Sender<Vec<Order>>>>,
     my_trades: Mutex<Option<watch::Sender<Vec<Trade>>>>,
 }
@@ -45,11 +45,11 @@ impl PolymarketWs {
         Ok(Self {
             rest,
             pub_watch: WatchContext::new(),
+            priv_watch: WatchContext::new(),
             books: std::sync::Arc::new(Mutex::new(HashMap::new())),
             book_stores: std::sync::Arc::new(Mutex::new(HashMap::new())),
             tickers: std::sync::Arc::new(Mutex::new(HashMap::new())),
             trades: std::sync::Arc::new(Mutex::new(HashMap::new())),
-            user_sub_tx: Mutex::new(None),
             orders: Mutex::new(None),
             my_trades: Mutex::new(None),
         })
@@ -90,10 +90,9 @@ impl PolymarketWs {
     async fn ensure_user(
         &self,
     ) -> Result<(watch::Receiver<Vec<Order>>, watch::Receiver<Vec<Trade>>)> {
-        if let Some(rx) = self.user_sub_tx.lock().unwrap().clone() {
+        if self.priv_watch.is_connected() {
             let orders = self.orders.lock().unwrap().clone().unwrap().subscribe();
             let mt = self.my_trades.lock().unwrap().clone().unwrap().subscribe();
-            let _ = rx;
             return Ok((orders, mt));
         }
         let api_key =
@@ -108,27 +107,22 @@ impl PolymarketWs {
             self.rest.config().password.as_deref().ok_or_else(|| {
                 Error::new(ErrorKind::Authentication, "polymarket password required")
             })?;
-        let mut orders_map = self.orders.lock().unwrap();
-        if orders_map.is_none() {
-            let (tx, _) = watch::channel(vec![]);
-            *orders_map = Some(tx);
-        }
+        self.priv_watch
+            .init_singleton(&self.orders, Vec::<Order>::new());
+        self.priv_watch
+            .init_singleton(&self.my_trades, Vec::<Trade>::new());
         let orders_tx = self.orders.lock().unwrap().clone().unwrap();
-        let mut mt_map = self.my_trades.lock().unwrap();
-        if mt_map.is_none() {
-            let (tx, _) = watch::channel(vec![]);
-            *mt_map = Some(tx);
-        }
         let mt_tx = self.my_trades.lock().unwrap().clone().unwrap();
-        let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
         let headers = reqwest::header::HeaderMap::new();
-        let _ = WsSession::spawn(
-            USER_WS.to_string(),
-            headers,
-            sub_rx,
-            move |msg| dispatch_user(msg, &orders_tx, &mt_tx),
-            None,
-        );
+        self.priv_watch.ensure(|sub_tx| {
+            WsSession::spawn(
+                USER_WS.to_string(),
+                headers,
+                sub_tx.subscribe(),
+                move |msg| dispatch_user(msg, &orders_tx, &mt_tx),
+                None,
+            )
+        });
         let auth = json!({
             "auth": {
                 "apiKey": api_key,
@@ -139,8 +133,8 @@ impl PolymarketWs {
             "type": "user",
         })
         .to_string();
-        sub_tx.send_modify(|list| list.push(auth));
-        *self.user_sub_tx.lock().unwrap() = Some(sub_tx);
+        // 经 WatchContext 去重通道发送认证帧（幂等：重复 ensure 不重发）
+        self.priv_watch.subscribe("priv:auth", || auth.clone()).ok();
         let orders = self.orders.lock().unwrap().clone().unwrap().subscribe();
         let mt = self.my_trades.lock().unwrap().clone().unwrap().subscribe();
         Ok((orders, mt))

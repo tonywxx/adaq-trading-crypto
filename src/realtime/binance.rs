@@ -23,7 +23,7 @@ use crate::exchange::{Config, Exchange, Params, Realtime};
 use crate::httpcore::{collect_levels, dec, iso8601};
 use crate::realtime::orderbook::OrderBookStore;
 use crate::realtime::watch::WatchContext;
-use crate::realtime::ws::{ChannelMap, Conn, WsSession, ws_err};
+use crate::realtime::ws::{ChannelMap, WsSession, ws_err};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_BASE: &str = "wss://stream.binance.com:9443/ws";
@@ -46,8 +46,8 @@ pub struct BinanceWs {
     book_stores: BookStoreMap,
     trades: TradeChannel,
     ohlcvs: OhlcvChannel,
-    // 私密流
-    user_connected: Conn,
+    // 私密流（统一为 WatchContext，复用去重/单例助手）
+    priv_watch: WatchContext,
     balances: Mutex<Option<watch::Sender<Balances>>>,
     orders: Mutex<Option<watch::Sender<Vec<Order>>>>,
     my_trades: Mutex<Option<watch::Sender<Vec<Trade>>>>,
@@ -65,7 +65,7 @@ impl BinanceWs {
             book_stores: Arc::new(Mutex::new(HashMap::new())),
             trades: Arc::new(Mutex::new(HashMap::new())),
             ohlcvs: Arc::new(Mutex::new(HashMap::new())),
-            user_connected: Conn::new(),
+            priv_watch: WatchContext::new(),
             balances: Mutex::new(None),
             orders: Mutex::new(None),
             my_trades: Mutex::new(None),
@@ -444,7 +444,7 @@ impl BinanceWs {
         watch::Receiver<Vec<Order>>,
         watch::Receiver<Vec<Trade>>,
     )> {
-        if self.user_connected.is_connected() {
+        if self.priv_watch.is_connected() {
             let balance = self.balances.lock().unwrap().clone().map(|t| t.subscribe());
             let orders = self.orders.lock().unwrap().clone().unwrap().subscribe();
             let my_trades = self.my_trades.lock().unwrap().clone().unwrap().subscribe();
@@ -453,33 +453,22 @@ impl BinanceWs {
         // 获取 listenKey(委托 Binance REST 适配器,ADR-0015)
         let listen_key = self.rest.fetch_listen_key().await?;
         let url = format!("{WS_BASE}/{listen_key}");
-        // 用户流以 listenKey 作为 URL 路径,无需额外认证头
         let headers = HeaderMap::new();
-        // 初始 channel
-        let mut channels = self.balances.lock().unwrap();
-        if channels.is_none() {
-            let (tx, _) = watch::channel(Balances::default());
-            *channels = Some(tx);
-        }
+        // 预建槽，确保 dispatch 持有 Some（修复旧时序缝隙）
+        self.priv_watch
+            .init_singleton(&self.balances, Balances::default());
+        self.priv_watch
+            .init_singleton(&self.orders, Vec::<Order>::new());
+        self.priv_watch
+            .init_singleton(&self.my_trades, Vec::<Trade>::new());
         let balances = self.balances.lock().unwrap().clone();
-        let mut orders = self.orders.lock().unwrap();
-        if orders.is_none() {
-            let (tx, _) = watch::channel(vec![]);
-            *orders = Some(tx);
-        }
         let orders_tx = self.orders.lock().unwrap().clone();
-        let mut mt = self.my_trades.lock().unwrap();
-        if mt.is_none() {
-            let (tx, _) = watch::channel(vec![]);
-            *mt = Some(tx);
-        }
         let mt_tx = self.my_trades.lock().unwrap().clone();
-        let (_, sub_rx) = tokio::sync::watch::channel(Vec::new());
-        self.user_connected.ensure(|| {
+        self.priv_watch.ensure(|sub_tx| {
             WsSession::spawn(
                 url,
                 headers,
-                sub_rx,
+                sub_tx.subscribe(),
                 move |msg| dispatch_user(msg, &balances, &orders_tx, &mt_tx),
                 None,
             )

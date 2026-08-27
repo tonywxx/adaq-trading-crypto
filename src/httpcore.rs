@@ -11,16 +11,29 @@ use std::sync::Mutex;
 use reqwest::header::HeaderMap;
 use serde_json::Value;
 
-use crate::client::Client;
 use crate::error::{Error, ErrorContext, ErrorKind, Result};
 use crate::exchange::{Config, Params};
-#[cfg(test)]
-use crate::transport::Transport;
+use crate::throttle::{ThrottleMode, Throttler};
+use crate::transport::{ReqwestTransport, Transport};
 use crate::types::{Level, Markets, OHLCV};
+
+fn build_throttler(rate_limit_ms: u64) -> Throttler {
+    let refill_rate = if rate_limit_ms > 0 {
+        1000.0 / rate_limit_ms as f64
+    } else {
+        1e6
+    };
+    Throttler::new(ThrottleMode::LeakyBucket {
+        capacity: refill_rate,
+        refill_rate,
+    })
+}
 
 /// 交易所无关核心:HTTP 客户端 + 市集缓存。
 pub struct HttpCore {
-    client: Client,
+    transport: Box<dyn Transport + Send + Sync>,
+    throttler: Throttler,
+    enable_rate_limit: bool,
     base_url: String,
     markets: Mutex<Option<Markets>>,
     /// 交易所 id(如 `binance`),供 `handle_errors` 接缝在错误上下文标注来源。
@@ -44,15 +57,15 @@ impl HttpCore {
         } else {
             default_rate_limit_ms
         };
-        let client = Client::new(
+        let transport = ReqwestTransport::new(
             config.timeout_ms,
             config.max_retries,
             config.proxy.as_deref(),
-            rate_limit_ms,
-            config.enable_rate_limit,
         )?;
         Ok(Self {
-            client,
+            transport: Box::new(transport),
+            throttler: build_throttler(rate_limit_ms),
+            enable_rate_limit: config.enable_rate_limit,
             base_url: base_url.to_string(),
             markets: Mutex::new(None),
             exchange,
@@ -80,7 +93,10 @@ impl HttpCore {
         headers: &HeaderMap,
         body: Option<Value>,
     ) -> Result<Value> {
-        let value = self.client.request(method, url, headers, body).await?;
+        if self.enable_rate_limit {
+            self.throttler.throttle(1).await;
+        }
+        let value = self.transport.fetch_json(method, url, headers, body).await?;
         // handle_errors 接缝(ADR-0013 四缝之一):HTTP 200 + 合法 JSON 仍可能
         // 是交易所业务错误体(如 OKX `{"code":"51000"}`、Kraken
         // `{"error":[...]}`),在此统一识别为分类错误,而非交给解析层静默失败。
@@ -122,7 +138,7 @@ impl HttpCore {
     /// 运行时替换传输(离线测试桩注入,候选 6)。仅测试构建可用。
     #[cfg(test)]
     pub(crate) fn set_transport(&mut self, transport: Box<dyn Transport + Send + Sync>) {
-        self.client.set_transport(transport);
+        self.transport = transport;
     }
 }
 
@@ -802,5 +818,38 @@ mod tests {
             resolve_timeframe(tf, "2w").err().map(|e| e.kind),
             Some(ErrorKind::BadRequest)
         );
+    }
+
+    // ---- 薄栈注入缝:HttpCore 直持 Transport 可离线桩 ----
+    #[tokio::test]
+    async fn request_uses_injected_mock_transport() {
+        use crate::exchange::Config;
+        use crate::transport::MockTransport;
+        use reqwest::header::HeaderMap;
+
+        let config = Config {
+            timeout_ms: 1000,
+            max_retries: 0,
+            proxy: None,
+            rate_limit_ms: 0,
+            enable_rate_limit: false,
+            ..Default::default()
+        };
+        let mut core = HttpCore::new(&config, "https://api.mock.com", 0, "mock").unwrap();
+        let (mock, recorded) = MockTransport::new(json!({ "ok": true }));
+        core.set_transport(Box::new(mock));
+        let headers = HeaderMap::new();
+        let resp = core
+            .request_url(
+                "GET",
+                "https://api.mock.com/v1/klines?symbol=BTCUSDT",
+                &headers,
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp, json!({ "ok": true }));
+        let url = recorded.lock().unwrap().as_ref().unwrap().url.clone();
+        assert!(url.contains("symbol=BTCUSDT"), "应记录发出的 URL,url={url}");
     }
 }

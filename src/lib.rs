@@ -12,7 +12,6 @@
 //! 参考 ccxt 源码,相应文件保留 MIT 声明(见仓库 `NOTICE`)。
 
 pub mod adapters;
-pub mod client;
 pub mod contract_gen;
 pub mod decimal;
 pub mod eip712;

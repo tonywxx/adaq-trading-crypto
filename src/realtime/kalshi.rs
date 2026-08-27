@@ -24,7 +24,7 @@ use crate::exchange::{Config, Exchange, Params, Realtime};
 use crate::httpcore::{collect_levels, dec, iso8601, now_ms};
 use crate::realtime::orderbook::OrderBookStore;
 use crate::realtime::watch::WatchContext;
-use crate::realtime::ws::{WsSession, ws_err};
+use crate::realtime::ws::WsSession;
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_BASE: &str = "wss://external-api-ws.kalshi.com/trade-api/ws/v2";
@@ -395,21 +395,16 @@ impl Realtime for KalshiWs {
         _params: Params,
     ) -> Result<Vec<Order>> {
         self.ensure_conn()?;
-        let tx = self
-            .pub_watch
-            .sender()
-            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
-        let frame = json!({
-            "id": 2,
-            "cmd": "subscribe",
-            "params": {"channels": ["order"]},
-        })
-        .to_string();
-        tx.send_modify(|list| list.push(frame));
-        let rx = self.orders.lock().unwrap().clone().unwrap().subscribe();
-        let mut rx = rx;
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.pub_watch
+            .watch_singleton(&self.orders, vec![], "priv:order", || {
+                json!({
+                    "id": 2,
+                    "cmd": "subscribe",
+                    "params": {"channels": ["order"]},
+                })
+                .to_string()
+            })
+            .await
     }
 
     async fn watch_my_trades(
@@ -420,21 +415,16 @@ impl Realtime for KalshiWs {
         _params: Params,
     ) -> Result<Vec<Trade>> {
         self.ensure_conn()?;
-        let tx = self
-            .pub_watch
-            .sender()
-            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
-        let frame = json!({
-            "id": 3,
-            "cmd": "subscribe",
-            "params": {"channels": ["fill"]},
-        })
-        .to_string();
-        tx.send_modify(|list| list.push(frame));
-        let rx = self.my_trades.lock().unwrap().clone().unwrap().subscribe();
-        let mut rx = rx;
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.pub_watch
+            .watch_singleton(&self.my_trades, vec![], "priv:fill", || {
+                json!({
+                    "id": 3,
+                    "cmd": "subscribe",
+                    "params": {"channels": ["fill"]},
+                })
+                .to_string()
+            })
+            .await
     }
 
     async fn watch_positions(
@@ -443,21 +433,16 @@ impl Realtime for KalshiWs {
         _params: Params,
     ) -> Result<Vec<Position>> {
         self.ensure_conn()?;
-        let tx = self
-            .pub_watch
-            .sender()
-            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "ws not started"))?;
-        let frame = json!({
-            "id": 4,
-            "cmd": "subscribe",
-            "params": {"channels": ["market_positions"]},
-        })
-        .to_string();
-        tx.send_modify(|list| list.push(frame));
-        let rx = self.positions.lock().unwrap().clone().unwrap().subscribe();
-        let mut rx = rx;
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.pub_watch
+            .watch_singleton(&self.positions, vec![], "priv:market_positions", || {
+                json!({
+                    "id": 4,
+                    "cmd": "subscribe",
+                    "params": {"channels": ["market_positions"]},
+                })
+                .to_string()
+            })
+            .await
     }
 }
 

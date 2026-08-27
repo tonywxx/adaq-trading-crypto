@@ -23,7 +23,7 @@ use crate::exchange::{Config, Params, Realtime};
 use crate::httpcore::{collect_levels, iso8601, now_ms};
 use crate::realtime::orderbook::{OrderBookStore, PriceChange};
 use crate::realtime::watch::WatchContext;
-use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, ws_err};
+use crate::realtime::ws::{ChannelMap, WsSession};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://ws.kraken.com";
@@ -41,7 +41,7 @@ pub struct KrakenWs {
     /// WS token 获取复用其 private_post(签名合一,ADR-0013 sign 接缝)。
     rest: std::sync::Arc<crate::adapters::Kraken>,
     pub_connected: WatchContext,
-    priv_connected: Conn,
+    priv_watch: WatchContext,
     tickers: TickerChannel,
     books: BookChannel,
     book_stores: BookStoreMap,
@@ -50,8 +50,6 @@ pub struct KrakenWs {
     balances: Mutex<Option<watch::Sender<Balances>>>,
     orders: Mutex<Option<watch::Sender<Vec<Order>>>>,
     my_trades: Mutex<Option<watch::Sender<Vec<Trade>>>>,
-    priv_subs: Mutex<SubscriptionSet>,
-    priv_sub_tx: Mutex<Option<watch::Sender<Vec<String>>>>,
 }
 
 impl KrakenWs {
@@ -60,7 +58,7 @@ impl KrakenWs {
         Ok(Self {
             rest,
             pub_connected: WatchContext::new(),
-            priv_connected: Conn::new(),
+            priv_watch: WatchContext::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
             book_stores: Arc::new(Mutex::new(HashMap::new())),
@@ -69,8 +67,6 @@ impl KrakenWs {
             balances: Mutex::new(None),
             orders: Mutex::new(None),
             my_trades: Mutex::new(None),
-            priv_subs: Mutex::new(SubscriptionSet::new()),
-            priv_sub_tx: Mutex::new(None),
         })
     }
 
@@ -115,27 +111,6 @@ impl KrakenWs {
         })
     }
 
-    async fn subscribe_private(&self, name: &str, token: &str) -> Result<()> {
-        let key = format!("priv:{name}");
-        let first = self.priv_subs.lock().unwrap().register(&key);
-        if !first {
-            return Ok(());
-        }
-        let tx = self
-            .priv_sub_tx
-            .lock()
-            .unwrap()
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "private ws not started"))?;
-        let frame = json!({
-            "event": "subscribe",
-            "subscription": {"name": name, "token": token}
-        })
-        .to_string();
-        tx.send_modify(|list| list.push(frame));
-        Ok(())
-    }
-
     async fn fetch_ws_token(&self) -> Result<String> {
         // 复用 REST 适配器 private_post(签名+请求路径同构,sign 接缝),不再内联 SHA512。
         let resp = self
@@ -149,22 +124,27 @@ impl KrakenWs {
     }
 
     async fn ensure_private(&self) -> Result<()> {
-        if self.priv_connected.is_connected() {
+        if self.priv_watch.is_connected() {
             return Ok(());
         }
-        let token = self.fetch_ws_token().await?;
+        self.priv_watch
+            .init_singleton(&self.balances, Balances::default());
+        self.priv_watch
+            .init_singleton(&self.orders, Vec::<Order>::new());
+        self.priv_watch
+            .init_singleton(&self.my_trades, Vec::<Trade>::new());
         let balances = self.balances.lock().unwrap().clone();
         let orders = self.orders.lock().unwrap().clone();
         let my_trades = self.my_trades.lock().unwrap().clone();
         let headers = HeaderMap::new();
-        self.priv_connected.ensure(|| {
-            let (sub_tx, sub_rx) = tokio::sync::watch::channel(Vec::new());
-            *self.priv_sub_tx.lock().unwrap() = Some(sub_tx);
-            let token_clone = token.clone();
+        // kraken 私密 token 在订阅时携带，连接本身无需认证；此处仅建连接
+        let token_holder = String::new();
+        self.priv_watch.ensure(|sub_tx| {
+            let token_clone = token_holder.clone();
             WsSession::spawn(
                 WS_PRIVATE.to_string(),
                 headers,
-                sub_rx,
+                sub_tx.subscribe(),
                 move |msg| dispatch_private(msg, &balances, &orders, &my_trades, &token_clone),
                 None,
             )
@@ -480,18 +460,15 @@ impl Realtime for KrakenWs {
     async fn watch_balance(&self, _params: Params) -> Result<Balances> {
         self.ensure_private().await?;
         let token = self.fetch_ws_token().await?;
-        self.subscribe_private("balance", &token).await?;
-        let tx = {
-            let mut b = self.balances.lock().unwrap();
-            if b.is_none() {
-                let (tx, _) = watch::channel(Balances::default());
-                *b = Some(tx);
-            }
-            b.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.balances, Balances::default(), "priv:balance", || {
+                json!({
+                    "event": "subscribe",
+                    "subscription": {"name": "balance", "token": token.clone()}
+                })
+                .to_string()
+            })
+            .await
     }
 
     async fn watch_orders(
@@ -503,18 +480,15 @@ impl Realtime for KrakenWs {
     ) -> Result<Vec<Order>> {
         self.ensure_private().await?;
         let token = self.fetch_ws_token().await?;
-        self.subscribe_private("openOrders", &token).await?;
-        let tx = {
-            let mut o = self.orders.lock().unwrap();
-            if o.is_none() {
-                let (tx, _) = watch::channel(vec![]);
-                *o = Some(tx);
-            }
-            o.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.orders, Vec::new(), "priv:openOrders", || {
+                json!({
+                    "event": "subscribe",
+                    "subscription": {"name": "openOrders", "token": token.clone()}
+                })
+                .to_string()
+            })
+            .await
     }
 
     async fn watch_my_trades(
@@ -526,18 +500,15 @@ impl Realtime for KrakenWs {
     ) -> Result<Vec<Trade>> {
         self.ensure_private().await?;
         let token = self.fetch_ws_token().await?;
-        self.subscribe_private("ownTrades", &token).await?;
-        let tx = {
-            let mut mt = self.my_trades.lock().unwrap();
-            if mt.is_none() {
-                let (tx, _) = watch::channel(vec![]);
-                *mt = Some(tx);
-            }
-            mt.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.my_trades, Vec::new(), "priv:ownTrades", || {
+                json!({
+                    "event": "subscribe",
+                    "subscription": {"name": "ownTrades", "token": token.clone()}
+                })
+                .to_string()
+            })
+            .await
     }
 
     async fn watch_positions(

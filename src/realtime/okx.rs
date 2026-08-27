@@ -23,7 +23,7 @@ use crate::exchange::{Config, Params, Realtime};
 use crate::httpcore::{collect_levels, dec, iso8601, now_ms};
 use crate::realtime::orderbook::OrderBookStore;
 use crate::realtime::watch::WatchContext;
-use crate::realtime::ws::{ChannelMap, Conn, SubscriptionSet, WsSession, ws_err};
+use crate::realtime::ws::{ChannelMap, WsSession};
 use crate::types::{Balances, OHLCV, Order, OrderBook, Position, Ticker, Trade};
 
 const WS_PUBLIC: &str = "wss://ws.okx.com:8443/ws/v5/public";
@@ -41,7 +41,7 @@ pub struct OkxWs {
     /// REST 适配器实例:WS 消息复用其 parse_* 解析(解析合一,ADR-0013 方向)。
     rest: Arc<crate::adapters::Okx>,
     pub_connected: WatchContext,
-    priv_connected: Conn,
+    priv_watch: WatchContext,
     tickers: TickerChannel,
     books: BookChannel,
     book_stores: BookStoreMap,
@@ -51,8 +51,6 @@ pub struct OkxWs {
     orders: Mutex<Option<watch::Sender<Vec<Order>>>>,
     positions: Mutex<Option<watch::Sender<Vec<Position>>>>,
     my_trades: Mutex<Option<watch::Sender<Vec<Trade>>>>,
-    priv_subs: Mutex<SubscriptionSet>,
-    priv_sub_tx: Mutex<Option<watch::Sender<Vec<String>>>>,
 }
 
 impl OkxWs {
@@ -62,7 +60,7 @@ impl OkxWs {
             config,
             rest,
             pub_connected: WatchContext::new(),
-            priv_connected: Conn::new(),
+            priv_watch: WatchContext::new(),
             tickers: Arc::new(Mutex::new(HashMap::new())),
             books: Arc::new(Mutex::new(HashMap::new())),
             book_stores: Arc::new(Mutex::new(HashMap::new())),
@@ -72,8 +70,6 @@ impl OkxWs {
             orders: Mutex::new(None),
             positions: Mutex::new(None),
             my_trades: Mutex::new(None),
-            priv_subs: Mutex::new(SubscriptionSet::new()),
-            priv_sub_tx: Mutex::new(None),
         })
     }
 
@@ -113,32 +109,8 @@ impl OkxWs {
             })
     }
 
-    async fn subscribe_private(&self, channel: &str) -> Result<()> {
-        let first = self
-            .priv_subs
-            .lock()
-            .unwrap()
-            .register(&format!("priv:{channel}"));
-        if !first {
-            return Ok(());
-        }
-        let tx = self
-            .priv_sub_tx
-            .lock()
-            .unwrap()
-            .clone()
-            .ok_or_else(|| Error::new(ErrorKind::NetworkError, "private ws not started"))?;
-        let frame = json!({
-            "op": "subscribe",
-            "args": [{"channel": channel, "instType": "SPOT"}]
-        })
-        .to_string();
-        tx.send_modify(|list| list.push(frame));
-        Ok(())
-    }
-
     async fn ensure_private(&self) -> Result<()> {
-        if self.priv_connected.is_connected() {
+        if self.priv_watch.is_connected() {
             return Ok(());
         }
         // 构造登录帧与私密连接
@@ -160,23 +132,35 @@ impl OkxWs {
             "args": [{"apiKey": api_key, "passphrase": passphrase, "timestamp": ts, "sign": sign}]
         })
         .to_string();
+        // 预建槽，保证 dispatch 持有 Some sender（修复旧版 ensure 早于 slot 初始化的时序缝隙）
+        self.priv_watch
+            .init_singleton(&self.balances, Balances::default());
+        self.priv_watch
+            .init_singleton(&self.orders, Vec::<Order>::new());
+        self.priv_watch
+            .init_singleton(&self.positions, Vec::<Position>::new());
+        self.priv_watch
+            .init_singleton(&self.my_trades, Vec::<Trade>::new());
         let balances = self.balances.lock().unwrap().clone();
         let orders = self.orders.lock().unwrap().clone();
         let positions = self.positions.lock().unwrap().clone();
         let my_trades = self.my_trades.lock().unwrap().clone();
         let rest = self.rest.clone();
         let headers = HeaderMap::new();
-        self.priv_connected.ensure(|| {
-            let (sub_tx, sub_rx) = tokio::sync::watch::channel(vec![login_frame]);
-            *self.priv_sub_tx.lock().unwrap() = Some(sub_tx);
+        self.priv_watch.ensure(|sub_tx| {
             WsSession::spawn(
                 WS_PRIVATE.to_string(),
                 headers,
-                sub_rx,
+                sub_tx.subscribe(),
                 move |msg| dispatch_private(msg, &balances, &orders, &positions, &my_trades, &rest),
                 None,
             )
         });
+        // 登录帧经 WatchContext 去重通道发送（首个私密订阅前完成认证）
+        self.priv_watch
+            .sender()
+            .unwrap()
+            .send_modify(|list| list.push(login_frame));
         Ok(())
     }
 }
@@ -410,18 +394,15 @@ impl Realtime for OkxWs {
 
     async fn watch_balance(&self, _params: Params) -> Result<Balances> {
         self.ensure_private().await?;
-        self.subscribe_private("account").await?;
-        let tx = {
-            let mut b = self.balances.lock().unwrap();
-            if b.is_none() {
-                let (tx, _) = watch::channel(Balances::default());
-                *b = Some(tx);
-            }
-            b.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.balances, Balances::default(), "priv:account", || {
+                json!({
+                    "op": "subscribe",
+                    "args": [{"channel": "account", "instType": "SPOT"}]
+                })
+                .to_string()
+            })
+            .await
     }
 
     async fn watch_orders(
@@ -432,18 +413,15 @@ impl Realtime for OkxWs {
         _params: Params,
     ) -> Result<Vec<Order>> {
         self.ensure_private().await?;
-        self.subscribe_private("orders").await?;
-        let tx = {
-            let mut o = self.orders.lock().unwrap();
-            if o.is_none() {
-                let (tx, _) = watch::channel(vec![]);
-                *o = Some(tx);
-            }
-            o.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.orders, Vec::new(), "priv:orders", || {
+                json!({
+                    "op": "subscribe",
+                    "args": [{"channel": "orders", "instType": "SPOT"}]
+                })
+                .to_string()
+            })
+            .await
     }
 
     async fn watch_my_trades(
@@ -454,18 +432,15 @@ impl Realtime for OkxWs {
         _params: Params,
     ) -> Result<Vec<Trade>> {
         self.ensure_private().await?;
-        self.subscribe_private("fills").await?;
-        let tx = {
-            let mut mt = self.my_trades.lock().unwrap();
-            if mt.is_none() {
-                let (tx, _) = watch::channel(vec![]);
-                *mt = Some(tx);
-            }
-            mt.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.my_trades, Vec::new(), "priv:fills", || {
+                json!({
+                    "op": "subscribe",
+                    "args": [{"channel": "fills", "instType": "SPOT"}]
+                })
+                .to_string()
+            })
+            .await
     }
 
     async fn watch_positions(
@@ -474,18 +449,15 @@ impl Realtime for OkxWs {
         _params: Params,
     ) -> Result<Vec<Position>> {
         self.ensure_private().await?;
-        self.subscribe_private("positions").await?;
-        let tx = {
-            let mut p = self.positions.lock().unwrap();
-            if p.is_none() {
-                let (tx, _) = watch::channel(vec![]);
-                *p = Some(tx);
-            }
-            p.clone().unwrap()
-        };
-        let mut rx = tx.subscribe();
-        rx.changed().await.map_err(ws_err)?;
-        Ok(rx.borrow().clone())
+        self.priv_watch
+            .watch_singleton(&self.positions, Vec::new(), "priv:positions", || {
+                json!({
+                    "op": "subscribe",
+                    "args": [{"channel": "positions", "instType": "SPOT"}]
+                })
+                .to_string()
+            })
+            .await
     }
 }
 
